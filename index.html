@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>スマモン (SmaMon)</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- 1. ローディング画面 -->
+  <div id="screen-loading" class="screen">
+    <div class="logo-title">スマモン</div>
+    <div class="loading-bar-track"><div id="loading-bar-fill" class="loading-bar-fill"></div></div>
+    <div class="loading-label">Loading...</div>
+  </div>
+
+  <!-- 2. ログイン / 新規登録画面 -->
+  <div id="screen-auth" class="screen hidden">
+    <div class="logo-title small">スマモン</div>
+    <div class="auth-box">
+      <input type="text" id="auth-username" class="auth-input" placeholder="ユーザー名（半角英数字と_）" maxlength="20" autocomplete="username">
+      <input type="password" id="auth-password" class="auth-input" placeholder="パスワード（6文字以上）" maxlength="50" autocomplete="current-password">
+      <div id="auth-error" class="auth-error hidden"></div>
+      <button id="btn-auth-login" class="menu-btn">ログイン</button>
+      <button id="btn-auth-signup" class="menu-btn auth-signup-btn">はじめて遊ぶ（新規登録）</button>
+    </div>
+  </div>
+
+  <!-- 3. スタート画面 -->
+  <div id="screen-start" class="screen hidden">
+    <div class="logo-title">スマモン</div>
+    <div class="tap-start">TAP START</div>
+  </div>
+
+  <!-- 4. ホーム画面 -->
+  <div id="screen-home" class="screen hidden">
+    <div class="logo-title small">スマモン</div>
+    <div class="menu-list">
+      <button class="menu-btn" id="btn-cpu">CPU戦</button>
+      <button class="menu-btn" id="btn-multi">マルチ</button>
+      <button class="menu-btn" id="btn-training">キャラクター育成</button>
+      <button class="menu-btn" id="btn-gacha">ガチャ</button>
+    </div>
+    <div id="home-username" class="home-username"></div>
+    <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
+  </div>
+
+  <!-- 5. 地形選択 -->
+  <div id="screen-stage-select" class="screen hidden">
+    <div class="screen-heading">地形選択</div>
+    <div id="stage-list" class="card-list"></div>
+    <button class="back-btn" data-back="home">戻る</button>
+  </div>
+
+  <!-- 6. ファイター選択（CPU戦は1P/CPUのおはじきをファイターへ配置する） -->
+  <div id="screen-fighter-select" class="screen hidden">
+    <div class="screen-heading" id="fighter-select-heading">ファイター選択</div>
+    <div id="token-bar" class="token-bar hidden"></div>
+    <div id="fighter-list" class="card-list"></div>
+    <button id="btn-fight-start" class="fight-start-btn hidden">FIGHT!</button>
+    <button class="back-btn" data-back="stage-select">戻る</button>
+  </div>
+
+  <!-- 6.5 CPUレベル選択（CPU戦のみ） -->
+  <div id="screen-cpu-level" class="screen hidden">
+    <div class="screen-heading">CPUレベルを選択</div>
+    <div id="cpu-level-list" class="level-grid"></div>
+    <button class="back-btn" data-back="fighter-select">戻る</button>
+  </div>
+
+  <!-- 6.6 バトル開幕演出（Loading→FIGHT!） -->
+  <div id="screen-battle-intro" class="screen hidden">
+    <div id="battle-intro-loading" class="loading-label">Loading...</div>
+    <div id="battle-intro-fight" class="fight-callout hidden">FIGHT !</div>
+  </div>
+
+  <!-- 7. バトル画面 -->
+  <div id="screen-battle" class="screen hidden">
+    <div id="game-container">
+      <canvas id="gameCanvas" width="1400" height="1000"></canvas>
+      <div id="hud"></div>
+    </div>
+  </div>
+
+  <!-- 8. リザルト画面 -->
+  <div id="screen-result" class="screen hidden">
+    <div class="screen-heading">RESULT</div>
+    <div id="result-podium" class="result-podium"></div>
+    <div id="result-masmon-panel" class="result-masmon-panel hidden"></div>
+    <button id="btn-result-continue" class="menu-btn result-continue-btn">ホームへ戻る</button>
+  </div>
+
+  <div id="orientation-overlay">横向きにしてください</div>
+
+  <script type="module" src="js/firebase-init.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/moves.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/fighter.js"></script>
+  <script src="js/fighters-data.js"></script>
+  <script src="js/stage.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/cpu-ai.js"></script>
+  <script src="js/growth-system.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/flow.js"></script>
+</body>
+</html>
