@@ -3,7 +3,7 @@ class Fighter {
   // options: { grabRange, name, spriteSrc, hurtboxWidth, hurtboxHeight, spriteContentBox }
   // hurtboxWidth/hurtboxHeight: 画像を解析して算出した「実際のキャラクター本体」のサイズ（世界座標単位）
   // spriteContentBox: 元画像ピクセル座標での本体bbox（影・余白を除く）。{left, top, right, bottom}
-  //   → これが無いスプライトは簡易フォールバック表示になる（アオドラゴン等、画像未提供のファイター）
+  //   → これが無いスプライトは簡易フォールバック表示になる
   constructor(id, stats, color, spawn, options) {
     options = options || {};
     this.id = id;
@@ -11,6 +11,7 @@ class Fighter {
     this.stats = stats;
     this.color = color;
     this.spawn = spawn;
+    this.stockIconSrc = options.stockIconSrc || null;
 
     // 当たり判定サイズ：画像を解析した実寸。未指定時は基準サイズにフォールバック。
     this.w = options.hurtboxWidth || CONFIG.BASE_HURTBOX_W;

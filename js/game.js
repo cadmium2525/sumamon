@@ -89,20 +89,25 @@ function checkLedges() {
 
 function updateHUD() {
   hud.innerHTML = players.map(p => {
+    const stockIconStyle = p.stockIconSrc
+      ? `background-image:url('${p.stockIconSrc}')`
+      : '';
     const stockDots = Array.from({ length: Math.max(0, p.stocks) })
-      .map(() => `<span class="phud-stock-dot"></span>`).join('');
+      .map(() => `<span class="phud-stock-dot" style="${stockIconStyle}"></span>`).join('');
     const shieldPct = Math.max(0, Math.floor(p.shieldHP));
+    const damage = Math.floor(p.damagePercent);
+    const damageTone = damage >= 120 ? 'danger' : damage >= 60 ? 'warning' : 'normal';
     const iconStyle = (p.sprite && p.spriteLoaded)
-      ? `background:${p.color} url(${p.sprite.src}) center/cover no-repeat`
+      ? `background:${p.color} url(${p.sprite.src}) center bottom/contain no-repeat`
       : `background:${p.color}`;
     return `
-      <div class="phud" style="color:${p.color}; border-color:${p.color}">
+      <div class="phud" style="--fighter-color:${p.color}">
         <div class="phud-icon" style="${iconStyle}"></div>
         <div class="phud-info">
-          <div class="phud-name">${p.name}</div>
-          <div class="phud-percent">${Math.floor(p.damagePercent)}<span class="pct-sign">%</span></div>
-          <div class="phud-stocks">${stockDots}</div>
+          <div class="phud-topline"><span class="phud-player">${p.hudLabel || p.id.toUpperCase()}</span><div class="phud-stocks">${stockDots}</div></div>
+          <div class="phud-percent ${damageTone}">${damage}<span class="pct-sign">%</span></div>
           <div class="phud-shield-bar"><div class="phud-shield-fill" style="width:${shieldPct}%"></div></div>
+          <div class="phud-name">${p.name}</div>
         </div>
       </div>
     `;
@@ -183,12 +188,20 @@ window.startBattle = function startBattle(options) {
   Stage.load(stageData.key);
 
   const p1Def = FIGHTERS[options.p1Key] || FIGHTERS.irumine;
-  const p2Def = FIGHTERS[options.p2Key] || FIGHTERS.aodoragon;
+  const p2Def = FIGHTERS[options.p2Key] || FIGHTERS.dullahan || FIGHTERS.irumine;
 
-  function buildOptions(def) {
+  const p1Masmon = options.p1MasmonId
+    ? MasmonStore.loadAll().find(m => m.id === options.p1MasmonId)
+    : null;
+  const p2Masmon = options.p2MasmonId
+    ? MasmonStore.loadAll().find(m => m.id === options.p2MasmonId)
+    : null;
+
+  function buildOptions(def, masmon) {
     return {
       grabRange: def.grabRange,
-      name: def.displayName,
+      name: masmon ? masmon.name : def.displayName,
+      stockIconSrc: def.stockIcon,
       spriteSrc: def.idleImage,
       hurtboxWidth: def.hurtboxWidth,
       hurtboxHeight: def.hurtboxHeight,
@@ -205,23 +218,26 @@ window.startBattle = function startBattle(options) {
     };
   }
 
-  function resolveP1Stats() {
-    if (options.p1MasmonId) {
-      const record = MasmonStore.loadAll().find(m => m.id === options.p1MasmonId);
-      if (record) {
-        return GROWTH.computeStatsAtLevel(defaultStats(), record.aptitudes, record.level);
-      }
+  function resolveStats(def, masmon) {
+    if (masmon) {
+      return GROWTH.computeStatsAtLevel(
+        { ...defaultStats(), trainingStats: masmon.trainingStats },
+        masmon.aptitudes,
+        masmon.level,
+      );
     }
-    return p1Def.stats ? { ...defaultStats(), ...p1Def.stats } : defaultStats();
+    return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
   }
 
   window._matchOver = false;
   players = [
-    new Fighter('p1', resolveP1Stats(),
-      p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def)),
-    new Fighter('p2', p2Def.stats ? { ...defaultStats(), ...p2Def.stats } : defaultStats(),
-      p2Def.color, Stage.spawnPoints[1], buildOptions(p2Def)),
+    new Fighter('p1', resolveStats(p1Def, p1Masmon),
+      p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon)),
+    new Fighter('p2', resolveStats(p2Def, p2Masmon),
+      p2Def.color, Stage.spawnPoints[1], buildOptions(p2Def, p2Masmon)),
   ];
+  players[0].hudLabel = '1P';
+  players[1].hudLabel = options.mode === 'cpu' ? 'CPU' : '2P';
 
   // カメラを両者のスポーン中間点にリセット（前の試合の位置から急に飛ぶのを防ぐ）
   const midX = (Stage.spawnPoints[0].x + Stage.spawnPoints[1].x) / 2;

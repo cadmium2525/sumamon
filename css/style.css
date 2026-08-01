@@ -34,57 +34,84 @@ html, body {
 
 #hud {
   position: absolute;
-  bottom: clamp(2px, 1.2vh, 8px);
-  left: clamp(4px, 1.5vw, 14px);
+  bottom: clamp(5px, 1.5vh, 12px);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  justify-content: flex-start;
-  gap: clamp(4px, 1vw, 10px);
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: clamp(22px, 5vw, 80px);
+  width: min(54vw, 760px);
   pointer-events: none;
+  z-index: 20;
 }
 
 .phud {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: clamp(3px, 0.6vh, 5px);
-  background: rgba(10,10,10,0.55);
-  border: 2px solid rgba(255,255,255,0.25);
-  border-radius: clamp(4px, 0.8vh, 8px);
-  padding: clamp(2px, 0.5vh, 3px) clamp(5px, 1.2vw, 8px) clamp(2px, 0.5vh, 3px) clamp(2px, 0.5vh, 3px);
+  align-items: flex-end;
+  gap: clamp(4px, .8vw, 10px);
+  min-width: 0;
+  width: min(23vw, 320px);
+  height: clamp(62px, 12vh, 105px);
+  padding: 0 clamp(5px, .8vw, 10px) clamp(3px, .6vh, 6px) 0;
   color: #fff;
-  text-shadow: 1px 1px 2px #000;
-  width: clamp(80px, 11vw, 140px); /* 4人時も均等な幅になるよう固定 */
-  box-sizing: border-box;
+  text-shadow: 1px 2px 3px #000, 0 0 4px #000;
+  background: linear-gradient(90deg, rgba(8,10,15,.88), rgba(8,10,15,.62));
+  border-bottom: clamp(3px, .7vh, 6px) solid var(--fighter-color);
+  transform: skewX(-5deg);
+  filter: drop-shadow(0 3px 3px rgba(0,0,0,.7));
 }
+.phud:nth-child(2) { flex-direction: row-reverse; padding-right: 0; padding-left: clamp(5px, .8vw, 10px); background: linear-gradient(270deg, rgba(8,10,15,.88), rgba(8,10,15,.62)); transform: skewX(5deg); }
+.phud > * { transform: skewX(5deg); }
+.phud:nth-child(2) > * { transform: skewX(-5deg); }
 
 .phud-icon {
-  width: clamp(12px, 2.2vh, 20px);
-  height: clamp(12px, 2.2vh, 20px);
-  border-radius: 4px;
+  width: clamp(50px, 7vw, 92px);
+  height: clamp(58px, 12vh, 105px);
   flex-shrink: 0;
+  border-radius: 50% 50% 8px 8px;
+  border: 2px solid rgba(255,255,255,.5);
+  box-shadow: inset 0 0 12px rgba(0,0,0,.45);
 }
 
-.phud-info { display: flex; flex-direction: column; line-height: 1.05; }
-.phud-name { font-size: clamp(6px, 1.1vh, 8px); letter-spacing: 0.03em; opacity: 0.9; }
-.phud-percent { font-size: clamp(9px, 1.8vh, 14px); font-weight: 800; }
-.phud-percent .pct-sign { font-size: 0.65em; font-weight: 600; }
-.phud-stocks { display: flex; gap: 2px; margin-top: 1px; }
+.phud-info { display: flex; flex: 1; min-width: 0; flex-direction: column; justify-content: flex-end; line-height: 1; }
+.phud-topline { display: flex; justify-content: space-between; align-items: center; min-height: 12px; }
+.phud-player { padding: 2px 5px; color: #111; background: var(--fighter-color); border-radius: 3px; font-size: clamp(7px, 1.2vh, 10px); font-weight: 900; text-shadow: none; }
+.phud-name { margin-top: 2px; padding: 2px 5px; overflow: hidden; color: #fff; background: rgba(0,0,0,.72); font-size: clamp(8px, 1.5vh, 13px); font-weight: 800; letter-spacing: .04em; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.phud-percent { color: #f5f5f5; font-size: clamp(28px, 7vh, 58px); font-weight: 950; letter-spacing: -.06em; }
+.phud-percent.warning { color: #ffd23f; }
+.phud-percent.danger { color: #ff3b30; }
+.phud-percent .pct-sign { margin-left: 2px; font-size: .38em; font-weight: 900; letter-spacing: 0; }
+.phud-stocks { display: flex; gap: 3px; }
 .phud-stock-dot {
-  width: clamp(3px, 0.7vh, 5px);
-  height: clamp(3px, 0.7vh, 5px);
+  width: clamp(18px, 3.5vh, 28px);
+  height: clamp(18px, 3.5vh, 28px);
   border-radius: 50%;
-  background: currentColor;
+  background: var(--fighter-color);
+  background-position: center;
+  background-size: cover;
+  border: 1px solid rgba(255,255,255,.85);
+  box-shadow: 0 1px 3px rgba(0,0,0,.8);
 }
 .phud-shield-bar {
-  width: clamp(26px, 4.5vh, 42px);
-  height: 3px;
+  width: 100%;
+  height: clamp(3px, .7vh, 5px);
   background: rgba(255,255,255,0.2);
-  border-radius: 2px;
-  margin-top: 2px;
+  border-radius: 3px;
+  margin-top: 0;
   overflow: hidden;
 }
 .phud-shield-fill {
   height: 100%;
   background: #5ec8ff;
+}
+
+@media (max-width: 760px), (max-height: 430px) {
+  #hud { width: min(58vw, 520px); gap: 12px; }
+  .phud { width: 27vw; height: 64px; }
+  .phud-icon { width: 48px; height: 64px; }
+  .phud-percent { font-size: 30px; }
 }
 
 #orientation-overlay {
@@ -116,6 +143,7 @@ html, body {
   background: radial-gradient(ellipse at center, #23324a 0%, #0c1220 100%);
 }
 .screen.hidden { display: none; }
+.scrollable-screen { justify-content: flex-start; overflow-y: auto; padding: clamp(14px, 3vh, 28px) 12px; }
 
 .logo-title {
   font-size: clamp(28px, 6vw, 56px);
@@ -170,17 +198,87 @@ html, body {
   color: #fff;
 }
 .auth-input::placeholder { color: rgba(255,255,255,0.45); }
+.auth-remember { display: flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; }
+.auth-remember input { width: 16px; height: 16px; }
+.auth-storage-note { margin-top: -7px; font-size: 10px; color: #ffd08a; opacity: .8; }
 .auth-error {
   color: #ff6b6b;
   font-size: 13px;
   line-height: 1.4;
 }
 .auth-signup-btn { background: rgba(94,200,255,0.15); }
-.home-username {
-  margin-top: 18px;
-  font-size: 12px;
-  opacity: 0.6;
-  cursor: pointer;
+.home-profile-card {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(310px, 58vw);
+  padding: 5px 9px 5px 5px;
+  border: 1px solid rgba(171,226,255,.8);
+  border-radius: 8px 18px 18px 8px;
+  color: #fff;
+  background: linear-gradient(90deg, rgba(7,25,45,.96), rgba(8,44,63,.86));
+  box-shadow: 0 2px 8px rgba(0,0,0,.55);
+  text-align: left;
+  z-index: 5;
+}
+.home-profile-card > img { width: 48px; height: 48px; flex: 0 0 auto; border: 2px solid #b8ecff; border-radius: 7px; object-fit: cover; }
+.home-profile-info, .home-profile-name, .home-breeder-line, .home-profile-currency { display: flex; }
+.home-profile-info { min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.home-profile-name { align-items: baseline; gap: 4px; }
+.home-profile-name b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.home-profile-name small { flex: 0 0 auto; opacity: .65; font-size: 8px; }
+.home-breeder-line { justify-content: space-between; gap: 8px; font-size: 9px; }
+.home-breeder-line small { opacity: .72; }
+.home-breeder-exp { display: block; height: 5px; overflow: hidden; border-radius: 4px; background: rgba(255,255,255,.18); }
+.home-breeder-exp i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #3be36f, #b8ff58); }
+.home-profile-currency { justify-content: space-between; color: #a9edff; font-size: 9px; }
+.home-profile-currency b:last-child { color: #ffd98a; }
+
+/* ==== ホーム画面背景 ==== */
+#screen-home {
+  background:
+    linear-gradient(rgba(4,18,36,.18), rgba(4,14,28,.48)),
+    url('../assets/images/home.png') center center / cover no-repeat;
+}
+#screen-home .home-logo {
+  width: 525px;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  flex-shrink: 0;
+  margin-bottom: clamp(8px, 2vh, 18px);
+  object-fit: contain;
+  object-position: center;
+  border-radius: 12px;
+  position: relative;
+  top: 4px;
+}
+#screen-home .menu-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 12px;
+  width: min(64vw, 620px);
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(5,20,40,.28);
+  backdrop-filter: blur(2px);
+  position: relative;
+  top: 8px;
+}
+#screen-home .menu-btn {
+  min-height: 54px;
+  background: rgba(5,24,48,.78);
+  border-color: rgba(255,255,255,.72);
+  box-shadow: 0 3px 9px rgba(0,0,0,.45);
+}
+
+@media (max-height: 480px) {
+  #screen-home .home-logo { margin-bottom: 4px; top: 2px; }
+  #screen-home .menu-list { width: min(66vw, 600px); padding: 8px; gap: 8px; top: 0; }
+  #screen-home .menu-btn { min-height: 44px; padding: 8px 14px; }
 }
 
 .menu-list {
@@ -204,13 +302,13 @@ html, body {
 
 .icon-btn-corner {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
   border: none;
-  background: rgba(0,0,0,0.35);
+  background: rgba(0,0,0,0.4);
   color: #fff;
   font-size: 16px;
 }
@@ -254,7 +352,11 @@ html, body {
   font-size: 13px;
   font-weight: 700;
   text-align: left;
+  color: #fff;
+  text-shadow: 0 1px 3px #000, 0 0 4px #000;
 }
+#stage-list .select-card-label { color: #ffe066; background: rgba(0,0,0,.72); }
+#fighter-list .select-card-label { color: #fff; background: rgba(0,0,0,.78); }
 
 .back-btn {
   margin-top: 24px;
@@ -374,17 +476,39 @@ html, body {
   top: 54px;
   right: 12px;
   z-index: 500;
-  width: 260px;
+  width: min(88vw, 360px);
   background: rgba(20,20,20,0.92);
   color: #fff;
   padding: 14px;
   border-radius: 8px;
   pointer-events: auto;
   font-size: 13px;
+  max-height: calc(100vh - 66px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 #vpad-settings-panel.hidden { display: none; }
+#vpad-settings-panel .settings-pane.hidden { display: none; }
 #vpad-settings-panel h3 { margin-bottom: 8px; font-size: 14px; }
 #vpad-settings-panel label { display: block; margin: 8px 0; }
+.settings-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 12px; }
+.settings-tab { padding: 8px 5px; border: 1px solid rgba(255,255,255,.25); border-radius: 6px; color: #fff; background: rgba(255,255,255,.08); }
+.settings-tab.active { color: #09213a; background: #8edbff; font-weight: 800; }
+.profile-field input { display: block; width: 100%; margin-top: 5px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; color: #fff; background: rgba(255,255,255,.08); }
+.profile-icon-label { margin-top: 10px; font-size: 12px; }
+.profile-icon-options { display: flex; gap: 8px; margin-top: 5px; }
+.profile-icon-option { width: 48px; height: 48px; padding: 2px; border: 2px solid transparent; border-radius: 8px; background: rgba(255,255,255,.08); }
+.profile-icon-option.selected { border-color: #8edbff; box-shadow: 0 0 0 2px rgba(142,219,255,.25); }
+.profile-icon-option img { width: 100%; height: 100%; border-radius: 5px; object-fit: cover; }
+.profile-breeder { margin-top: 10px; font-size: 12px; font-weight: 700; }
+.profile-diamonds { margin: 12px 0; padding: 9px; border-radius: 7px; color: #9cecff; background: rgba(80,190,255,.12); font-weight: 800; }
+#cfg-profile-save { padding: 7px 18px; border: none; border-radius: 6px; color: #082139; background: #8edbff; font-weight: 800; }
+.profile-message { min-height: 18px; margin-top: 6px; color: #8ff0ad; font-size: 11px; }
+.profile-future { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12); opacity: .55; font-size: 10px; }
+.diamond-reward { margin-top: 8px; color: #9cecff; font-size: 15px; font-weight: 900; }
+.breeder-reward { margin-top: 4px; color: #b8ff8a; font-size: 12px; font-weight: 700; }
 #vpad-settings-panel button#vpad-settings-close {
   margin-top: 8px;
   padding: 6px 12px;
@@ -415,11 +539,15 @@ html, body {
   border: 3px solid rgba(255,255,255,0.5);
   box-shadow: 0 2px 6px rgba(0,0,0,0.4);
   transition: transform 0.12s ease-out;
+  touch-action: none;
+  user-select: none;
 }
 .token-1p { background: #ff4757; color: #fff; }
 .token-cpu { background: #f5f5f5; color: #222; }
 .token.picked { transform: scale(1.2); box-shadow: 0 0 0 4px rgba(255,255,255,0.7); }
 .token.placed { opacity: 0.35; }
+.token.dragging { z-index: 1000; opacity: 1; transition: none; cursor: grabbing; }
+.select-card.token-drop-target { border-color: #ffe066; box-shadow: 0 0 0 4px rgba(255,224,102,.45); }
 
 .select-card { position: relative; }
 .card-token-badge {
@@ -548,3 +676,59 @@ html, body {
 .result-masmon-panel .rm-no { background: #555; color: #fff; }
 
 .result-continue-btn { margin-top: 26px; width: auto; padding: 10px 30px; }
+
+/* ==== マスモン管理・トレーニング ==== */
+.masmon-manage-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: min(94vw, 760px); }
+.masmon-manage-card { display: flex; align-items: center; gap: 10px; width: 220px; padding: 8px; color: #fff; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.25); border-radius: 10px; text-align: left; }
+.masmon-manage-card.selected { border-color: #ffd54a; background: rgba(255,213,74,.14); }
+.masmon-thumb { width: 54px; height: 54px; flex: 0 0 auto; border-radius: 8px; background-size: cover; background-position: center top; }
+.masmon-manage-card small { display: block; margin-top: 4px; opacity: .75; }
+.masmon-action-panel { margin-top: 16px; text-align: center; }
+.masmon-action-panel.hidden { display: none; }
+.selected-masmon-name { margin-bottom: 8px; font-weight: 700; }
+.masmon-actions { display: flex; gap: 8px; }
+.masmon-actions button, .training-card { padding: 10px 14px; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; background: rgba(255,255,255,.1); }
+.training-summary { width: min(94vw, 650px); padding: 10px 14px; background: rgba(0,0,0,.3); border-radius: 10px; text-align: center; }
+.ticket-count { margin-left: 16px; color: #ffd54a; }
+.stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
+.stat-grid span { font-size: 11px; }
+.stat-grid b, .stat-grid small { display: block; }
+.stat-grid b { font-size: 16px; }
+.stat-grid small { opacity: .7; }
+.stat-grid em { display: block; margin-top: 3px; color: #9edcff; font-size: 10px; font-style: normal; white-space: nowrap; }
+.training-list { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 8px; width: min(94vw, 650px); margin-top: 12px; }
+.training-card { text-align: left; }
+.training-card strong, .training-card small { display: block; }
+.training-card small { margin-top: 3px; opacity: .75; }
+.training-card:disabled { opacity: .4; }
+.training-message { min-height: 20px; margin-top: 8px; color: #ffd54a; font-weight: 700; }
+.empty-message { padding: 20px; opacity: .75; }
+
+/* トレーニング項目が縦に伸びても「戻る」を常に操作できる位置へ固定する */
+#screen-training { padding-bottom: 72px; }
+#screen-training > .back-btn {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 20;
+  margin-top: 0;
+  background: rgba(12,18,32,.94);
+  box-shadow: 0 2px 10px rgba(0,0,0,.45);
+}
+
+/* 横画面の高さが小さくても登録フォームと操作ボタンを画面内でスクロール可能にする */
+.result-screen { padding-top: 10px; padding-bottom: 16px; }
+.result-screen .screen-heading { margin-bottom: 4px; }
+.result-screen .result-podium { min-height: 0; flex: 0 0 auto; }
+.result-screen .result-masmon-panel { margin-top: 10px; }
+.result-screen .result-continue-btn { margin-top: 10px; flex: 0 0 auto; }
+
+@media (max-height: 520px) {
+  .result-podium[data-count] .result-entry-portrait { width: 88px; height: 88px; }
+  .result-entry[data-rank] { transform: none; }
+  .result-entry-rank { margin-top: 3px; }
+  .result-masmon-panel { padding: 9px 14px; }
+  .training-list { grid-template-columns: repeat(5, minmax(115px, 1fr)); width: min(96vw, 900px); }
+  .training-card { padding: 7px 9px; }
+  .scrollable-screen .screen-heading { margin-bottom: 8px; }
+}

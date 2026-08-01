@@ -18,6 +18,7 @@ const FIGHTERS = {
     color: '#ff4757',
     // 選択画面・HUDアイコン等のサムネイル用（代表カットとしてidleコマ1枚目を使用）
     idleImage: 'assets/images/fighter/irumine/idle/frame_001.png',
+    stockIcon: 'assets/images/fighter/irumine/stock.png',
     // idleImageのフォールバック用bbox（アニメ未読込時の簡易表示に使用）
     spriteContentBox: { left: 0, top: 1, right: 209, bottom: 249 },
     hurtboxWidth: 54,
@@ -34,21 +35,12 @@ const FIGHTERS = {
     idleFrameDuration: 8, // 1コマ何フレーム表示するか（60fps想定で約0.13秒/コマ）
     stats: null,
   },
-  aodoragon: {
-    key: 'aodoragon',
-    displayName: 'アオドラゴン',
-    color: '#1e90ff',
-    idleImage: null,       // 画像未提供のため色矩形で表示
-    spriteContentBox: null,
-    hurtboxWidth: 36,      // 画像未提供時は基準サイズを使用
-    hurtboxHeight: 54,
-    stats: { power: 16, defense: 6, evasion: 14 },
-  },
   dullahan: {
     key: 'dullahan',
     displayName: 'デュラハン',
     color: '#f1c40f',
     idleImage: 'assets/images/fighter/dullahan/idle.png',
+    stockIcon: 'assets/images/fighter/dullahan/stock.png',
     // 元画像(338x518)を解析した本体bbox（影なし、ほぼ全体）
     spriteContentBox: { left: 2, top: 1, right: 336, bottom: 517 },
     hurtboxWidth: 39,

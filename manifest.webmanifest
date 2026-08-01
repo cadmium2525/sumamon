@@ -1,0 +1,20 @@
+{
+  "name": "スマモン",
+  "short_name": "スマモン",
+  "description": "マスモンを育てて戦うリアルタイムアクションゲーム",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#071a2e",
+  "theme_color": "#071a2e",
+  "icons": [
+    {
+      "src": "assets/images/app-icon.png",
+      "sizes": "1536x1536",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ import {
   signOut,
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDzjPtXF6Rx_CtGT20gFuYbV0WAt0lHGsc",
@@ -105,7 +105,7 @@ window.FirebaseAuth = {
 };
 
 // マスモンデータ保存用（users/{uid}/monsters/{monsterId}）。growth-system.jsのMasmonStoreから使用する。
-window.FirebaseDB = { db, collection, doc, getDocs, setDoc };
+window.FirebaseDB = { db, collection, doc, getDoc, getDocs, setDoc };
 
 // 他のスクリプト（flow.js等、非moduleの通常scriptとして先に読み込まれる）に準備完了を知らせる
 window.dispatchEvent(new CustomEvent('firebase-auth-ready'));

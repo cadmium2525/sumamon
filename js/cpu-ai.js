@@ -49,6 +49,23 @@ class CPUController {
     const self = this.fighter;
     if (self.dead || this.opponent.dead) return this._blankInput();
 
+    // 崖つかまりは通常の意思決定間隔を待たず、毎フレーム最優先で復帰する。
+    // 直前の空入力を保持して崖にぶら下がり続ける状態を防ぐ。
+    if (self.onLedge) {
+      this.decisionCooldown = 0;
+      this.currentIntent = this._blankInput();
+      const input = this._blankInput();
+      if (self.onLedge.edge === 'left') {
+        input.right = true;
+        input.stickX = 1;
+      } else {
+        input.left = true;
+        input.stickX = -1;
+      }
+      input.up = true;
+      return input;
+    }
+
     if (this.decisionCooldown > 0) {
       this.decisionCooldown--;
     } else {

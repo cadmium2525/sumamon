@@ -8,6 +8,23 @@ const GROWTH = {
   STAT_MAX: 999,
   STAT_KEYS: ['life', 'power', 'intelligence', 'accuracy', 'evasion', 'defense'],
   RANKS: ['E', 'D', 'C', 'B', 'A'],
+  APTITUDE_MULTIPLIER: { E: 0.6, D: 0.8, C: 1.0, B: 1.25, A: 1.5 },
+  FIXED_APTITUDES: {
+    irumine: { life: 'C', power: 'A', intelligence: 'D', accuracy: 'B', evasion: 'A', defense: 'D' },
+    dullahan: { life: 'C', power: 'B', intelligence: 'B', accuracy: 'A', evasion: 'E', defense: 'B' },
+  },
+  TRAINING_MENU: {
+    running: { name: '走り込み', changes: { life: 3 } },
+    domino: { name: 'ドミノ倒し', changes: { power: 3 } },
+    study: { name: '猛勉強', changes: { intelligence: 3 } },
+    shooting: { name: 'しゃてき', changes: { accuracy: 3 } },
+    boulderDodge: { name: '巨石よけ', changes: { evasion: 3 } },
+    logBlock: { name: '丸太うけ', changes: { defense: 3 } },
+    weightPull: { name: '重り引き', changes: { power: 5, life: 2, evasion: -1 } },
+    meditation: { name: 'めいそう', changes: { intelligence: 5, accuracy: 2, defense: -1 } },
+    shiftingFloor: { name: '変動ゆか', changes: { evasion: 5, intelligence: 2, power: -1 } },
+    pool: { name: 'プール', changes: { defense: 5, life: 2, intelligence: -1 } },
+  },
 
   // 適正ランクごとの「レベル1あたりの伸び幅」（控えめな値。カンストの999にはまず届かない）
   RANK_GROWTH_PER_LEVEL: { E: 0.5, D: 1.0, C: 1.6, B: 2.3, A: 3.2 },
@@ -26,6 +43,10 @@ const GROWTH = {
     return apt;
   },
 
+  aptitudesFor(baseFighterKey) {
+    return { ...(this.FIXED_APTITUDES[baseFighterKey] || this.randomAptitudes()) };
+  },
+
   // baseStats(Lv1時点の素の値) + 適正 + 現在レベル から、そのレベル時点のステータスを算出
   computeStatsAtLevel(baseStats, aptitudes, level) {
     const result = {};
@@ -33,7 +54,8 @@ const GROWTH = {
       const base = baseStats[key] || 0;
       const growth = this.RANK_GROWTH_PER_LEVEL[aptitudes[key] || 'C'];
       const grown = base + growth * (level - 1);
-      result[key] = Math.min(this.STAT_MAX, Math.round(grown));
+      const trained = (baseStats.trainingStats && baseStats.trainingStats[key]) || 0;
+      result[key] = Math.max(1, Math.min(this.STAT_MAX, Math.round(grown + trained)));
     }
     return result;
   },
@@ -48,7 +70,28 @@ const GROWTH = {
       masmon.level++;
     }
     if (masmon.level >= this.LEVEL_MAX) masmon.exp = 0;
-    return { leveledUp: masmon.level > fromLevel, fromLevel, toLevel: masmon.level };
+    const levelsGained = masmon.level - fromLevel;
+    masmon.trainingTickets = (masmon.trainingTickets || 0) + levelsGained;
+    return { leveledUp: levelsGained > 0, levelsGained, ticketsGained: levelsGained, fromLevel, toLevel: masmon.level };
+  },
+
+  train(masmon, trainingKey) {
+    const training = this.TRAINING_MENU[trainingKey];
+    if (!training) return { ok: false, message: 'トレーニングが見つかりません' };
+    if ((masmon.trainingTickets || 0) < 1) return { ok: false, message: 'トレーニングチケットが足りません' };
+    masmon.trainingStats = masmon.trainingStats || {};
+    const applied = {};
+    for (const [key, baseChange] of Object.entries(training.changes)) {
+      const multiplier = baseChange > 0 ? this.APTITUDE_MULTIPLIER[masmon.aptitudes[key] || 'C'] : 1;
+      const change = baseChange > 0 ? Math.max(1, Math.round(baseChange * multiplier)) : baseChange;
+      const current = masmon.trainingStats[key] || 0;
+      const minBonus = -(defaultStats()[key] - 1);
+      const next = Math.max(minBonus, Math.min(this.STAT_MAX, current + change));
+      applied[key] = next - current;
+      masmon.trainingStats[key] = next;
+    }
+    masmon.trainingTickets--;
+    return { ok: true, training, applied };
   },
 
   // 対戦結果からEXP量を算出（暫定式）
@@ -77,7 +120,7 @@ const MasmonStore = {
     const { db, collection, getDocs } = window.FirebaseDB;
     try {
       const snap = await getDocs(collection(db, 'users', uid, 'monsters'));
-      this.cache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      this.cache = snap.docs.map(d => this._normalize({ id: d.id, ...d.data() }));
     } catch (e) {
       console.error('マスモンの読み込みに失敗しました:', e);
       this.cache = [];
@@ -96,6 +139,19 @@ const MasmonStore = {
     return this.cache;
   },
 
+  _normalize(record) {
+    record.level = record.level || 1;
+    record.exp = record.exp || 0;
+    record.trainingTickets = record.trainingTickets || 0;
+    record.trainingStats = record.trainingStats || {};
+    if (GROWTH.FIXED_APTITUDES[record.baseFighterKey]) {
+      record.aptitudes = { ...GROWTH.FIXED_APTITUDES[record.baseFighterKey] };
+    } else if (!record.aptitudes) {
+      record.aptitudes = GROWTH.randomAptitudes();
+    }
+    return record;
+  },
+
   // Firestoreへ非同期で保存する（通信失敗時もゲーム進行は止めず、エラーはログにのみ残す）
   _persist(record) {
     if (!window.FirebaseDB || !this.currentUid) return;
@@ -112,7 +168,9 @@ const MasmonStore = {
       baseFighterKey,
       level: 1,
       exp: 0,
-      aptitudes: GROWTH.randomAptitudes(),
+      trainingTickets: 0,
+      trainingStats: {},
+      aptitudes: GROWTH.aptitudesFor(baseFighterKey),
       createdAt: new Date().toISOString(),
     };
     this.cache.push(record);
@@ -124,5 +182,100 @@ const MasmonStore = {
     const idx = this.cache.findIndex(m => m.id === record.id);
     if (idx >= 0) this.cache[idx] = record; else this.cache.push(record);
     this._persist(record);
+  },
+};
+
+// ==== ユーザープロフィール（ニックネーム・ゲーム内通貨） ====
+const UserProfileStore = {
+  currentUid: null,
+  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0 },
+
+  _localKey(uid) { return `smamon_profile_${uid}`; },
+
+  async load(uid, defaultNickname) {
+    this.currentUid = uid;
+    let local = null;
+    try { local = JSON.parse(localStorage.getItem(this._localKey(uid))); } catch (e) { /* ignore */ }
+    this.data = {
+      nickname: (local && local.nickname) || defaultNickname || '',
+      diamonds: Math.max(0, Number(local && local.diamonds) || 0),
+      iconKey: (local && local.iconKey) || 'irumine',
+      breederLevel: Math.max(1, Number(local && local.breederLevel) || 1),
+      breederExp: Math.max(0, Number(local && local.breederExp) || 0),
+      practiceTickets: Math.max(0, Number(local && local.practiceTickets) || 0),
+    };
+    if (window.FirebaseDB) {
+      const { db, doc, getDoc } = window.FirebaseDB;
+      try {
+        const snap = await getDoc(doc(db, 'users', uid, 'profile', 'main'));
+        if (snap.exists()) {
+          const remote = snap.data();
+          this.data = {
+            nickname: remote.nickname || this.data.nickname,
+            diamonds: Math.max(0, Number(remote.diamonds) || 0),
+            iconKey: remote.iconKey || this.data.iconKey,
+            breederLevel: Math.max(1, Number(remote.breederLevel) || this.data.breederLevel),
+            breederExp: Math.max(0, Number(remote.breederExp) || 0),
+            practiceTickets: Math.max(0, Number(remote.practiceTickets) || 0),
+          };
+          this._saveLocal();
+        }
+      } catch (e) {
+        console.error('プロフィールの読み込みに失敗しました:', e);
+      }
+    }
+    return this.data;
+  },
+
+  clear() {
+    this.currentUid = null;
+    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0 };
+  },
+
+  _saveLocal() {
+    if (!this.currentUid) return;
+    try { localStorage.setItem(this._localKey(this.currentUid), JSON.stringify(this.data)); } catch (e) { /* ignore */ }
+  },
+
+  save() {
+    this._saveLocal();
+    if (!window.FirebaseDB || !this.currentUid) return;
+    const { db, doc, setDoc } = window.FirebaseDB;
+    setDoc(doc(db, 'users', this.currentUid, 'profile', 'main'), this.data)
+      .catch(e => console.error('プロフィールの保存に失敗しました:', e));
+  },
+
+  setNickname(nickname) {
+    this.data.nickname = nickname.trim().slice(0, 16);
+    this.save();
+  },
+
+  setIcon(iconKey) {
+    this.data.iconKey = ['irumine', 'dullahan'].includes(iconKey) ? iconKey : 'irumine';
+    this.save();
+  },
+
+  breederExpForLevel(level) {
+    return 100 + (level - 1) * 25;
+  },
+
+  addBreederExp(amount) {
+    const fromLevel = this.data.breederLevel || 1;
+    this.data.breederExp = (this.data.breederExp || 0) + amount;
+    let ticketsGained = 0;
+    while (this.data.breederExp >= this.breederExpForLevel(this.data.breederLevel)) {
+      this.data.breederExp -= this.breederExpForLevel(this.data.breederLevel);
+      this.data.breederLevel++;
+      if (this.data.breederLevel % 5 === 0) ticketsGained++;
+    }
+    this.data.practiceTickets = (this.data.practiceTickets || 0) + ticketsGained;
+    this.save();
+    return { fromLevel, toLevel: this.data.breederLevel, ticketsGained, expGained: amount };
+  },
+
+  addDiamonds(amount) {
+    this.data.diamonds = Math.max(0, (Number(this.data.diamonds) || 0) + amount);
+    this.save();
+    return this.data.diamonds;
   },
 };

@@ -6,6 +6,7 @@ const AppFlow = {
   selectedMode: null,     // 'cpu' | 'multi'
   selectedStageKey: null,
   selectedCpuLevel: 3,
+  selectedManageMasmonId: null,
 
   // トークン配置状態（CPU戦用）。値は { fighterKey, masmonId(nullable) } または null
   tokens: { p1: null, cpu1: null },
@@ -36,7 +37,10 @@ const AppFlow = {
     const user = window.FirebaseAuth.getCurrentUser();
     if (user) {
       this.currentUser = user;
-      await MasmonStore.loadFromFirestore(user.uid);
+      await Promise.all([
+        MasmonStore.loadFromFirestore(user.uid),
+        UserProfileStore.load(user.uid, user.username),
+      ]);
       this.buildFighterList(); // マスモン読み込み完了後に一覧を再構築
       this.showScreen('start');
     } else {
@@ -46,9 +50,10 @@ const AppFlow = {
 
   // 全ファイター/ステージ画像を事前読み込み（読み込み完了後にバトル開始しても即座に表示される）
   preloadAssets(onDone) {
-    const urls = [];
+    const urls = ['assets/images/home.png', 'assets/images/logo.png'];
     Object.values(FIGHTERS).forEach(f => {
       if (f.idleImage) urls.push(f.idleImage);
+      if (f.stockIcon) urls.push(f.stockIcon);
       if (f.walkSheetSrc) urls.push(f.walkSheetSrc);
       if (f.idleFrameSrcs) urls.push(...f.idleFrameSrcs);
     });
@@ -80,15 +85,31 @@ const AppFlow = {
     document.getElementById('screen-' + name).classList.remove('hidden');
 
     const gear = document.getElementById('vpad-settings-toggle');
-    if (gear) gear.style.display = (name === 'loading' || name === 'start' || name === 'auth') ? 'none' : '';
+    // ホームには専用の設定ボタンがあるため、共通の仮想パッド設定ボタンは隠して二重表示を防ぐ
+    if (gear) gear.style.display = ['loading', 'start', 'auth', 'home'].includes(name) ? 'none' : '';
 
-    if (name === 'home') this._updateHomeUsername();
+    if (name === 'home') this._updateHomeProfile();
   },
 
-  _updateHomeUsername() {
-    const el = document.getElementById('home-username');
-    if (!el) return;
-    el.textContent = this.currentUser ? `${this.currentUser.username} でログイン中（タップでログアウト）` : '';
+  _updateHomeProfile() {
+    const nickname = UserProfileStore.data.nickname || (this.currentUser && this.currentUser.username) || '';
+    const level = UserProfileStore.data.breederLevel || 1;
+    const exp = UserProfileStore.data.breederExp || 0;
+    const needed = UserProfileStore.breederExpForLevel(level);
+    document.getElementById('home-nickname').textContent = nickname;
+    document.getElementById('home-breeder-level').textContent = `ブリーダー Lv.${level}`;
+    document.getElementById('home-breeder-exp-text').textContent = `${exp} / ${needed} EXP`;
+    document.getElementById('home-breeder-exp-fill').style.width = `${Math.min(100, exp / needed * 100)}%`;
+    document.getElementById('home-profile-icon').src = this._profileIconSrc(UserProfileStore.data.iconKey);
+    const diamonds = document.getElementById('home-diamonds');
+    if (diamonds) diamonds.textContent = `💎 ${UserProfileStore.data.diamonds || 0}`;
+    document.getElementById('home-practice-tickets').textContent = `修行券 ${UserProfileStore.data.practiceTickets || 0}`;
+  },
+
+  _profileIconSrc(iconKey) {
+    return iconKey === 'dullahan'
+      ? 'assets/images/fighter/dullahan/stock.png'
+      : 'assets/images/fighter/irumine/stock.png';
   },
 
   buildStageList() {
@@ -106,7 +127,7 @@ const AppFlow = {
     const templateCards = Object.values(FIGHTERS).map(f => this._fighterCardHtml({
       fighterKey: f.key, label: f.displayName, img: f.idleImage, color: f.color,
     }));
-    const masmonCards = MasmonStore.loadAll().map(m => {
+    const masmonCards = MasmonStore.loadAll().filter(m => FIGHTERS[m.baseFighterKey]).map(m => {
       const base = FIGHTERS[m.baseFighterKey] || {};
       return this._fighterCardHtml({
         fighterKey: m.baseFighterKey, masmonId: m.id,
@@ -139,12 +160,13 @@ const AppFlow = {
   bindEvents() {
     document.getElementById('screen-start').addEventListener('click', () => this.showScreen('home'));
 
-    document.getElementById('home-username').addEventListener('click', () => {
+    document.getElementById('home-profile-card').addEventListener('click', () => {
       if (!this.currentUser) return;
       if (!confirm('ログアウトしますか？')) return;
       window.FirebaseAuth.logOut().then(() => {
         this.currentUser = null;
         MasmonStore.clearCache();
+        UserProfileStore.clear();
         this.showScreen('auth');
       });
     });
@@ -155,19 +177,15 @@ const AppFlow = {
       this.showScreen('stage-select');
     });
     document.getElementById('btn-multi').addEventListener('click', () => {
-      this.selectedMode = 'multi';
-      this._resetFighterSelectState();
-      // マルチのオンライン対戦マッチングはPhase3で実装予定。現状はローカル動作確認のみ。
-      this.showScreen('stage-select');
+      alert('マルチ対戦は近日実装予定です');
     });
-    document.getElementById('btn-training').addEventListener('click', () => {
-      alert('キャラクター育成（ステータス振り分けトレーニング）は近日実装予定です');
-    });
+    document.getElementById('btn-training').addEventListener('click', () => this.openMasmonManage());
     document.getElementById('btn-gacha').addEventListener('click', () => {
       alert('ガチャは近日実装予定です');
     });
     document.getElementById('btn-home-settings').addEventListener('click', () => {
       vpad.el.settingsPanel.classList.remove('hidden');
+      this.renderSettingsProfile();
     });
 
     document.getElementById('stage-list').addEventListener('click', (e) => {
@@ -183,6 +201,9 @@ const AppFlow = {
     document.getElementById('token-bar').addEventListener('click', (e) => {
       const token = e.target.closest('.token');
       if (!token) return;
+      if (Date.now() < (this.suppressTokenClickUntil || 0)) {
+        return;
+      }
       const id = token.dataset.token;
       this.activeTokenId = (this.activeTokenId === id) ? null : id;
       this._renderTokenBar();
@@ -228,14 +249,125 @@ const AppFlow = {
     document.getElementById('btn-result-continue').addEventListener('click', () => {
       this.showScreen('home');
     });
+
+    document.getElementById('masmon-manage-list').addEventListener('click', (e) => {
+      const card = e.target.closest('[data-manage-masmon]');
+      if (!card) return;
+      this.selectedManageMasmonId = card.dataset.manageMasmon;
+      this.renderMasmonManage();
+    });
+    document.getElementById('masmon-action-panel').addEventListener('click', (e) => {
+      const action = e.target.closest('[data-manage-action]')?.dataset.manageAction;
+      if (action === 'training') this.openTraining();
+      if (action === 'practice') alert('修行は近日実装予定です');
+      if (action === 'skin') alert('スキン変更は近日実装予定です');
+    });
+    document.getElementById('training-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-training]');
+      if (btn) this.performTraining(btn.dataset.training);
+    });
+  },
+
+  openMasmonManage() {
+    const list = MasmonStore.loadAll();
+    if (!list.some(m => m.id === this.selectedManageMasmonId)) this.selectedManageMasmonId = null;
+    this.renderMasmonManage();
+    this.showScreen('masmon-manage');
+  },
+
+  renderMasmonManage() {
+    const list = MasmonStore.loadAll();
+    const listEl = document.getElementById('masmon-manage-list');
+    const panel = document.getElementById('masmon-action-panel');
+    if (!list.length) {
+      listEl.innerHTML = '<div class="empty-message">所持マスモンがいません。CPU戦後に登録できます。</div>';
+      panel.classList.add('hidden');
+      return;
+    }
+    listEl.innerHTML = list.map(m => {
+      const base = FIGHTERS[m.baseFighterKey] || {};
+      const selected = m.id === this.selectedManageMasmonId ? ' selected' : '';
+      const bg = base.idleImage ? `background-image:url('${base.idleImage}')` : `background-color:${base.color || '#333'}`;
+      return `<button class="masmon-manage-card${selected}" data-manage-masmon="${m.id}">
+        <span class="masmon-thumb" style="${bg}"></span><span>${m.name}<small>Lv.${m.level} ／ チケット ${m.trainingTickets || 0}枚</small></span>
+      </button>`;
+    }).join('');
+    const selected = list.find(m => m.id === this.selectedManageMasmonId);
+    panel.classList.toggle('hidden', !selected);
+    panel.innerHTML = selected ? `<div class="selected-masmon-name">${selected.name}に何をしますか？</div>
+      <div class="masmon-actions"><button data-manage-action="training">トレーニング</button><button data-manage-action="practice">修行</button><button data-manage-action="skin">スキン変更</button></div>` : '';
+  },
+
+  openTraining() {
+    if (!this._selectedManageMasmon()) return;
+    this.renderTraining();
+    this.showScreen('training');
+  },
+
+  _selectedManageMasmon() {
+    return MasmonStore.loadAll().find(m => m.id === this.selectedManageMasmonId);
+  },
+
+  renderTraining(message = '') {
+    const m = this._selectedManageMasmon();
+    if (!m) return;
+    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
+    const stats = GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: m.trainingStats }, m.aptitudes, m.level);
+    const effects = {
+      life: '生存力', power: '打撃技の威力', intelligence: '必殺技の威力',
+      accuracy: '攻撃の届く範囲', evasion: '移動速度', defense: '吹っ飛びにくさ',
+    };
+    document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count">🎟 ${m.trainingTickets || 0}枚</span>
+      <div class="stat-grid">${GROWTH.STAT_KEYS.map(k => `<span>${labels[k]} <b>${stats[k]}</b><small>適性 ${m.aptitudes[k]}</small><em>${effects[k]}</em></span>`).join('')}</div>`;
+    document.getElementById('training-list').innerHTML = Object.entries(GROWTH.TRAINING_MENU).map(([key, t]) => {
+      const detail = Object.entries(t.changes).map(([stat, value]) => `${labels[stat]}${value === 5 ? 'が大増加' : value > 0 ? 'が増加' : 'が減少'}`).join('／');
+      return `<button class="training-card" data-training="${key}" ${(m.trainingTickets || 0) < 1 ? 'disabled' : ''}><strong>${t.name}</strong><small>${detail}</small></button>`;
+    }).join('');
+    document.getElementById('training-message').textContent = message;
+  },
+
+  performTraining(trainingKey) {
+    const m = this._selectedManageMasmon();
+    if (!m) return;
+    const result = GROWTH.train(m, trainingKey);
+    if (result.ok) MasmonStore.update(m);
+    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
+    const changes = result.ok ? Object.entries(result.applied).filter(([, v]) => v).map(([k, v]) => `${labels[k]} ${v > 0 ? '+' : ''}${v}`).join('、') : '';
+    this.renderTraining(result.ok ? `${result.training.name}成功！ ${changes}` : result.message);
+    this.renderMasmonManage();
   },
 
   bindAuthEvents() {
     const usernameEl = document.getElementById('auth-username');
     const passwordEl = document.getElementById('auth-password');
+    const rememberEl = document.getElementById('auth-remember');
     const errorEl = document.getElementById('auth-error');
     const loginBtn = document.getElementById('btn-auth-login');
     const signupBtn = document.getElementById('btn-auth-signup');
+    const savedLoginKey = 'smamon_saved_login';
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(savedLoginKey));
+      if (saved && typeof saved.username === 'string' && typeof saved.password === 'string') {
+        usernameEl.value = saved.username;
+        passwordEl.value = saved.password;
+        rememberEl.checked = true;
+      }
+    } catch (e) {
+      localStorage.removeItem(savedLoginKey);
+    }
+
+    const updateSavedLogin = () => {
+      try {
+        if (rememberEl.checked) {
+          localStorage.setItem(savedLoginKey, JSON.stringify({ username: usernameEl.value, password: passwordEl.value }));
+        } else {
+          localStorage.removeItem(savedLoginKey);
+        }
+      } catch (e) {
+        console.warn('ログイン情報を保存できませんでした:', e);
+      }
+    };
 
     const showError = (msg) => {
       errorEl.textContent = msg;
@@ -249,8 +381,12 @@ const AppFlow = {
 
     const onSuccess = async (user) => {
       this.currentUser = user;
+      updateSavedLogin();
       clearError();
-      await MasmonStore.loadFromFirestore(user.uid);
+      await Promise.all([
+        MasmonStore.loadFromFirestore(user.uid),
+        UserProfileStore.load(user.uid, user.username),
+      ]);
       this.buildFighterList();
       this.showScreen('start');
     };
@@ -288,6 +424,33 @@ const AppFlow = {
     });
   },
 
+  renderSettingsProfile() {
+    if (!vpad || !vpad.el) return;
+    vpad.el.nickname.value = UserProfileStore.data.nickname || (this.currentUser && this.currentUser.username) || '';
+    vpad.el.diamonds.textContent = `💎 ${UserProfileStore.data.diamonds || 0}　修行券 ${UserProfileStore.data.practiceTickets || 0}`;
+    const level = UserProfileStore.data.breederLevel || 1;
+    const needed = UserProfileStore.breederExpForLevel(level);
+    vpad.el.breeder.textContent = `ブリーダー Lv.${level}　${UserProfileStore.data.breederExp || 0} / ${needed} EXP`;
+    document.querySelectorAll('.profile-icon-option').forEach(option => {
+      option.classList.toggle('selected', option.dataset.profileIcon === UserProfileStore.data.iconKey);
+    });
+    vpad.el.profileMessage.textContent = '';
+  },
+
+  saveSettingsProfile() {
+    if (!vpad || !vpad.el) return;
+    const nickname = vpad.el.nickname.value.trim();
+    if (!nickname) {
+      vpad.el.profileMessage.textContent = 'ニックネームを入力してください';
+      return;
+    }
+    UserProfileStore.setNickname(nickname);
+    const selectedIcon = document.querySelector('.profile-icon-option.selected');
+    if (selectedIcon) UserProfileStore.setIcon(selectedIcon.dataset.profileIcon);
+    vpad.el.profileMessage.textContent = '保存しました';
+    this._updateHomeProfile();
+  },
+
   _resetFighterSelectState() {
     this.tokens = { p1: null, cpu1: null };
     this.activeTokenId = null;
@@ -298,12 +461,86 @@ const AppFlow = {
         <div class="token token-1p" data-token="p1">1P</div>
         <div class="token token-cpu" data-token="cpu1">CPU</div>
       `;
+      this._bindTokenDrag();
     } else {
       tokenBar.classList.add('hidden');
       tokenBar.innerHTML = '';
     }
     document.getElementById('fighter-select-heading').textContent =
-      this.selectedMode === 'cpu' ? '1P・CPUをファイターへ配置してください' : 'ファイター選択';
+      this.selectedMode === 'cpu' ? '1P・CPUの玉をモンスターへ移動してください' : 'ファイター選択';
+    this._renderCardBadges();
+    this._updateFightButtonVisibility();
+  },
+
+  _bindTokenDrag() {
+    document.querySelectorAll('#token-bar .token').forEach(token => {
+      token.addEventListener('pointerdown', (e) => {
+        if (e.button != null && e.button !== 0) return;
+        e.preventDefault();
+        const tokenId = token.dataset.token;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        let moved = false;
+        let hoveredCard = null;
+        token.setPointerCapture(e.pointerId);
+        token.classList.add('dragging');
+        this.activeTokenId = tokenId;
+        this._renderTokenBar();
+
+        const cardAt = (x, y) => {
+          token.style.pointerEvents = 'none';
+          const card = document.elementFromPoint(x, y)?.closest('#fighter-list .select-card') || null;
+          token.style.pointerEvents = '';
+          return card;
+        };
+        const clearHover = () => {
+          if (hoveredCard) hoveredCard.classList.remove('token-drop-target');
+          hoveredCard = null;
+        };
+
+        const onMove = (moveEvent) => {
+          const dx = moveEvent.clientX - startX;
+          const dy = moveEvent.clientY - startY;
+          if (Math.hypot(dx, dy) > 7) moved = true;
+          token.style.transform = `translate(${dx}px, ${dy}px) scale(1.12)`;
+          const nextCard = cardAt(moveEvent.clientX, moveEvent.clientY);
+          if (nextCard !== hoveredCard) {
+            clearHover();
+            hoveredCard = nextCard;
+            if (hoveredCard) hoveredCard.classList.add('token-drop-target');
+          }
+        };
+
+        const onEnd = (upEvent) => {
+          token.removeEventListener('pointermove', onMove);
+          token.removeEventListener('pointerup', onEnd);
+          token.removeEventListener('pointercancel', onEnd);
+          const dropCard = moved && upEvent.type !== 'pointercancel'
+            ? cardAt(upEvent.clientX, upEvent.clientY)
+            : null;
+          clearHover();
+          token.classList.remove('dragging');
+          token.style.transform = '';
+          if (dropCard) {
+            this._placeTokenOnCard(tokenId, dropCard);
+            this.suppressTokenClickUntil = Date.now() + 350;
+          }
+        };
+
+        token.addEventListener('pointermove', onMove);
+        token.addEventListener('pointerup', onEnd);
+        token.addEventListener('pointercancel', onEnd);
+      });
+    });
+  },
+
+  _placeTokenOnCard(tokenId, card) {
+    this.tokens[tokenId] = {
+      fighterKey: card.dataset.fighter,
+      masmonId: card.dataset.masmon || null,
+    };
+    this.activeTokenId = null;
+    this._renderTokenBar();
     this._renderCardBadges();
     this._updateFightButtonVisibility();
   },
@@ -347,6 +584,7 @@ const AppFlow = {
       p1Key: this.tokens.p1.fighterKey,
       p2Key: this.tokens.cpu1.fighterKey,
       p1MasmonId: this.tokens.p1.masmonId,
+      p2MasmonId: this.tokens.cpu1.masmonId,
       mode: this.selectedMode,
       cpuLevel: this.selectedCpuLevel,
     };
@@ -390,6 +628,17 @@ const AppFlow = {
       panel.classList.add('hidden');
       panel.innerHTML = '';
     }
+
+    const breederResult = UserProfileStore.addBreederExp(50);
+    panel.classList.remove('hidden');
+    panel.insertAdjacentHTML('beforeend', `<div class="breeder-reward">ブリーダーEXP +${breederResult.expGained}${breederResult.toLevel > breederResult.fromLevel ? ` ／ Lv.${breederResult.toLevel}にアップ！` : ''}${breederResult.ticketsGained ? ` ／ 修行券 +${breederResult.ticketsGained}` : ''}</div>`);
+
+    if (opts.mode === 'cpu') {
+      const reward = 50;
+      UserProfileStore.addDiamonds(reward);
+      panel.insertAdjacentHTML('beforeend', `<div class="diamond-reward">💎 ${reward}ダイヤを獲得！</div>`);
+    }
+    this._updateHomeProfile();
   },
 
   renderPodium(ranking) {
@@ -438,7 +687,7 @@ const AppFlow = {
     panel.innerHTML = `
       <div>${record.name} は経験値を ${expGain} 獲得！</div>
       ${levelResult.leveledUp
-        ? `<div>レベルアップ！ Lv.${levelResult.fromLevel} → Lv.${levelResult.toLevel}</div>`
+        ? `<div>レベルアップ！ Lv.${levelResult.fromLevel} → Lv.${levelResult.toLevel}</div><div>トレーニングチケットを ${levelResult.ticketsGained}枚 獲得！</div>`
         : `<div>現在 Lv.${record.level}</div>`}
     `;
     this.buildFighterList();

@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#071a2e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="スマモン">
 <title>スマモン (SmaMon)</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="assets/images/app-icon.png">
+<link rel="apple-touch-icon" href="assets/images/app-icon.png">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -21,6 +29,8 @@
     <div class="auth-box">
       <input type="text" id="auth-username" class="auth-input" placeholder="ユーザー名（半角英数字と_）" maxlength="20" autocomplete="username">
       <input type="password" id="auth-password" class="auth-input" placeholder="パスワード（6文字以上）" maxlength="50" autocomplete="current-password">
+      <label class="auth-remember"><input type="checkbox" id="auth-remember"> ログイン情報をこの端末に保存</label>
+      <div class="auth-storage-note">共用端末では保存しないでください</div>
       <div id="auth-error" class="auth-error hidden"></div>
       <button id="btn-auth-login" class="menu-btn">ログイン</button>
       <button id="btn-auth-signup" class="menu-btn auth-signup-btn">はじめて遊ぶ（新規登録）</button>
@@ -35,15 +45,40 @@
 
   <!-- 4. ホーム画面 -->
   <div id="screen-home" class="screen hidden">
-    <div class="logo-title small">スマモン</div>
+    <button id="home-profile-card" class="home-profile-card" title="タップでログアウト">
+      <img id="home-profile-icon" src="assets/images/fighter/irumine/stock.png" alt="プロフィールアイコン">
+      <span class="home-profile-info">
+        <span class="home-profile-name"><b id="home-nickname">ブリーダー</b><small>でログイン中</small></span>
+        <span class="home-breeder-line"><b id="home-breeder-level">ブリーダー Lv.1</b><small id="home-breeder-exp-text">0 / 100 EXP</small></span>
+        <span class="home-breeder-exp"><i id="home-breeder-exp-fill"></i></span>
+        <span class="home-profile-currency"><b id="home-diamonds">💎 0</b><b id="home-practice-tickets">修行券 0</b></span>
+      </span>
+    </button>
+    <img class="home-logo" src="assets/images/logo.png" alt="大乱闘スマッシュモンスターズ">
     <div class="menu-list">
       <button class="menu-btn" id="btn-cpu">CPU戦</button>
       <button class="menu-btn" id="btn-multi">マルチ</button>
-      <button class="menu-btn" id="btn-training">キャラクター育成</button>
+      <button class="menu-btn" id="btn-training">マスモン管理</button>
       <button class="menu-btn" id="btn-gacha">ガチャ</button>
     </div>
-    <div id="home-username" class="home-username"></div>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
+  </div>
+
+  <!-- 4.5 マスモン管理 -->
+  <div id="screen-masmon-manage" class="screen hidden scrollable-screen">
+    <div class="screen-heading">マスモン管理</div>
+    <div id="masmon-manage-list" class="masmon-manage-list"></div>
+    <div id="masmon-action-panel" class="masmon-action-panel hidden"></div>
+    <button class="back-btn" data-back="home">戻る</button>
+  </div>
+
+  <!-- 4.6 トレーニング -->
+  <div id="screen-training" class="screen hidden scrollable-screen">
+    <div class="screen-heading">トレーニング</div>
+    <div id="training-summary" class="training-summary"></div>
+    <div id="training-list" class="training-list"></div>
+    <div id="training-message" class="training-message" aria-live="polite"></div>
+    <button class="back-btn" data-back="masmon-manage">戻る</button>
   </div>
 
   <!-- 5. 地形選択 -->
@@ -84,7 +119,7 @@
   </div>
 
   <!-- 8. リザルト画面 -->
-  <div id="screen-result" class="screen hidden">
+  <div id="screen-result" class="screen hidden scrollable-screen result-screen">
     <div class="screen-heading">RESULT</div>
     <div id="result-podium" class="result-podium"></div>
     <div id="result-masmon-panel" class="result-masmon-panel hidden"></div>
@@ -106,5 +141,6 @@
   <script src="js/input.js"></script>
   <script src="js/game.js"></script>
   <script src="js/flow.js"></script>
+  <script src="js/pwa.js"></script>
 </body>
 </html>
