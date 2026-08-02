@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=37">
+<link rel="stylesheet" href="css/style.css?v=38">
 </head>
 <body>
 
@@ -76,7 +76,13 @@
         <div class="mypage-wallet"><b id="mypage-diamonds">💎 0</b><b id="mypage-practice-tickets">修行券 0</b></div>
       </header>
 
-      <div class="mypage-main">
+      <nav class="mypage-tabs" aria-label="マイページメニュー">
+        <button class="mypage-tab active" data-mypage-tab="profile">プロフィール</button>
+        <button class="mypage-tab" data-mypage-tab="items">所持アイテム</button>
+        <button class="mypage-tab" data-mypage-tab="records">戦績</button>
+      </nav>
+
+      <div class="mypage-main mypage-pane" data-mypage-pane="profile">
         <section class="mypage-breeder-card">
           <img id="mypage-current-icon" src="assets/images/fighter/irumine/stock.png" alt="プロフィールアイコン">
           <div class="mypage-breeder-info">
@@ -104,7 +110,12 @@
           <div id="mypage-message" class="mypage-message" aria-live="polite"></div>
         </section>
       </div>
-      <div class="mypage-future">今後、戦績や称号などのプロフィール項目を追加予定です</div>
+      <section class="mypage-pane mypage-list-pane hidden" data-mypage-pane="items">
+        <div id="mypage-item-list" class="mypage-item-list"></div>
+      </section>
+      <section class="mypage-pane mypage-list-pane hidden" data-mypage-pane="records">
+        <div id="mypage-record-list" class="mypage-record-list"></div>
+      </section>
     </div>
     <button class="back-btn" data-back="home">戻る</button>
   </div>
@@ -252,6 +263,18 @@
     <div id="fighter-list" class="card-list"></div>
     <button id="btn-fight-start" class="fight-start-btn hidden">FIGHT!</button>
     <button class="back-btn" data-back="stage-select">戻る</button>
+    <div id="fighter-status-modal" class="fighter-status-modal hidden" role="dialog" aria-modal="true" aria-labelledby="fighter-status-name">
+      <div class="fighter-status-card">
+        <button id="fighter-status-close" class="fighter-status-close" aria-label="閉じる">×</button>
+        <img id="fighter-status-image" alt="">
+        <div class="fighter-status-content">
+          <h2 id="fighter-status-name"></h2>
+          <div id="fighter-status-level"></div>
+          <div id="fighter-status-grid" class="fighter-status-grid"></div>
+          <small>アイコンを長押しすると確認できます</small>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 6.5 CPUレベル選択（CPU戦のみ） -->
@@ -303,11 +326,11 @@
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=30"></script>
+  <script src="js/growth-system.js?v=31"></script>
   <script src="js/input.js?v=2"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=34"></script>
-  <script src="js/flow.js?v=37"></script>
+  <script src="js/flow.js?v=38"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

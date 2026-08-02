@@ -248,6 +248,7 @@ html, body {
 .home-breeder-exp i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #3be36f, #b8ff58); }
 .home-profile-currency { justify-content: space-between; color: #a9edff; font-size: 9px; }
 .home-profile-currency b:last-child { color: #ffd98a; }
+.home-profile-currency b:last-child::before, #mypage-practice-tickets::before { content: ''; display: inline-block; width: 15px; height: 11px; margin-right: 3px; vertical-align: -2px; background: url('../assets/images/ui/practice-ticket.png') center / contain no-repeat; }
 
 /* ==== マイページ ==== */
 .mypage-screen {
@@ -267,6 +268,12 @@ html, body {
 .mypage-wallet { display: flex; gap: 16px; padding: 8px 13px; border: 1px solid rgba(148,221,255,.55); border-radius: 999px; background: rgba(3,20,38,.82); font-size: 12px; }
 .mypage-wallet b:first-child { color: #91e7ff; }
 .mypage-wallet b:last-child { color: #ffd98a; }
+.mypage-tabs { display: grid; grid-template-columns: repeat(3, 1fr); width: min(540px, 72vw); margin: 0 auto 9px; }
+.mypage-tab { padding: 7px 12px; border: 1px solid rgba(142,219,255,.42); color: #c6dfed; background: rgba(4,21,39,.88); font-size: 11px; font-weight: 800; }
+.mypage-tab:first-child { border-radius: 18px 0 0 18px; }
+.mypage-tab:last-child { border-radius: 0 18px 18px 0; }
+.mypage-tab.active { color: #082139; background: #8edbff; }
+.mypage-pane.hidden { display: none; }
 .mypage-main { display: grid; grid-template-columns: minmax(230px, .85fr) minmax(320px, 1.15fr); gap: 12px; }
 .mypage-breeder-card, .mypage-edit-card { border: 1px solid rgba(169,222,255,.46); border-radius: 14px; background: linear-gradient(135deg, rgba(5,24,45,.94), rgba(12,47,64,.88)); box-shadow: 0 8px 22px rgba(0,0,0,.35); }
 .mypage-breeder-card { display: flex; align-items: center; gap: 14px; padding: 18px; }
@@ -291,13 +298,30 @@ html, body {
 .mypage-save { border: 0; color: #082139; background: #8edbff; }
 .mypage-logout { border: 1px solid rgba(255,153,153,.55); color: #ffc1c1; background: rgba(130,20,30,.25); }
 .mypage-message { min-height: 16px; margin-top: 5px; color: #8ff0ad; font-size: 10px; }
-.mypage-future { margin-top: 7px; color: rgba(255,255,255,.48); font-size: 10px; text-align: center; }
+.mypage-list-pane { max-height: 238px; padding: 10px; overflow-y: auto; border: 1px solid rgba(169,222,255,.38); border-radius: 14px; background: rgba(4,20,37,.9); touch-action: pan-y; }
+.mypage-item-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.mypage-item-card { display: grid; grid-template-columns: 50px 1fr auto; align-items: center; gap: 9px; min-height: 62px; padding: 6px 10px; border: 1px solid rgba(255,214,112,.38); border-radius: 10px; background: rgba(255,255,255,.055); }
+.mypage-item-card img { width: 48px; height: 48px; border-radius: 7px; object-fit: contain; }
+.mypage-item-card strong, .mypage-item-card small { display: block; }
+.mypage-item-card strong { color: #ffe4a0; font-size: 12px; }
+.mypage-item-card small { overflow: hidden; margin-top: 3px; color: #afc6d5; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.mypage-item-card > b { min-width: 34px; color: #fff; font-size: 18px; text-align: center; }
+.mypage-record-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mypage-record-card { padding: 9px 12px; border: 1px solid rgba(142,219,255,.38); border-radius: 11px; background: rgba(255,255,255,.055); }
+.mypage-record-card > div { display: flex; justify-content: space-between; gap: 8px; color: #cdeeff; }
+.mypage-record-card > div small { color: #ffdc8a; font-size: 8px; }
+.mypage-record-card dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 7px; }
+.mypage-record-card dl div { padding: 4px; border-radius: 6px; background: rgba(0,0,0,.24); text-align: center; }
+.mypage-record-card dt { color: #9db5c5; font-size: 8px; }
+.mypage-record-card dd { margin-top: 2px; font-size: 13px; font-weight: 900; }
+.mypage-record-card.coming-soon { opacity: .65; }
 .mypage-screen > .back-btn { display: block; margin: 8px auto 0; }
 
 @media (orientation: landscape) and (max-height: 430px) {
   .mypage-screen { padding-top: max(8px, env(safe-area-inset-top)); }
   .mypage-shell { width: min(84vw, 760px); }
   .mypage-header { margin-bottom: 6px; }
+  .mypage-tabs { margin-bottom: 6px; }
   .mypage-wallet { padding: 6px 11px; }
   .mypage-main { grid-template-columns: minmax(220px, .85fr) minmax(300px, 1.15fr); gap: 8px; }
   .mypage-breeder-card { padding: 12px; }
@@ -310,6 +334,9 @@ html, body {
   .mypage-actions { margin-top: 6px; }
   .mypage-actions button { padding: 6px 14px; }
   .mypage-screen > .back-btn { margin-top: 5px; }
+  .mypage-list-pane { max-height: 245px; padding: 7px; }
+  .mypage-item-card { min-height: 54px; }
+  .mypage-item-card img { width: 40px; height: 40px; }
 }
 
 /* ==== ホーム画面背景 ==== */
@@ -861,6 +888,37 @@ html, body {
 }
 
 /* ==== ファイター選択：1P/CPUトークン配置 ==== */
+#screen-fighter-select {
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(6,18,31,.08), rgba(5,12,22,.42)),
+    url('../assets/images/fighter-select-background.png') center / cover no-repeat;
+}
+#screen-fighter-select #fighter-select-heading { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(58px, env(safe-area-inset-right)); margin: 0; padding: 6px 14px; border-radius: 18px; background: rgba(4,18,34,.7); font-size: 13px; text-shadow: 0 2px 4px #000; }
+#screen-fighter-select #fighter-list { padding: 8px 12px; border-radius: 14px; background: rgba(2,12,24,.38); backdrop-filter: blur(2px); }
+#screen-fighter-select .fighter-card { border-color: rgba(255,255,255,.75); box-shadow: 0 4px 12px rgba(0,0,0,.48); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.fighter-status-modal { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,.7); }
+.fighter-status-modal.hidden { display: none; }
+.fighter-status-card { position: relative; display: grid; grid-template-columns: 145px minmax(300px, 1fr); gap: 16px; width: min(88vw, 620px); padding: 16px; border: 2px solid #e5c669; border-radius: 15px; color: #fff; background: linear-gradient(135deg, #182c42, #08131e); box-shadow: 0 12px 40px rgba(0,0,0,.7); }
+.fighter-status-card > img { width: 145px; height: 190px; object-fit: contain; object-position: center top; }
+.fighter-status-close { position: absolute; top: 7px; right: 8px; width: 30px; height: 30px; border: 0; border-radius: 50%; color: #fff; background: rgba(255,255,255,.12); font-size: 20px; }
+.fighter-status-content h2 { padding-right: 34px; color: #ffe7a0; font-size: 21px; }
+#fighter-status-level { margin: 2px 0 8px; color: #9ee5ff; font-size: 12px; font-weight: 800; }
+.fighter-status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.fighter-status-grid > div { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 3px 8px; padding: 6px 8px; border-radius: 7px; background: rgba(255,255,255,.08); }
+.fighter-status-grid span { color: #b9ccda; font-size: 9px; }
+.fighter-status-grid b { font-size: 17px; }
+.fighter-status-grid small { grid-column: 1 / 3; color: #ffd978; font-size: 8px; }
+.fighter-status-content > small { display: block; margin-top: 8px; color: rgba(255,255,255,.5); font-size: 8px; }
+
+@media (orientation: landscape) and (max-height: 430px) {
+  #screen-fighter-select #fighter-list { margin-top: 30px; }
+  .fighter-status-card { grid-template-columns: 105px minmax(290px, 1fr); width: min(84vw, 560px); padding: 11px; }
+  .fighter-status-card > img { width: 105px; height: 145px; }
+  .fighter-status-content h2 { font-size: 17px; }
+  .fighter-status-grid > div { padding: 4px 6px; }
+}
+
 .token-bar {
   display: flex;
   gap: 20px;
@@ -1364,7 +1422,8 @@ html, body {
 .masmon-actions { display: flex; gap: 8px; }
 .masmon-actions button, .training-card { padding: 10px 14px; border: 1px solid rgba(255,255,255,.55); border-radius: 8px; color: #fff; background: rgba(8,16,28,.82); text-shadow: 0 1px 3px #000; }
 .training-summary { width: min(94vw, 650px); padding: 10px 14px; border: 1px solid rgba(255,255,255,.22); background: rgba(7,14,24,.74); border-radius: 10px; text-align: center; text-shadow: 0 1px 3px #000; }
-.ticket-count { margin-left: 16px; color: #ffd54a; }
+.ticket-count { display: inline-flex; align-items: center; gap: 5px; margin-left: 16px; color: #ffd54a; }
+.ticket-count img { width: 34px; height: 22px; object-fit: contain; }
 .stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
 .stat-grid span { font-size: 11px; }
 .stat-grid b, .stat-grid small { display: block; }

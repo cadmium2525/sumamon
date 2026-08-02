@@ -14,6 +14,7 @@ const SHOP_ITEMS = [
 
 const AppFlow = {
   selectedMode: null,     // 'cpu' | 'multi'
+  selectedCpuMode: 'normal',
   selectedStageKey: null,
   selectedCpuLevel: 3,
   selectedCpuCount: 1,
@@ -79,7 +80,8 @@ const AppFlow = {
     const urls = new Set([
       'assets/images/home.png', 'assets/images/logo.png', 'assets/images/app-icon.png',
       'assets/images/stage-select-background.png', 'assets/images/masmon-manage-background.png',
-      'assets/images/training-background.png',
+      'assets/images/training-background.png', 'assets/images/fighter-select-background.png',
+      'assets/images/ui/training-ticket.png', 'assets/images/ui/practice-ticket.png',
       'assets/images/battle/gong3.png', 'assets/images/battle/gong2.png',
       'assets/images/battle/gong1.png', 'assets/images/battle/gong.png',
     ]);
@@ -131,6 +133,7 @@ const AppFlow = {
       this.manageIdleTimer = null;
     }
     if (name !== 'item-shop') this.closePurchaseModal();
+    if (name !== 'fighter-select') document.getElementById('fighter-status-modal')?.classList.add('hidden');
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     document.getElementById('screen-' + name).classList.remove('hidden');
     if (window.DebugMotionViewer) DebugMotionViewer.setActive(name === 'debug');
@@ -313,12 +316,16 @@ const AppFlow = {
     });
     document.getElementById('mypage-save').addEventListener('click', () => this.saveMyPage());
     document.getElementById('mypage-logout').addEventListener('click', () => this.logoutFromMyPage());
+    document.querySelectorAll('.mypage-tab').forEach(tab => {
+      tab.addEventListener('click', () => this.switchMyPageTab(tab.dataset.mypageTab));
+    });
 
     document.getElementById('btn-cpu').addEventListener('click', () => {
       this.showScreen('cpu-mode');
     });
     document.getElementById('btn-mode-1on1').addEventListener('click', () => {
       this.selectedMode = 'cpu';
+      this.selectedCpuMode = 'normal';
       this.selectedStageKey = null;
       this.buildStageList();
       this._resetFighterSelectState();
@@ -390,6 +397,7 @@ const AppFlow = {
     document.getElementById('fighter-list').addEventListener('click', (e) => {
       const card = e.target.closest('.select-card');
       if (!card) return;
+      if (Date.now() < (this.suppressFighterCardClickUntil || 0)) return;
       const fighterKey = card.dataset.fighter;
       const masmonId = card.dataset.masmon || null;
 
@@ -407,6 +415,11 @@ const AppFlow = {
       this.tokens.p1 = { fighterKey, masmonId };
       this.tokens.cpu1 = { fighterKey: Object.keys(FIGHTERS).find(k => k !== fighterKey) || fighterKey, masmonId: null };
       this._startFromTokens();
+    });
+    this.bindFighterStatusLongPress();
+    document.getElementById('fighter-status-close').addEventListener('click', () => this.closeFighterStatus());
+    document.getElementById('fighter-status-modal').addEventListener('click', event => {
+      if (event.target.id === 'fighter-status-modal') this.closeFighterStatus();
     });
 
     document.getElementById('btn-fight-start').addEventListener('click', () => {
@@ -535,7 +548,7 @@ const AppFlow = {
       life: '生存力', power: '打撃技の威力', intelligence: '必殺技の威力',
       accuracy: 'クリティカル率', evasion: '移動速度', defense: '吹っ飛びにくさ',
     };
-    document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count">🎟 ${m.trainingTickets || 0}枚</span>
+    document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.png" alt="">${m.trainingTickets || 0}枚</span>
       <div class="stat-grid">${GROWTH.STAT_KEYS.map(k => `<span>${labels[k]} <b>${stats[k]}</b><small>適性 ${m.aptitudes[k]}</small><em>${effects[k]}</em></span>`).join('')}</div>`;
     document.getElementById('training-list').innerHTML = Object.entries(GROWTH.TRAINING_MENU).map(([key, t]) => {
       const detail = Object.entries(t.changes).map(([stat, value]) => `${labels[stat]}${value === 5 ? 'が大増加' : value > 0 ? 'が増加' : 'が減少'}`).join('／');
@@ -662,6 +675,64 @@ const AppFlow = {
       option.classList.toggle('selected', option.dataset.mypageIcon === iconKey);
     });
     document.getElementById('mypage-message').textContent = '';
+    this.renderMyPageItems();
+    this.renderMyPageRecords();
+  },
+
+  switchMyPageTab(tabName) {
+    document.querySelectorAll('.mypage-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.mypageTab === tabName));
+    document.querySelectorAll('.mypage-pane').forEach(pane => pane.classList.toggle('hidden', pane.dataset.mypagePane !== tabName));
+  },
+
+  renderMyPageItems() {
+    const inventory = UserProfileStore.data.inventory || {};
+    const masmons = MasmonStore.loadAll();
+    const trainingTickets = masmons.reduce((sum, monster) => sum + Math.max(0, Number(monster.trainingTickets) || 0), 0);
+    const ticketDetails = masmons.filter(monster => (Number(monster.trainingTickets) || 0) > 0)
+      .map(monster => `${this.escapeHtml(monster.name)} ${monster.trainingTickets}枚`).join(' ／ ');
+    const items = [
+      { name: 'トレーニングチケット', image: 'assets/images/ui/training-ticket.png', count: trainingTickets, detail: ticketDetails || '所持マスモン共通 0枚' },
+      { name: '修行チケット', image: 'assets/images/ui/practice-ticket.png', count: UserProfileStore.data.practiceTickets || 0, detail: '5ブリーダーレベルごとに獲得' },
+      ...SHOP_ITEMS.map(item => ({ name: item.name, image: item.image, count: Number(inventory[item.id]) || 0, detail: item.effect })),
+    ];
+    document.getElementById('mypage-item-list').innerHTML = items.map(item => `
+      <article class="mypage-item-card">
+        <img src="${item.image}" alt="${item.name}">
+        <div><strong>${item.name}</strong><small>${item.detail}</small></div>
+        <b>${item.count}</b>
+      </article>
+    `).join('');
+  },
+
+  renderMyPageRecords() {
+    const records = UserProfileStore.data.battleRecords || {};
+    const entries = [
+      { label: 'CPU戦・通常バトル', record: records.cpu?.normal },
+      { label: 'CPU戦・100人組手', record: records.cpu?.hundred, comingSoon: true },
+      { label: 'CPU戦・エンドレス', record: records.cpu?.endless, comingSoon: true },
+      { label: 'マルチ対戦', record: records.multi },
+    ];
+    document.getElementById('mypage-record-list').innerHTML = entries.map(entry => {
+      const record = entry.record || { matches: 0, wins: 0, losses: 0, kos: 0, falls: 0, selfDestructs: 0, bestRank: 0 };
+      const winRate = record.matches ? Math.round(record.wins / record.matches * 100) : 0;
+      return `<article class="mypage-record-card${entry.comingSoon ? ' coming-soon' : ''}">
+        <div><strong>${entry.label}</strong>${entry.comingSoon ? '<small>近日実装予定</small>' : ''}</div>
+        <dl>
+          <div><dt>対戦</dt><dd>${record.matches}</dd></div>
+          <div><dt>勝利</dt><dd>${record.wins}</dd></div>
+          <div><dt>勝率</dt><dd>${winRate}%</dd></div>
+          <div><dt>撃墜</dt><dd>${record.kos}</dd></div>
+          <div><dt>被撃墜</dt><dd>${record.falls}</dd></div>
+          <div><dt>最高順位</dt><dd>${record.bestRank ? `${record.bestRank}位` : '―'}</dd></div>
+        </dl>
+      </article>`;
+    }).join('');
+  },
+
+  escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = String(value || '');
+    return div.innerHTML;
   },
 
   saveMyPage() {
@@ -688,6 +759,57 @@ const AppFlow = {
       UserProfileStore.clear();
       this.showScreen('auth');
     });
+  },
+
+  bindFighterStatusLongPress() {
+    const list = document.getElementById('fighter-list');
+    list.addEventListener('contextmenu', event => event.preventDefault());
+    list.addEventListener('pointerdown', event => {
+      if (event.button != null && event.button !== 0) return;
+      if (event.target.closest('.card-token-badge')) return;
+      const card = event.target.closest('.fighter-card');
+      if (!card) return;
+      const startX = event.clientX;
+      const startY = event.clientY;
+      let timer = setTimeout(() => {
+        timer = null;
+        this.suppressFighterCardClickUntil = Date.now() + 700;
+        this.showFighterStatus(card);
+      }, 550);
+      const cancel = moveEvent => {
+        if (moveEvent.type === 'pointermove' && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 12) return;
+        if (timer) clearTimeout(timer);
+        timer = null;
+        window.removeEventListener('pointermove', cancel);
+        window.removeEventListener('pointerup', cancel);
+        window.removeEventListener('pointercancel', cancel);
+      };
+      window.addEventListener('pointermove', cancel);
+      window.addEventListener('pointerup', cancel);
+      window.addEventListener('pointercancel', cancel);
+    });
+  },
+
+  showFighterStatus(card) {
+    const def = FIGHTERS[card.dataset.fighter] || FIGHTERS.irumine;
+    const monster = card.dataset.masmon
+      ? MasmonStore.loadAll().find(item => item.id === card.dataset.masmon)
+      : null;
+    const stats = monster
+      ? GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: monster.trainingStats }, monster.aptitudes, monster.level)
+      : { ...defaultStats(), ...(def.stats || {}) };
+    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
+    document.getElementById('fighter-status-image').src = def.idleImage;
+    document.getElementById('fighter-status-name').textContent = monster ? monster.name : def.displayName;
+    document.getElementById('fighter-status-level').textContent = monster ? `Lv.${monster.level}` : 'ベースモンスター';
+    document.getElementById('fighter-status-grid').innerHTML = GROWTH.STAT_KEYS.map(key => `
+      <div><span>${labels[key]}</span><b>${stats[key]}</b>${monster ? `<small>適性 ${monster.aptitudes?.[key] || 'C'}</small>` : ''}</div>
+    `).join('');
+    document.getElementById('fighter-status-modal').classList.remove('hidden');
+  },
+
+  closeFighterStatus() {
+    document.getElementById('fighter-status-modal').classList.add('hidden');
   },
 
   _resetFighterSelectState() {
@@ -851,6 +973,7 @@ const AppFlow = {
       cpuCount: this.selectedCpuCount,
       cpuFighters,
       mode: this.selectedMode,
+      cpuMode: this.selectedCpuMode,
       cpuLevel: this.selectedCpuLevel,
     };
     this.playBattleIntro(this.lastLaunchOptions);
@@ -907,6 +1030,7 @@ const AppFlow = {
     const opts = this.lastLaunchOptions || {};
     const localFighterIndex = opts.mode === 'multi' ? (opts.localFighterIndex || 0) : 0;
     const p1Entry = result.ranking.find(r => r.fighterIndex === localFighterIndex);
+    if (p1Entry) UserProfileStore.recordBattle(opts.mode === 'multi' ? 'multi' : (opts.cpuMode || 'normal'), p1Entry);
     const panel = document.getElementById('result-masmon-panel');
     panel.classList.remove('hidden');
 
@@ -978,7 +1102,8 @@ const AppFlow = {
       falls: p1Entry?.falls || 0,
       cpuLevel: opts.cpuLevel,
     });
-    const expGain = expResult.total;
+    const expMultiplier = opts.mode === 'multi' ? 2 : 1;
+    const expGain = expResult.total * expMultiplier;
     const startLevel = record.level;
     const startExp = record.exp;
     const levelResult = GROWTH.addExp(record, expGain);
@@ -987,7 +1112,7 @@ const AppFlow = {
     panel.innerHTML = `
       <div class="masmon-exp-result">
         <div><strong>${record.name}</strong>　EXP +${expGain}</div>
-        <div class="exp-breakdown">順位 +${expResult.placementExp} ／ 撃墜 +${expResult.koExp} ／ 被撃墜 -${expResult.fallPenalty} ／ CPU倍率 ×${expResult.levelMultiplier.toFixed(1)}</div>
+        <div class="exp-breakdown">順位 +${expResult.placementExp} ／ 撃墜 +${expResult.koExp} ／ 被撃墜 -${expResult.fallPenalty} ／ ${opts.mode === 'multi' ? 'マルチ報酬 ×2' : `CPU倍率 ×${expResult.levelMultiplier.toFixed(1)}`}</div>
         <div class="masmon-exp-heading"><b id="masmon-exp-level">Lv.${startLevel}</b><span id="masmon-exp-numbers"></span></div>
         <div class="masmon-exp-track"><div id="masmon-exp-fill" class="masmon-exp-fill"></div></div>
         <div id="masmon-level-callout" class="masmon-level-callout"></div>

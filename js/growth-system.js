@@ -197,9 +197,33 @@ const MasmonStore = {
 };
 
 // ==== ユーザープロフィール（ニックネーム・ゲーム内通貨） ====
+function normalizeBattleRecords(records = {}) {
+  const blank = () => ({ matches: 0, wins: 0, losses: 0, kos: 0, falls: 0, selfDestructs: 0, bestRank: 0 });
+  const normalize = value => {
+    const source = value || {};
+    return {
+      matches: Math.max(0, Number(source.matches) || 0),
+      wins: Math.max(0, Number(source.wins) || 0),
+      losses: Math.max(0, Number(source.losses) || 0),
+      kos: Math.max(0, Number(source.kos) || 0),
+      falls: Math.max(0, Number(source.falls) || 0),
+      selfDestructs: Math.max(0, Number(source.selfDestructs) || 0),
+      bestRank: Math.max(0, Number(source.bestRank) || 0),
+    };
+  };
+  return {
+    cpu: {
+      normal: normalize(records.cpu?.normal || blank()),
+      hundred: normalize(records.cpu?.hundred || blank()),
+      endless: normalize(records.cpu?.endless || blank()),
+    },
+    multi: normalize(records.multi || blank()),
+  };
+}
+
 const UserProfileStore = {
   currentUid: null,
-  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {} },
+  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() },
 
   _localKey(uid) { return `smamon_profile_${uid}`; },
 
@@ -215,6 +239,7 @@ const UserProfileStore = {
       breederExp: Math.max(0, Number(local && local.breederExp) || 0),
       practiceTickets: Math.max(0, Number(local && local.practiceTickets) || 0),
       inventory: { ...((local && local.inventory) || {}) },
+      battleRecords: normalizeBattleRecords(local && local.battleRecords),
     };
     if (window.FirebaseDB) {
       const { db, doc, getDoc } = window.FirebaseDB;
@@ -230,6 +255,7 @@ const UserProfileStore = {
             breederExp: Math.max(0, Number(remote.breederExp) || 0),
             practiceTickets: Math.max(0, Number(remote.practiceTickets) || 0),
             inventory: { ...(remote.inventory || this.data.inventory || {}) },
+            battleRecords: normalizeBattleRecords(remote.battleRecords || this.data.battleRecords),
           };
           this._saveLocal();
         }
@@ -242,7 +268,7 @@ const UserProfileStore = {
 
   clear() {
     this.currentUid = null;
-    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {} };
+    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() };
   },
 
   _saveLocal() {
@@ -290,6 +316,23 @@ const UserProfileStore = {
     this.data.diamonds = Math.max(0, (Number(this.data.diamonds) || 0) + amount);
     this.save();
     return this.data.diamonds;
+  },
+
+  recordBattle(mode, result) {
+    this.data.battleRecords = normalizeBattleRecords(this.data.battleRecords);
+    const record = mode === 'multi'
+      ? this.data.battleRecords.multi
+      : this.data.battleRecords.cpu[['normal', 'hundred', 'endless'].includes(mode) ? mode : 'normal'];
+    const rank = Math.max(1, Number(result.rank) || 1);
+    record.matches++;
+    if (rank === 1) record.wins++;
+    else record.losses++;
+    record.kos += Math.max(0, Number(result.kos) || 0);
+    record.falls += Math.max(0, Number(result.falls) || 0);
+    record.selfDestructs += Math.max(0, Number(result.selfDestructs) || 0);
+    record.bestRank = record.bestRank > 0 ? Math.min(record.bestRank, rank) : rank;
+    this.save();
+    return record;
   },
 
   purchaseItem(itemId, price, quantity = 1) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v41';
+const CACHE_NAME = 'smamon-app-v42';
 const APP_SHELL = [
   './',
   './index.html',
@@ -28,6 +28,9 @@ const APP_SHELL = [
   './assets/images/stage-select-background.png',
   './assets/images/masmon-manage-background.png',
   './assets/images/training-background.png',
+  './assets/images/fighter-select-background.png',
+  './assets/images/ui/training-ticket.png',
+  './assets/images/ui/practice-ticket.png',
   './assets/images/items/potion-a-large.png',
   './assets/images/items/potion-a-small.png',
   './assets/images/items/potion-b-large.png',
