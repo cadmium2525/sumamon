@@ -1,6 +1,6 @@
 // ==== BGM / SE 管理 ====
-// BGMはiOSのマナースイッチに従うよう、Web Audioへ接続せずHTMLAudioElementから直接再生する。
-// SEは短い効果音の即時再生を優先し、Web Audio APIを使用する。
+// BGM/SEとも純粋なWeb Audio APIで再生する。
+// iOSでは明示再生したHTMLAudioElementはメディア扱いとなり、マナースイッチを無視するため使用しない。
 const AudioManager = {
   SETTINGS_KEY: 'smamon_audio_settings',
   tracks: {
@@ -17,30 +17,29 @@ const AudioManager = {
   currentTrack: null,
   desiredTrack: null,
   unlocked: false,
-  bgm: null,
+  bgmSource: null,
   context: null,
   masterGain: null,
+  bgmGain: null,
   seGain: null,
+  trackBuffers: {},
   effectBuffers: {},
   activeSeSources: new Set(),
 
   init() {
     this.loadSettings();
-    this.bgm = new Audio(this.tracks.home.src);
-    this.bgm.loop = true;
-    this.bgm.preload = 'auto';
-    this.bgm.playsInline = true;
     this.createAudioGraph();
+    this.loadTrackBuffers();
     this.loadEffectBuffers();
 
     const unlock = () => this.unlock();
     window.addEventListener('pointerdown', unlock, { capture: true, passive: true, once: true });
     window.addEventListener('touchstart', unlock, { capture: true, passive: true, once: true });
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.bgm?.pause();
+      if (document.hidden) this.stopBgm(false);
       else this.resumeDesiredTrack();
     });
-    window.addEventListener('pagehide', () => this.bgm?.pause());
+    window.addEventListener('pagehide', () => this.stopBgm(false));
     window.addEventListener('pageshow', () => this.resumeDesiredTrack());
   },
 
@@ -79,7 +78,9 @@ const AudioManager = {
     try {
       this.context = new AudioContextClass();
       this.masterGain = this.context.createGain();
+      this.bgmGain = this.context.createGain();
       this.seGain = this.context.createGain();
+      this.bgmGain.connect(this.masterGain);
       this.seGain.connect(this.masterGain);
       this.masterGain.connect(this.context.destination);
       this.applyVolumes();
@@ -87,6 +88,21 @@ const AudioManager = {
       console.warn('音声出力を初期化できませんでした:', error);
       this.context = null;
     }
+  },
+
+  async loadTrackBuffers() {
+    if (!this.context) return;
+    await Promise.all(Object.entries(this.tracks).map(async ([key, track]) => {
+      try {
+        const response = await fetch(track.src);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.arrayBuffer();
+        this.trackBuffers[key] = await this.context.decodeAudioData(data.slice(0));
+        if (key === this.desiredTrack) this.resumeDesiredTrack();
+      } catch (error) {
+        console.warn(`${key} BGMを読み込めませんでした:`, error);
+      }
+    }));
   },
 
   async loadEffectBuffers() {
@@ -107,13 +123,12 @@ const AudioManager = {
     if (this.unlocked) return;
     this.unlocked = true;
 
-    // iOSの自動再生制限対策。ユーザー操作のコールスタック内で同期的にplay()を呼ぶ。
-    // play()のPromise完了を待ってから呼ぶと、Safariに自動再生として拒否されることがある。
-    this.resumeDesiredTrack();
-
-    // SE用AudioContextのみ再開する。音源は再生しないためTAP STARTでSEは鳴らない。
+    // iOSの自動再生制限対策。ユーザー操作のコールスタック内で同期的にresume()を呼ぶ。
+    // BufferSourceはまだ開始しないため、TAP STARTでSEが誤再生されることはない。
     if (this.context?.state === 'suspended') {
-      this.context.resume().catch(() => {});
+      this.context.resume().then(() => this.resumeDesiredTrack()).catch(() => {});
+    } else {
+      this.resumeDesiredTrack();
     }
   },
 
@@ -138,40 +153,48 @@ const AudioManager = {
       this.stopBgm();
       return;
     }
-    const track = this.tracks[trackKey];
-    if (!track) return;
-    if (this.currentTrack !== trackKey) {
-      this.bgm.pause();
-      this.bgm.currentTime = 0;
-      this.bgm.src = track.src;
-      this.bgm.load();
-      this.currentTrack = trackKey;
-    }
+    if (!this.tracks[trackKey]) return;
     this.applyVolumes();
     this.resumeDesiredTrack();
   },
 
   resumeDesiredTrack() {
-    if (!this.unlocked || !this.soundEnabled || !this.desiredTrack || document.hidden || !this.bgm) return;
-    if (this.currentTrack !== this.desiredTrack) this.playBgm(this.desiredTrack);
-    const promise = this.bgm.play();
-    if (promise && typeof promise.catch === 'function') promise.catch(() => {});
+    if (!this.unlocked || !this.soundEnabled || !this.desiredTrack || document.hidden || !this.context) return;
+    if (this.context.state === 'suspended') {
+      this.context.resume().then(() => this.resumeDesiredTrack()).catch(() => {});
+      return;
+    }
+    if (this.context.state !== 'running' || this.currentTrack === this.desiredTrack && this.bgmSource) return;
+    const buffer = this.trackBuffers[this.desiredTrack];
+    if (!buffer) return;
+
+    this.stopBgm(false);
+    const source = this.context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(this.bgmGain);
+    this.bgmSource = source;
+    this.currentTrack = this.desiredTrack;
+    source.start(0);
+    this.applyVolumes();
   },
 
-  stopBgm() {
-    if (!this.bgm) return;
-    this.bgm.pause();
-    this.bgm.currentTime = 0;
+  stopBgm(clearDesired = true) {
+    if (this.bgmSource) {
+      try { this.bgmSource.stop(); } catch (error) { /* 既に停止済み */ }
+      this.bgmSource.disconnect();
+      this.bgmSource = null;
+    }
     this.currentTrack = null;
+    if (clearDesired) this.desiredTrack = null;
   },
 
   applyVolumes() {
     const now = this.context?.currentTime || 0;
     if (this.masterGain) this.masterGain.gain.setValueAtTime(this.soundEnabled ? 1 : 0, now);
-    if (this.bgm) {
-      const base = this.tracks[this.currentTrack]?.baseVolume || 1;
-      this.bgm.volume = this.soundEnabled ? base * this.bgmVolume / 100 : 0;
-      this.bgm.muted = !this.soundEnabled || this.bgmVolume === 0;
+    if (this.bgmGain) {
+      const base = this.tracks[this.desiredTrack || this.currentTrack]?.baseVolume || 1;
+      this.bgmGain.gain.setValueAtTime(base * this.bgmVolume / 100, now);
     }
     if (this.seGain) this.seGain.gain.setValueAtTime(this.seVolume / 100, now);
   },
@@ -182,7 +205,7 @@ const AudioManager = {
     this.saveSettings();
     if (this.soundEnabled) this.resumeDesiredTrack();
     else {
-      this.bgm?.pause();
+      this.stopBgm(false);
       this.stopAllSe();
     }
     return this.soundEnabled;
@@ -236,7 +259,7 @@ const AudioManager = {
  * 2. マナースイッチOFFで起動し、TAP STARTを押してホームBGMが鳴ることを確認する。
  * 3. CPU戦を選び、ホームBGMが停止して対戦準備BGMへ切り替わることを確認する。
  * 4. アプリを閉じ、マナースイッチONで再起動して同じ操作を行い、BGMが無音になることを確認する。
- * 5. BGM音量0で無音、100で設定した基礎音量になることも両起動方式で確認する。
+ * 5. BGM音量を1・50・100へ変更し、段階的に音量が変わることを確認する。0では完全に無音になることも確認する。
  * 注: iOSにはマナースイッチ状態を取得するAPIがないため、コードでは検知しない。
  */
 
