@@ -1173,6 +1173,7 @@ body.layout-pending .screen { visibility: hidden; }
 .survival-result-summary { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 8px; color: #dff6ff; }
 .survival-result-summary strong { color: #ffe899; }
 .hundred-badge-reward, .endless-record-reward { margin-top: 8px; color: #ffe579; font-weight: 900; }
+.endless-ranking-only { margin-top: 8px; color: #b9d5e7; font-size: 12px; }
 #battle-pause-overlay.hidden, #battle-countdown.hidden { display: none; }
 #battle-countdown { position: absolute; z-index: 85; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 #battle-countdown img { width: min(45vw, 430px); max-height: 58vh; object-fit: contain; }

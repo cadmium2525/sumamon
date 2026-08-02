@@ -320,6 +320,12 @@ const UserProfileStore = {
     return this.data.diamonds;
   },
 
+  addPracticeTickets(amount) {
+    this.data.practiceTickets = Math.max(0, (Number(this.data.practiceTickets) || 0) + Math.floor(Number(amount) || 0));
+    this.save();
+    return this.data.practiceTickets;
+  },
+
   recordBattle(mode, result) {
     this.data.battleRecords = normalizeBattleRecords(this.data.battleRecords);
     const record = mode === 'multi'

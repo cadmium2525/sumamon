@@ -1153,6 +1153,38 @@ const AppFlow = {
     const panel = document.getElementById('result-masmon-panel');
     panel.classList.remove('hidden');
 
+    // 連戦モードは通常バトルのEXP・ブリーダーEXP・50ダイヤ報酬から完全に分離する。
+    if (result.survival) {
+      const title = result.survival.mode === 'hundred'
+        ? (result.survival.cleared ? '100人組手クリア！' : '100人組手終了')
+        : 'エンドレスモード終了';
+      panel.innerHTML = `<div class="survival-result-summary"><strong>${title}</strong><span>${result.survival.defeated}体 撃破</span></div>`;
+
+      if (result.survival.mode === 'hundred' && result.survival.cleared) {
+        UserProfileStore.addDiamonds(500);
+        UserProfileStore.addPracticeTickets(5);
+        panel.insertAdjacentHTML('beforeend', '<div class="diamond-reward">💎 500ダイヤを獲得！</div><div class="breeder-reward">🎟️ 修行チケットを5枚獲得！</div>');
+        if (opts.p1MasmonId) {
+          const monster = MasmonStore.loadAll().find(item => item.id === opts.p1MasmonId);
+          if (monster) {
+            monster.badges = { ...(monster.badges || {}), hundred: true };
+            MasmonStore.update(monster);
+            panel.insertAdjacentHTML('beforeend', '<div class="hundred-badge-reward">🏅 100人組手クリアバッジを獲得！</div>');
+            this.buildFighterList();
+          }
+        }
+      }
+
+      if (result.survival.mode === 'endless') {
+        panel.insertAdjacentHTML('beforeend', '<div class="endless-ranking-only">報酬はありません。撃破数がランキングへ記録されます。</div>');
+        UserProfileStore.submitEndlessScore(result.survival.defeated).then(updated => {
+          if (updated) panel.insertAdjacentHTML('beforeend', '<div class="endless-record-reward">🏆 ランキング記録を更新しました！</div>');
+        });
+      }
+      this._updateHomeProfile();
+      return;
+    }
+
     if (opts.p1MasmonId) {
       this._renderMasmonExpResult(panel, opts, p1Entry);
     } else if (p1Entry && p1Entry.rank === 1) {
@@ -1160,28 +1192,6 @@ const AppFlow = {
     } else {
       panel.classList.add('hidden');
       panel.innerHTML = '';
-    }
-
-    if (result.survival) {
-      panel.classList.remove('hidden');
-      const title = result.survival.mode === 'hundred'
-        ? (result.survival.cleared ? '100人組手クリア！' : '100人組手終了')
-        : 'エンドレスモード終了';
-      panel.insertAdjacentHTML('afterbegin', `<div class="survival-result-summary"><strong>${title}</strong><span>${result.survival.defeated}体 撃破</span></div>`);
-      if (result.survival.mode === 'hundred' && result.survival.cleared && opts.p1MasmonId) {
-        const monster = MasmonStore.loadAll().find(item => item.id === opts.p1MasmonId);
-        if (monster) {
-          monster.badges = { ...(monster.badges || {}), hundred: true };
-          MasmonStore.update(monster);
-          panel.insertAdjacentHTML('beforeend', '<div class="hundred-badge-reward">🏅 100人組手クリアバッジを獲得！</div>');
-          this.buildFighterList();
-        }
-      }
-      if (result.survival.mode === 'endless') {
-        UserProfileStore.submitEndlessScore(result.survival.defeated).then(updated => {
-          if (updated) panel.insertAdjacentHTML('beforeend', '<div class="endless-record-reward">🏆 ランキング記録を更新しました！</div>');
-        });
-      }
     }
 
     const breederResult = UserProfileStore.addBreederExp(50);
