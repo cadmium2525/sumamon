@@ -199,7 +199,7 @@ const MasmonStore = {
 // ==== ユーザープロフィール（ニックネーム・ゲーム内通貨） ====
 const UserProfileStore = {
   currentUid: null,
-  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0 },
+  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {} },
 
   _localKey(uid) { return `smamon_profile_${uid}`; },
 
@@ -214,6 +214,7 @@ const UserProfileStore = {
       breederLevel: Math.max(1, Number(local && local.breederLevel) || 1),
       breederExp: Math.max(0, Number(local && local.breederExp) || 0),
       practiceTickets: Math.max(0, Number(local && local.practiceTickets) || 0),
+      inventory: { ...((local && local.inventory) || {}) },
     };
     if (window.FirebaseDB) {
       const { db, doc, getDoc } = window.FirebaseDB;
@@ -228,6 +229,7 @@ const UserProfileStore = {
             breederLevel: Math.max(1, Number(remote.breederLevel) || this.data.breederLevel),
             breederExp: Math.max(0, Number(remote.breederExp) || 0),
             practiceTickets: Math.max(0, Number(remote.practiceTickets) || 0),
+            inventory: { ...(remote.inventory || this.data.inventory || {}) },
           };
           this._saveLocal();
         }
@@ -240,7 +242,7 @@ const UserProfileStore = {
 
   clear() {
     this.currentUid = null;
-    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0 };
+    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {} };
   },
 
   _saveLocal() {
@@ -288,5 +290,15 @@ const UserProfileStore = {
     this.data.diamonds = Math.max(0, (Number(this.data.diamonds) || 0) + amount);
     this.save();
     return this.data.diamonds;
+  },
+
+  purchaseItem(itemId, price) {
+    const cost = Math.max(0, Number(price) || 0);
+    if ((Number(this.data.diamonds) || 0) < cost) return false;
+    this.data.diamonds -= cost;
+    if (!this.data.inventory) this.data.inventory = {};
+    this.data.inventory[itemId] = Math.max(0, Number(this.data.inventory[itemId]) || 0) + 1;
+    this.save();
+    return true;
   },
 };

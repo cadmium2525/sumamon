@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v36';
+const CACHE_NAME = 'smamon-app-v37';
 const APP_SHELL = [
   './',
   './index.html',
@@ -27,6 +27,13 @@ const APP_SHELL = [
   './assets/images/stage-select-background.png',
   './assets/images/masmon-manage-background.png',
   './assets/images/training-background.png',
+  './assets/images/items/potion-a-large.png',
+  './assets/images/items/potion-a-small.png',
+  './assets/images/items/potion-b-large.png',
+  './assets/images/items/potion-b-small.png',
+  './assets/images/items/potion-c-large.png',
+  './assets/images/items/potion-c-small.png',
+  './assets/images/items/dye-kit.png',
   './assets/images/field/cosmo/background.png',
   './assets/images/field/cosmo/platform.png',
   './assets/images/fighter/irumine/jump/frame_001.png',

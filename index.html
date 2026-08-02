@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=32">
+<link rel="stylesheet" href="css/style.css?v=33">
 </head>
 <body>
 
@@ -59,10 +59,23 @@
       <button class="menu-btn" id="btn-cpu">CPU戦</button>
       <button class="menu-btn" id="btn-multi">マルチ</button>
       <button class="menu-btn" id="btn-training">マスモン管理</button>
-      <button class="menu-btn" id="btn-gacha">ガチャ</button>
+      <button class="menu-btn" id="btn-gacha">アイテム販売所</button>
     </div>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
     <button id="btn-debug" class="debug-entry hidden">DEBUG</button>
+  </div>
+
+  <div id="screen-item-shop" class="screen hidden scrollable-screen item-shop-screen">
+    <div class="item-shop-header">
+      <div>
+        <div class="screen-heading">アイテム販売所</div>
+        <small>育成に役立つアイテムをダイヤで購入できます</small>
+      </div>
+      <div id="shop-diamonds" class="shop-diamonds">💎 0</div>
+    </div>
+    <div id="item-shop-list" class="item-shop-list"></div>
+    <div id="item-shop-message" class="item-shop-message" aria-live="polite"></div>
+    <button class="back-btn" data-back="home">戻る</button>
   </div>
 
   <div id="screen-debug" class="screen hidden debug-screen">
@@ -192,10 +205,10 @@
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=28"></script>
+  <script src="js/growth-system.js?v=29"></script>
   <script src="js/input.js"></script>
   <script src="js/game.js?v=32"></script>
-  <script src="js/flow.js?v=33"></script>
+  <script src="js/flow.js?v=34"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

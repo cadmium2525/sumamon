@@ -2,6 +2,16 @@
 // ローディング → スタート(TAP START) → ホーム → 地形選択 → ファイター選択(トークン配置)
 // → [CPU戦のみ]CPUレベル選択 → バトル開幕演出(Loading→FIGHT!) → バトル → リザルト
 
+const SHOP_ITEMS = [
+  { id: 'vital_elixir', name: '生命の霊薬', price: 350, image: 'assets/images/items/potion-a-large.png', effect: 'ライフか丈夫さを20アップ' },
+  { id: 'vital_tonic', name: '生命の小薬', price: 200, image: 'assets/images/items/potion-a-small.png', effect: 'ライフか丈夫さを10アップ' },
+  { id: 'skill_elixir', name: '技巧の霊薬', price: 350, image: 'assets/images/items/potion-b-large.png', effect: '命中か回避を20アップ' },
+  { id: 'skill_tonic', name: '技巧の小薬', price: 200, image: 'assets/images/items/potion-b-small.png', effect: '命中か回避を10アップ' },
+  { id: 'might_elixir', name: '闘知の霊薬', price: 350, image: 'assets/images/items/potion-c-large.png', effect: 'ちからかかしこさを20アップ' },
+  { id: 'might_tonic', name: '闘知の小薬', price: 200, image: 'assets/images/items/potion-c-small.png', effect: 'ちからかかしこさを10アップ' },
+  { id: 'dye_kit', name: '虹彩の染色セット', price: 800, image: 'assets/images/items/dye-kit.png', effect: 'スキンの色を変更（今後実装）', comingSoon: true },
+];
+
 const AppFlow = {
   selectedMode: null,     // 'cpu' | 'multi'
   selectedStageKey: null,
@@ -71,6 +81,7 @@ const AppFlow = {
       'assets/images/battle/gong3.png', 'assets/images/battle/gong2.png',
       'assets/images/battle/gong1.png', 'assets/images/battle/gong.png',
     ]);
+    SHOP_ITEMS.forEach(item => urls.add(item.image));
     const collectImages = value => {
       if (!value) return;
       if (typeof value === 'string' && /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(value)) {
@@ -130,6 +141,7 @@ const AppFlow = {
       const debugButton = document.getElementById('btn-debug');
       if (debugButton) debugButton.classList.toggle('hidden', !this._isDebugUser());
     }
+    if (name === 'item-shop') this.renderItemShop();
   },
 
   _isDebugUser() {
@@ -155,6 +167,37 @@ const AppFlow = {
     return iconKey === 'dullahan'
       ? 'assets/images/fighter/dullahan/stock.png'
       : 'assets/images/fighter/irumine/stock.png';
+  },
+
+  renderItemShop(message = '') {
+    const diamonds = Number(UserProfileStore.data.diamonds) || 0;
+    document.getElementById('shop-diamonds').textContent = `💎 ${diamonds}`;
+    const inventory = UserProfileStore.data.inventory || {};
+    document.getElementById('item-shop-list').innerHTML = SHOP_ITEMS.map(item => `
+      <article class="shop-item-card${item.comingSoon ? ' coming-soon' : ''}">
+        <img src="${item.image}" alt="${item.name}">
+        <div class="shop-item-info">
+          <strong>${item.name}</strong>
+          <p>${item.effect}</p>
+          <small>所持 ${Number(inventory[item.id]) || 0}個</small>
+        </div>
+        <button class="shop-buy-btn" data-shop-item="${item.id}" ${item.comingSoon ? 'disabled' : ''}>
+          ${item.comingSoon ? '準備中' : `💎 ${item.price}`}
+        </button>
+      </article>
+    `).join('');
+    document.getElementById('item-shop-message').textContent = message;
+  },
+
+  purchaseShopItem(itemId) {
+    const item = SHOP_ITEMS.find(entry => entry.id === itemId);
+    if (!item || item.comingSoon) return;
+    if (!UserProfileStore.purchaseItem(item.id, item.price)) {
+      this.renderItemShop('ダイヤが足りません');
+      return;
+    }
+    this.renderItemShop(`${item.name}を購入しました！`);
+    this._updateHomeProfile();
   },
 
   buildStageList() {
@@ -240,8 +283,10 @@ const AppFlow = {
     });
     document.getElementById('btn-training').addEventListener('click', () => this.openMasmonManage());
     document.getElementById('btn-manage-training').addEventListener('click', () => this.openTraining());
-    document.getElementById('btn-gacha').addEventListener('click', () => {
-      alert('ガチャは近日実装予定です');
+    document.getElementById('btn-gacha').addEventListener('click', () => this.showScreen('item-shop'));
+    document.getElementById('item-shop-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-shop-item]');
+      if (button) this.purchaseShopItem(button.dataset.shopItem);
     });
     document.getElementById('btn-home-settings').addEventListener('click', () => {
       vpad.el.settingsPanel.classList.remove('hidden');
