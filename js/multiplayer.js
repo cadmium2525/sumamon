@@ -15,6 +15,10 @@ const Multiplayer = {
   roomsUnsubscribe: null,
   stateFrame: 0,
   inputFrame: 0,
+  peerReadyPromise: null,
+  pendingJoin: null,
+  heartbeatTimer: null,
+  peerReconnectTimer: null,
 
   init() {
     document.querySelectorAll('.multi-tab').forEach(tab => tab.addEventListener('click', () => {
@@ -73,18 +77,91 @@ const Multiplayer = {
   },
 
   async ensurePeer() {
-    if (this.peer && !this.peer.destroyed && this.peerId) return this.peerId;
+    if (this.peer && !this.peer.destroyed && !this.peer.disconnected && this.peer.open && this.peerId) return this.peerId;
+    if (this.peerReadyPromise) return this.peerReadyPromise;
     if (!window.Peer) throw new Error('PeerJSを読み込めませんでした。通信環境を確認してください');
     if (this.peer && !this.peer.destroyed) this.peer.destroy();
-    this.peer = new Peer(undefined, { debug: 1 });
-    this.peer.on('connection', connection => this.acceptGuestConnection(connection));
-    this.peer.on('error', error => this.setMessage(`PeerJS接続エラー: ${error.type || error.message}`));
-    this.peerId = await new Promise((resolve, reject) => {
+    this.peerId = null;
+    const peer = new Peer(undefined, { debug: 1 });
+    this.peer = peer;
+    this.bindPeerEvents(peer);
+    this.peerReadyPromise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('PeerJSへの接続がタイムアウトしました')), 12000);
-      this.peer.once('open', id => { clearTimeout(timer); resolve(id); });
-      this.peer.once('error', error => { clearTimeout(timer); reject(error); });
+      peer.once('open', id => { clearTimeout(timer); resolve(id); });
+      peer.once('error', error => { clearTimeout(timer); reject(error); });
     });
-    return this.peerId;
+    try {
+      this.peerId = await this.peerReadyPromise;
+      return this.peerId;
+    } finally {
+      this.peerReadyPromise = null;
+    }
+  },
+
+  bindPeerEvents(peer) {
+    peer.on('open', id => {
+      if (peer !== this.peer) return;
+      this.peerId = id;
+      clearTimeout(this.peerReconnectTimer);
+      this.peerReconnectTimer = null;
+      if (this.role === 'host' && this.roomId && this.room) {
+        this.room.hostPeerId = id;
+        this.room.accepting = true;
+        FirebaseRTDB.update(FirebaseRTDB.ref(FirebaseRTDB.db, `rooms/${this.roomId}`), {
+          hostPeerId: id,
+          accepting: true,
+          heartbeatAt: FirebaseRTDB.serverTimestamp(),
+        }).then(() => this.startRoomHeartbeat()).catch(() => {});
+      }
+    });
+    peer.on('connection', connection => this.acceptGuestConnection(connection));
+    peer.on('disconnected', () => {
+      if (peer !== this.peer || peer.destroyed) return;
+      this.stopRoomHeartbeat();
+      if (this.role === 'host' && this.roomId) {
+        this.room.accepting = false;
+        FirebaseRTDB.update(FirebaseRTDB.ref(FirebaseRTDB.db, `rooms/${this.roomId}`), { accepting: false }).catch(() => {});
+      }
+      try { peer.reconnect(); } catch (_) {}
+      clearTimeout(this.peerReconnectTimer);
+      this.peerReconnectTimer = setTimeout(() => {
+        if (peer !== this.peer || !peer.disconnected) return;
+        if (this.role === 'host' && this.roomId) {
+          FirebaseRTDB.remove(FirebaseRTDB.ref(FirebaseRTDB.db, `rooms/${this.roomId}`)).catch(() => {});
+          this.setLobbyMessage('通信が切断されたため部屋を閉じました。部屋を作り直してください');
+        }
+      }, 10000);
+    });
+    peer.on('close', () => {
+      if (peer !== this.peer) return;
+      this.peerId = null;
+      this.stopRoomHeartbeat();
+      if (this.pendingJoin) this.pendingJoin.reject(new Error('PeerJSとの通信が終了しました'));
+    });
+    peer.on('error', error => {
+      if (this.pendingJoin && error.type === 'peer-unavailable') {
+        this.pendingJoin.reject(error);
+        return;
+      }
+      const type = error.type || error.message;
+      this.setMessage(`PeerJS接続エラー: ${type}`);
+    });
+  },
+
+  startRoomHeartbeat() {
+    this.stopRoomHeartbeat();
+    if (this.role !== 'host' || !this.roomId || !this.peer?.open) return;
+    const writeHeartbeat = () => FirebaseRTDB.update(
+      FirebaseRTDB.ref(FirebaseRTDB.db, `rooms/${this.roomId}`),
+      { heartbeatAt: FirebaseRTDB.serverTimestamp(), accepting: true },
+    ).catch(() => {});
+    writeHeartbeat();
+    this.heartbeatTimer = setInterval(writeHeartbeat, 10000);
+  },
+
+  stopRoomHeartbeat() {
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
   },
 
   requireServices() {
@@ -108,7 +185,8 @@ const Multiplayer = {
       const room = {
         roomId, hostUid: user.uid, hostPeerId: peerId,
         hostName: UserProfileStore.data.nickname || user.username,
-        maxPlayers, stageKey, status: 'waiting', createdAt: Date.now(),
+        maxPlayers, stageKey, status: 'waiting', accepting: true,
+        createdAt: Date.now(), heartbeatAt: FirebaseRTDB.serverTimestamp(),
         members: { [user.uid]: member },
       };
       const { ref, set, onDisconnect } = FirebaseRTDB;
@@ -116,6 +194,7 @@ const Multiplayer = {
       await set(roomRef, room);
       await onDisconnect(roomRef).remove();
       this.role = 'host'; this.roomId = roomId; this.room = room; this.localSelection = selection; this.localPlayerIndex = 0;
+      this.startRoomHeartbeat();
       this.renderLobby();
       AppFlow.showScreen('multi-lobby');
     } catch (error) {
@@ -141,7 +220,12 @@ const Multiplayer = {
 
   renderRoomList(rooms) {
     const list = document.getElementById('multi-room-list');
-    const entries = Object.values(rooms).filter(room => room && room.status === 'waiting');
+    const now = Date.now();
+    const entries = Object.values(rooms).filter(room => {
+      if (!room || room.status !== 'waiting' || room.accepting === false) return false;
+      const heartbeat = Number(room.heartbeatAt || room.createdAt || 0);
+      return heartbeat > 0 && now - heartbeat < 45000;
+    });
     this.availableRooms = Object.fromEntries(entries.map(room => [room.roomId, room]));
     list.innerHTML = entries.length ? entries.map(room => {
       const stage = STAGES[room.stageKey];
@@ -160,28 +244,62 @@ const Multiplayer = {
       this.requireServices();
       const selection = this.selectionFor('guest');
       if (!selection) throw new Error('使用するマスモンを選択してください');
-      const room = this.availableRooms && this.availableRooms[roomId];
+      const roomSnapshot = await FirebaseRTDB.get(FirebaseRTDB.ref(FirebaseRTDB.db, `rooms/${roomId}`));
+      const room = roomSnapshot.val();
       if (!room) throw new Error('部屋が見つかりません');
+      const heartbeat = Number(room.heartbeatAt || room.createdAt || 0);
+      if (room.status !== 'waiting' || room.accepting === false || Date.now() - heartbeat >= 45000) {
+        throw new Error('この部屋は現在接続できません。部屋一覧を更新してください');
+      }
       if (Object.keys(room.members || {}).length >= room.maxPlayers) throw new Error('この部屋は満員です');
+      if (room.members?.[AppFlow.currentUser.uid]) throw new Error('ホストとは別のアカウントで参加してください');
       this.setMessage('ホストへ接続しています…');
       await this.leaveRoom(false);
       await this.ensurePeer();
-      const connection = this.peer.connect(room.hostPeerId, { reliable: true, serialization: 'json' });
+      const connection = await this.connectToHost(room.hostPeerId);
       this.hostConnection = connection;
       this.role = 'guest'; this.roomId = roomId; this.room = room; this.localSelection = selection;
-      connection.on('open', () => connection.send({
+      connection.send({
         type: 'join',
         user: { ...AppFlow.currentUser, nickname: UserProfileStore.data.nickname || AppFlow.currentUser.username },
         peerId: this.peerId,
         selection,
-      }));
+      });
       connection.on('data', data => this.handleHostData(data));
       connection.on('close', () => this.handleHostClosed());
       connection.on('error', error => this.setLobbyMessage(`接続エラー: ${error.message}`));
     } catch (error) {
       console.error(error);
-      this.setMessage(error.message || '部屋に参加できませんでした');
+      this.hostConnection?.close();
+      this.hostConnection = null;
+      this.role = null; this.roomId = null; this.room = null; this.localSelection = null;
+      const message = error.type === 'peer-unavailable'
+        ? 'ホストが見つかりません。ホスト側で部屋を開いたまま、部屋一覧を更新して入り直してください'
+        : (error.message || '部屋に参加できませんでした');
+      this.setMessage(message);
     }
+  },
+
+  connectToHost(hostPeerId) {
+    return new Promise((resolve, reject) => {
+      const connection = this.peer.connect(hostPeerId, { serialization: 'json' });
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (this.pendingJoin?.peerId === hostPeerId) this.pendingJoin = null;
+        callback(value);
+      };
+      const timer = setTimeout(() => {
+        connection.close();
+        finish(reject, new Error('ホストへの接続がタイムアウトしました'));
+      }, 12000);
+      this.pendingJoin = { peerId: hostPeerId, reject: error => finish(reject, error) };
+      connection.on('open', () => finish(resolve, connection));
+      connection.on('error', error => finish(reject, error));
+      connection.on('close', () => finish(reject, new Error('ホストへの接続が閉じられました')));
+    });
   },
 
   acceptGuestConnection(connection) {
@@ -334,6 +452,10 @@ const Multiplayer = {
   },
 
   async leaveRoom(showMenu = false) {
+    this.stopRoomHeartbeat();
+    clearTimeout(this.peerReconnectTimer);
+    this.peerReconnectTimer = null;
+    this.pendingJoin = null;
     if (this.roomsUnsubscribe) { this.roomsUnsubscribe(); this.roomsUnsubscribe = null; }
     if (this.role === 'host' && this.roomId && window.FirebaseRTDB) {
       await FirebaseRTDB.remove(FirebaseRTDB.ref(FirebaseRTDB.db, `rooms/${this.roomId}`)).catch(() => {});
