@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v1';
+const CACHE_NAME = 'smamon-app-v30';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,6 +9,8 @@ const APP_SHELL = [
   './js/cpu-ai.js',
   './js/fighter.js',
   './js/fighters-data.js',
+  './js/fighters/irumine-moves.js',
+  './js/fighters/dullahan-moves.js',
   './js/firebase-init.js',
   './js/flow.js',
   './js/game.js',
@@ -20,7 +22,16 @@ const APP_SHELL = [
   './js/stage.js',
   './assets/images/app-icon.png',
   './assets/images/home.png',
-  './assets/images/logo.png'
+  './assets/images/logo.png',
+  './assets/images/stage-select-background.png',
+  './assets/images/masmon-manage-background.png',
+  './assets/images/training-background.png',
+  './assets/images/field/cosmo/background.png',
+  './assets/images/field/cosmo/platform.png',
+  './assets/images/fighter/irumine/jump/frame_001.png',
+  './assets/images/fighter/irumine/jump/frame_002.png',
+  './assets/images/fighter/irumine/jump/frame_003.png',
+  './assets/images/fighter/irumine/jump/air_idle.png'
 ];
 
 self.addEventListener('install', event => {
@@ -57,7 +68,23 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // コードと画像はキャッシュを優先し、更新取得に成功した場合は次回用に保存する。
+  // CSS・JavaScript・マニフェストはオンライン時に最新版を優先する。
+  if (request.destination === 'style' || request.destination === 'script' || url.pathname.endsWith('.webmanifest')) {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // 画像などの静的アセットはキャッシュを優先する。
   event.respondWith(
     caches.match(request).then(cached => cached || fetch(request).then(response => {
       if (response.ok) {

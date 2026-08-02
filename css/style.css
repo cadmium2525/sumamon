@@ -214,7 +214,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: min(310px, 58vw);
+  width: min(270px, 54vw);
   padding: 5px 9px 5px 5px;
   border: 1px solid rgba(171,226,255,.8);
   border-radius: 8px 18px 18px 8px;
@@ -244,10 +244,10 @@ html, body {
     url('../assets/images/home.png') center center / cover no-repeat;
 }
 #screen-home .home-logo {
-  width: 525px;
+  width: min(525px, 62vw);
   height: auto;
-  max-width: none;
-  max-height: none;
+  max-width: 62vw;
+  max-height: 44vh;
   flex-shrink: 0;
   margin-bottom: clamp(8px, 2vh, 18px);
   object-fit: contain;
@@ -279,6 +279,92 @@ html, body {
   #screen-home .home-logo { margin-bottom: 4px; top: 2px; }
   #screen-home .menu-list { width: min(66vw, 600px); padding: 8px; gap: 8px; top: 0; }
   #screen-home .menu-btn { min-height: 44px; padding: 8px 14px; }
+}
+
+/* ==== スマートフォン横画面共通（iPhone SE～大型端末） ==== */
+@media (orientation: landscape) and (max-height: 500px) {
+  .screen:not(#screen-battle) {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
+  .screen-heading { margin-bottom: 8px; font-size: clamp(16px, 4vh, 21px); }
+  .back-btn { margin-top: 10px; padding: 6px 18px; }
+
+  #screen-home .home-logo {
+    width: min(52vw, 410px);
+    max-width: 52vw;
+    max-height: 42vh;
+    margin-bottom: 0;
+  }
+  #screen-home .menu-list {
+    width: min(62vw, 520px);
+    padding: 7px;
+    gap: 7px;
+    top: 4px;
+  }
+  #screen-home .menu-btn { min-height: 40px; padding: 7px 12px; font-size: 13px; }
+  .home-profile-card {
+    top: max(7px, env(safe-area-inset-top));
+    left: max(7px, env(safe-area-inset-left));
+    width: min(245px, 48vw);
+  }
+  .home-profile-card > img { width: 40px; height: 40px; }
+  .icon-btn-corner, #vpad-settings-toggle {
+    top: max(7px, env(safe-area-inset-top));
+    right: max(7px, env(safe-area-inset-right));
+  }
+
+  .card-list { max-height: 54vh; gap: 9px; }
+  #fighter-list .select-card { width: 132px; height: 86px; }
+  #screen-fighter-select .token-bar { margin-bottom: 7px; }
+  #screen-fighter-select .token { width: 42px; height: 42px; }
+  #screen-fighter-select .fight-start-btn { margin-top: 8px; padding: 8px 30px; font-size: 16px; }
+  #screen-fighter-select > .back-btn { margin-top: 7px; }
+
+  #screen-stage-select { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .stage-select-heading { left: max(0px, env(safe-area-inset-left)); min-width: min(52vw, 410px); font-size: clamp(19px, 6vh, 29px); }
+  .stage-select-heading img { width: 40px; height: 40px; }
+  #screen-stage-select #stage-list { padding-top: 27px; }
+  #screen-stage-select #stage-list .select-card { width: clamp(145px, 23vw, 190px); height: clamp(98px, 29vh, 125px); }
+  .stage-select-guide { font-size: 12px; }
+  #screen-stage-select > .back-btn { left: max(10px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom)); }
+
+  #vpad-settings-panel {
+    top: max(48px, calc(env(safe-area-inset-top) + 44px));
+    right: max(7px, env(safe-area-inset-right));
+    max-height: calc(100vh - 58px - env(safe-area-inset-bottom));
+    padding: 10px;
+  }
+
+  /* iPhone 12横画面: ロゴは上部、2×2メニューは下部へ固定して見切れを防ぐ */
+  #screen-home { justify-content: flex-start; }
+  #screen-home .home-logo {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: min(54vw, 450px);
+    max-width: 54vw;
+    max-height: 64vh;
+    margin: 0;
+    transform: translateX(-50%);
+  }
+  #screen-home .menu-list {
+    position: absolute;
+    left: 50%;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    top: auto;
+    width: min(62vw, 520px);
+    transform: translateX(-50%);
+  }
+}
+
+@media (orientation: landscape) and (max-width: 700px) and (max-height: 420px) {
+  #screen-home .home-logo { width: min(42vw, 295px); max-width: 42vw; max-height: 58vh; }
+  #screen-home .menu-list { width: min(60vw, 430px); }
+  .home-profile-card { width: min(225px, 47vw); }
+  .home-profile-name b { font-size: 10px; }
+  .home-breeder-line, .home-profile-currency { font-size: 8px; }
+  #fighter-list .select-card { width: 116px; height: 76px; }
 }
 
 .menu-list {
@@ -356,7 +442,89 @@ html, body {
   text-shadow: 0 1px 3px #000, 0 0 4px #000;
 }
 #stage-list .select-card-label { color: #ffe066; background: rgba(0,0,0,.72); }
+#fighter-list .select-card { background-position: center 15%; }
 #fighter-list .select-card-label { color: #fff; background: rgba(0,0,0,.78); }
+
+/* ==== ステージセレクト ==== */
+#screen-stage-select {
+  justify-content: flex-end;
+  padding: 18px 24px 16px;
+  background:
+    linear-gradient(rgba(4,20,38,.08), rgba(3,10,18,.42)),
+    url('../assets/images/stage-select-background.png') center center / cover no-repeat;
+}
+.stage-select-heading {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: min(44vw, 520px);
+  padding: 8px 42px 8px 18px;
+  color: #fff;
+  background: linear-gradient(100deg, rgba(0,0,0,.96) 70%, transparent 100%);
+  clip-path: polygon(0 8%, 88% 0, 100% 20%, 91% 32%, 100% 48%, 90% 64%, 97% 82%, 84% 100%, 0 90%);
+  font-size: clamp(22px, 4vw, 42px);
+  font-weight: 950;
+  letter-spacing: .03em;
+  text-shadow: 0 3px 4px #000;
+  transform: rotate(-1deg);
+}
+.stage-select-heading img { width: clamp(42px, 7vh, 68px); height: clamp(42px, 7vh, 68px); border-radius: 50%; border: 2px solid #d9b45b; object-fit: cover; }
+#screen-stage-select #stage-list {
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  padding: 30px 8px 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+}
+#screen-stage-select #stage-list .select-card {
+  width: clamp(180px, 20vw, 260px);
+  height: clamp(120px, 25vh, 190px);
+  flex: 0 0 auto;
+  border: 4px solid rgba(10,14,20,.92);
+  border-radius: 11px;
+  box-shadow: 0 0 0 2px rgba(220,230,240,.62), 0 5px 12px rgba(0,0,0,.65);
+  overflow: visible;
+}
+#screen-stage-select #stage-list .select-card.selected {
+  border-color: #fff1a1;
+  box-shadow: 0 0 0 3px #ffd92f, 0 0 18px rgba(255,223,55,.95), 0 5px 12px rgba(0,0,0,.75);
+}
+#screen-stage-select #stage-list .select-card-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 6px 8px;
+  color: #fff;
+  background: rgba(5,10,18,.88);
+  text-align: center;
+  font-size: clamp(13px, 2vw, 20px);
+}
+.stage-select-guide {
+  width: min(54vw, 680px);
+  margin-top: 5px;
+  padding: 7px 30px;
+  color: #fff;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,.8) 18%, rgba(0,0,0,.8) 82%, transparent);
+  text-align: center;
+  font-size: clamp(13px, 2.2vw, 21px);
+  letter-spacing: .06em;
+  text-shadow: 0 2px 3px #000;
+}
+#screen-stage-select > .back-btn { position: absolute; left: 18px; bottom: 16px; margin: 0; background: rgba(0,0,0,.72); }
+
+@media (max-height: 480px) {
+  .stage-select-heading { top: 7px; padding-top: 5px; padding-bottom: 5px; }
+  #screen-stage-select #stage-list .select-card { height: clamp(105px, 31vh, 150px); }
+  .stage-select-guide { padding-top: 4px; padding-bottom: 4px; }
+}
 
 .back-btn {
   margin-top: 24px;
@@ -582,6 +750,12 @@ html, body {
 .fight-start-btn.hidden { display: none; }
 .fight-start-btn:active { transform: scale(0.96); }
 
+.cpu-mode-list { display: grid; grid-template-columns: repeat(3, minmax(150px, 220px)); gap: 12px; width: min(94vw, 720px); }
+.cpu-mode-card { min-height: 120px; padding: 18px; border: 2px solid rgba(255,255,255,.35); border-radius: 12px; color: #fff; background: rgba(8,25,45,.86); }
+.cpu-mode-card strong, .cpu-mode-card small { display: block; }
+.cpu-mode-card strong { font-size: 20px; }
+.cpu-mode-card small { margin-top: 10px; color: #b9d8ec; }
+
 /* ==== バトル開幕演出 ==== */
 .fight-callout {
   font-size: clamp(48px, 10vw, 96px);
@@ -606,6 +780,9 @@ html, body {
   gap: clamp(10px, 3vw, 30px);
   min-height: 260px;
 }
+.result-main { display: flex; width: min(94vw, 900px); min-height: 250px; align-items: center; justify-content: center; gap: 22px; }
+.result-main .result-podium { width: 52%; min-width: 0; }
+.result-main .result-masmon-panel { width: 42%; max-width: 380px; margin-top: 0; }
 
 .result-entry {
   display: flex;
@@ -675,20 +852,334 @@ html, body {
 .result-masmon-panel .rm-yes { background: #2ecc71; color: #fff; }
 .result-masmon-panel .rm-no { background: #555; color: #fff; }
 
+.masmon-exp-result { width: min(280px, 78vw); margin: 0 auto 7px; }
+.masmon-exp-heading { display: flex; justify-content: space-between; align-items: baseline; margin-top: 5px; font-size: 11px; }
+.masmon-exp-heading b { color: #fff3a0; font-size: 14px; }
+.masmon-exp-heading span { opacity: .75; }
+.masmon-exp-track { height: 12px; overflow: hidden; margin-top: 3px; border: 2px solid rgba(255,255,255,.7); border-radius: 8px; background: rgba(0,0,0,.62); box-shadow: inset 0 1px 4px rgba(0,0,0,.8); }
+.masmon-exp-fill { width: 0; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #37d96f, #d8ff58); box-shadow: 0 0 8px rgba(147,255,80,.8); }
+.masmon-level-callout { min-height: 16px; margin-top: 3px; color: #ffe45c; font-size: 0; font-weight: 950; text-shadow: 0 0 8px #ff8a00; opacity: 0; }
+.masmon-level-callout.show { animation: levelUpPop 520ms ease-out; }
+@keyframes levelUpPop {
+  0% { opacity: 0; font-size: 8px; transform: scale(.7); }
+  35% { opacity: 1; font-size: 17px; transform: scale(1.15); }
+  100% { opacity: 1; font-size: 14px; transform: scale(1); }
+}
+
 .result-continue-btn { margin-top: 26px; width: auto; padding: 10px 30px; }
 
+#battle-pause-btn { position: absolute; z-index: 90; top: max(12px, env(safe-area-inset-top)); right: max(58px, calc(env(safe-area-inset-right) + 52px)); width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.7); border-radius: 8px; color: #fff; background: rgba(0,0,0,.62); font-size: 18px; font-weight: 900; }
+#battle-pause-overlay { position: absolute; z-index: 80; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.55); font-size: clamp(42px, 10vw, 90px); font-weight: 950; letter-spacing: .12em; pointer-events: none; }
+#battle-pause-overlay.hidden, #battle-countdown.hidden { display: none; }
+#battle-countdown { position: absolute; z-index: 85; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+#battle-countdown img { width: min(45vw, 430px); max-height: 58vh; object-fit: contain; }
+#battle-countdown img.gong-final { transform: scale(1.5); }
+#battle-countdown span { color: #ffe05a; font-size: clamp(70px, 18vw, 170px); font-weight: 950; -webkit-text-stroke: 3px #54220c; text-shadow: 0 5px 18px #000; animation: fightPop .45s ease-out; }
+
 /* ==== マスモン管理・トレーニング ==== */
-.masmon-manage-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: min(94vw, 760px); }
-.masmon-manage-card { display: flex; align-items: center; gap: 10px; width: 220px; padding: 8px; color: #fff; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.25); border-radius: 10px; text-align: left; }
-.masmon-manage-card.selected { border-color: #ffd54a; background: rgba(255,213,74,.14); }
-.masmon-thumb { width: 54px; height: 54px; flex: 0 0 auto; border-radius: 8px; background-size: cover; background-position: center top; }
-.masmon-manage-card small { display: block; margin-top: 4px; opacity: .75; }
-.masmon-action-panel { margin-top: 16px; text-align: center; }
+#screen-masmon-manage {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  background: #15100d;
+}
+.masmon-only-background {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center top;
+}
+.masmon-only-training {
+  position: absolute;
+  z-index: 2;
+  top: 22%;
+  left: 7.5%;
+  width: 22%;
+  height: 10%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.masmon-only-training:focus-visible {
+  outline: 2px solid #ffe58a;
+  outline-offset: -2px;
+}
+.masmon-only-practice {
+  position: absolute;
+  z-index: 2;
+  top: 38%;
+  left: 7.5%;
+  width: 22%;
+  height: 8.7%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.masmon-only-practice:focus-visible {
+  outline: 2px solid #ffe58a;
+  outline-offset: -2px;
+}
+.masmon-only-skin {
+  position: absolute;
+  z-index: 2;
+  top: 52%;
+  left: 7.5%;
+  width: 22%;
+  height: 9%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.masmon-only-skin:focus-visible {
+  outline: 2px solid #ffe58a;
+  outline-offset: -2px;
+}
+.masmon-only-back {
+  position: absolute;
+  z-index: 2;
+  top: 67%;
+  left: 7.5%;
+  width: 22%;
+  height: 8.5%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.masmon-only-back:focus-visible {
+  outline: 2px solid #ffe58a;
+  outline-offset: -2px;
+}
+.masmon-current-display {
+  position: absolute;
+  z-index: 2;
+  top: 10%;
+  left: 38%;
+  display: flex;
+  width: 34%;
+  height: 72%;
+  align-items: center;
+  justify-content: flex-end;
+  flex-direction: column;
+  pointer-events: none;
+}
+#masmon-current-image {
+  width: 100%;
+  height: calc(100% - 32px);
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 8px 7px rgba(0,0,0,.7));
+}
+#masmon-current-name {
+  min-width: 130px;
+  padding: 4px 16px;
+  border: 1px solid rgba(255,220,119,.8);
+  border-radius: 999px;
+  color: #fff5cf;
+  background: rgba(12,9,8,.82);
+  font-size: clamp(11px, 1.8vw, 15px);
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 2px 3px #000;
+}
+.masmon-roster {
+  position: absolute;
+  z-index: 3;
+  top: 18%;
+  right: max(2%, env(safe-area-inset-right));
+  bottom: auto;
+  left: auto;
+  display: flex;
+  width: 21%;
+  height: 60%;
+  max-height: 60%;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 7px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border: 1px solid rgba(226,188,90,.7);
+  border-radius: 10px;
+  color: #fff;
+  background: rgba(10,9,10,.76);
+  font-size: 11px;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+}
+.masmon-roster-card {
+  display: grid;
+  grid-template-columns: 40px auto;
+  grid-template-rows: 1fr 1fr;
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 44px;
+  height: 44px;
+  align-items: center;
+  column-gap: 7px;
+  padding: 3px 8px 3px 3px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(22,31,42,.9);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+.masmon-roster-card.selected {
+  border-color: #ffe277;
+  background: rgba(89,65,15,.94);
+  box-shadow: 0 0 8px rgba(255,216,91,.72);
+}
+.masmon-roster-card img {
+  grid-row: 1 / 3;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  object-position: center 10%;
+}
+.masmon-roster-card small { color: #f6d77e; font-size: 9px; }
+.masmon-manage-background {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center top;
+  pointer-events: none;
+  user-select: none;
+}
+.masmon-background-error {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  padding: 12px 18px;
+  border: 1px solid #ff8c8c;
+  border-radius: 8px;
+  color: #fff;
+  background: #6b1717;
+  transform: translate(-50%, -50%);
+}
+.masmon-showcase {
+  position: absolute;
+  z-index: 2;
+  top: 15%;
+  left: 47%;
+  display: flex;
+  width: 31%;
+  height: 66%;
+  align-items: center;
+  justify-content: flex-end;
+  flex-direction: column;
+  pointer-events: none;
+}
+.masmon-showcase.hidden { display: none; }
+.masmon-showcase img {
+  width: 100%;
+  height: calc(100% - 34px);
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 8px 7px rgba(0,0,0,.62));
+}
+#masmon-showcase-name {
+  min-width: 118px;
+  padding: 4px 16px;
+  border: 1px solid rgba(248,210,109,.75);
+  border-radius: 999px;
+  color: #fff5cf;
+  background: rgba(12,9,8,.82);
+  font-size: clamp(11px, 1.8vw, 15px);
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 2px 3px #000;
+}
+.masmon-manage-list {
+  position: absolute;
+  z-index: 4;
+  right: 2.5%;
+  bottom: max(7px, env(safe-area-inset-bottom));
+  left: 34%;
+  display: flex;
+  height: 58px;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 5px 7px;
+  border: 1px solid rgba(226,188,90,.6);
+  border-radius: 10px;
+  background: rgba(10,9,10,.74);
+  scrollbar-width: thin;
+}
+.masmon-manage-card {
+  display: flex;
+  min-width: 112px;
+  height: 48px;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 7px 3px 3px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(22,31,42,.88);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+.masmon-manage-card.selected { border-color: #ffe277; background: rgba(89,65,15,.92); box-shadow: 0 0 8px rgba(255,216,91,.72); }
+.masmon-thumb { width: 40px; height: 40px; flex: 0 0 auto; border-radius: 6px; background-repeat: no-repeat; background-size: cover; background-position: center 10%; }
+.masmon-manage-card small { display: block; margin-top: 2px; color: #f6d77e; font-size: 9px; }
+.masmon-action-panel { position: absolute; z-index: 5; inset: 0; margin: 0; pointer-events: none; }
 .masmon-action-panel.hidden { display: none; }
+.masmon-action-panel button,
+.masmon-image-back {
+  position: absolute;
+  left: 5.4%;
+  width: 25.8%;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.masmon-action-panel button:nth-child(1) { top: 24.4%; height: 13.4%; }
+.masmon-action-panel button:nth-child(2) { top: 42.6%; height: 13.1%; }
+.masmon-action-panel button:nth-child(3) { top: 60.1%; height: 13.6%; }
+.masmon-image-back { z-index: 6; top: 78.5%; height: 13%; }
+.masmon-action-panel button:hover,
+.masmon-action-panel button:focus-visible,
+.masmon-image-back:hover,
+.masmon-image-back:focus-visible { outline: 2px solid rgba(255,231,137,.86); background: rgba(255,220,105,.08); }
+#screen-masmon-manage .empty-message {
+  position: absolute;
+  top: 43%;
+  left: 48%;
+  width: 40%;
+  border-radius: 10px;
+  color: #fff;
+  background: rgba(0,0,0,.72);
+  text-align: center;
+}
+.coming-soon-panel { padding: 20px 30px; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; background: rgba(0,0,0,.35); }
 .selected-masmon-name { margin-bottom: 8px; font-weight: 700; }
 .masmon-actions { display: flex; gap: 8px; }
-.masmon-actions button, .training-card { padding: 10px 14px; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; color: #fff; background: rgba(255,255,255,.1); }
-.training-summary { width: min(94vw, 650px); padding: 10px 14px; background: rgba(0,0,0,.3); border-radius: 10px; text-align: center; }
+.masmon-actions button, .training-card { padding: 10px 14px; border: 1px solid rgba(255,255,255,.55); border-radius: 8px; color: #fff; background: rgba(8,16,28,.82); text-shadow: 0 1px 3px #000; }
+.training-summary { width: min(94vw, 650px); padding: 10px 14px; border: 1px solid rgba(255,255,255,.22); background: rgba(7,14,24,.74); border-radius: 10px; text-align: center; text-shadow: 0 1px 3px #000; }
 .ticket-count { margin-left: 16px; color: #ffd54a; }
 .stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
 .stat-grid span { font-size: 11px; }
@@ -700,12 +1191,34 @@ html, body {
 .training-card { text-align: left; }
 .training-card strong, .training-card small { display: block; }
 .training-card small { margin-top: 3px; opacity: .75; }
-.training-card:disabled { opacity: .4; }
+.training-card:disabled { color: rgba(255,255,255,.76); background: rgba(25,28,32,.72); border-color: rgba(255,255,255,.3); opacity: .78; }
 .training-message { min-height: 20px; margin-top: 8px; color: #ffd54a; font-weight: 700; }
 .empty-message { padding: 20px; opacity: .75; }
 
 /* トレーニング項目が縦に伸びても「戻る」を常に操作できる位置へ固定する */
-#screen-training { padding-bottom: 72px; }
+#screen-training {
+  position: fixed;
+  isolation: isolate;
+  padding-bottom: 72px;
+  background: #20170f;
+}
+.training-background {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+}
+#screen-training > :not(.training-background) {
+  position: relative;
+  z-index: 1;
+}
 #screen-training > .back-btn {
   position: fixed;
   left: 14px;
@@ -731,4 +1244,69 @@ html, body {
   .training-list { grid-template-columns: repeat(5, minmax(115px, 1fr)); width: min(96vw, 900px); }
   .training-card { padding: 7px 9px; }
   .scrollable-screen .screen-heading { margin-bottom: 8px; }
+}
+
+/* 後続の各画面スタイルより優先する最終スマートフォン補正 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .screen-heading { margin-bottom: 8px; font-size: clamp(16px, 4vh, 21px); }
+  .back-btn { margin-top: 10px; padding: 6px 18px; }
+  #screen-home .home-logo { width: min(52vw, 410px); max-width: 52vw; max-height: 42vh; margin-bottom: 0; }
+  #screen-home .menu-list { width: min(62vw, 520px); padding: 7px; gap: 7px; top: 4px; }
+  #screen-home .menu-btn { min-height: 40px; padding: 7px 12px; font-size: 13px; }
+  #fighter-list .select-card { width: 132px; height: 86px; }
+  #screen-fighter-select .token-bar { margin-bottom: 7px; }
+  #screen-fighter-select .token { width: 42px; height: 42px; }
+  #screen-fighter-select .fight-start-btn { margin-top: 8px; padding: 8px 30px; font-size: 16px; }
+  #screen-fighter-select > .back-btn { margin-top: 7px; }
+  #screen-stage-select #stage-list .select-card { width: clamp(145px, 23vw, 190px); height: clamp(98px, 29vh, 125px); }
+  #vpad-settings-panel {
+    top: max(48px, calc(env(safe-area-inset-top) + 44px));
+    right: max(7px, env(safe-area-inset-right));
+    max-height: calc(100vh - 58px - env(safe-area-inset-bottom));
+    padding: 10px;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 700px) and (max-height: 420px) {
+  #screen-home .home-logo { width: min(48vw, 330px); max-width: 48vw; max-height: 38vh; }
+  #screen-home .menu-list { width: min(60vw, 430px); }
+  #fighter-list .select-card { width: 116px; height: 76px; }
+}
+
+/* iPhone 12 (844×390) のホーム最終配置。top/bottom同時指定による伸長を明示的に解除する。 */
+@media (orientation: landscape) and (min-width: 701px) and (max-height: 500px) {
+  #screen-home { justify-content: flex-start; }
+  #screen-home .home-logo {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    width: min(66vw, 550px);
+    max-width: 66vw;
+    max-height: 64vh;
+    margin: 0;
+    transform: translateX(-50%);
+  }
+  #screen-home .menu-list {
+    position: absolute;
+    top: auto;
+    right: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 50%;
+    width: min(62vw, 520px);
+    height: auto;
+    min-height: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, 44px);
+    grid-auto-rows: 44px;
+    align-content: start;
+    gap: 7px;
+    padding: 7px;
+    transform: translateX(-50%);
+  }
+  #screen-home .menu-btn {
+    width: auto;
+    height: 44px;
+    min-height: 0;
+    padding: 6px 12px;
+  }
 }

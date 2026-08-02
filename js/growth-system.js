@@ -98,7 +98,8 @@ const GROWTH = {
   computeExpGain(placement, totalFighters, cpuLevel) {
     const base = 60;
     const placementBonus = placement === 1 ? 1.5 : 1.0 - (placement - 1) * 0.15;
-    const cpuBonus = 1 + (cpuLevel || 3) * 0.06;
+    // CPUレベル差が報酬にはっきり出るよう、Lv.1からLv.9まで段階的に倍率を上げる。
+    const cpuBonus = 0.7 + Math.max(1, Math.min(9, cpuLevel || 3)) * 0.16;
     return Math.max(10, Math.round(base * placementBonus * cpuBonus));
   },
 };

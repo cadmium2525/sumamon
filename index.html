@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=30">
 </head>
 <body>
 
@@ -48,7 +48,7 @@
     <button id="home-profile-card" class="home-profile-card" title="タップでログアウト">
       <img id="home-profile-icon" src="assets/images/fighter/irumine/stock.png" alt="プロフィールアイコン">
       <span class="home-profile-info">
-        <span class="home-profile-name"><b id="home-nickname">ブリーダー</b><small>でログイン中</small></span>
+        <span class="home-profile-name"><b id="home-nickname">ブリーダー</b></span>
         <span class="home-breeder-line"><b id="home-breeder-level">ブリーダー Lv.1</b><small id="home-breeder-exp-text">0 / 100 EXP</small></span>
         <span class="home-breeder-exp"><i id="home-breeder-exp-fill"></i></span>
         <span class="home-profile-currency"><b id="home-diamonds">💎 0</b><b id="home-practice-tickets">修行券 0</b></span>
@@ -65,15 +65,22 @@
   </div>
 
   <!-- 4.5 マスモン管理 -->
-  <div id="screen-masmon-manage" class="screen hidden scrollable-screen">
-    <div class="screen-heading">マスモン管理</div>
-    <div id="masmon-manage-list" class="masmon-manage-list"></div>
-    <div id="masmon-action-panel" class="masmon-action-panel hidden"></div>
-    <button class="back-btn" data-back="home">戻る</button>
+  <div id="screen-masmon-manage" class="screen hidden">
+    <img class="masmon-only-background" src="assets/images/masmon-manage-background.png?v=11" alt="マスモン管理">
+    <button id="btn-manage-training" class="masmon-only-training" aria-label="トレーニングへ進む"></button>
+    <button class="masmon-only-practice" data-back="practice" aria-label="修行へ進む"></button>
+    <button class="masmon-only-skin" data-back="skin" aria-label="スキン変更へ進む"></button>
+    <button class="masmon-only-back" data-back="home" aria-label="ホームへ戻る"></button>
+    <div id="masmon-current-display" class="masmon-current-display">
+      <img id="masmon-current-image" alt="選択中のマスモン">
+      <div id="masmon-current-name"></div>
+    </div>
+    <div id="masmon-roster" class="masmon-roster"></div>
   </div>
 
   <!-- 4.6 トレーニング -->
   <div id="screen-training" class="screen hidden scrollable-screen">
+    <img class="training-background" src="assets/images/training-background.png?v=24" alt="" aria-hidden="true">
     <div class="screen-heading">トレーニング</div>
     <div id="training-summary" class="training-summary"></div>
     <div id="training-list" class="training-list"></div>
@@ -81,11 +88,34 @@
     <button class="back-btn" data-back="masmon-manage">戻る</button>
   </div>
 
+  <div id="screen-practice" class="screen hidden">
+    <div class="screen-heading">修行</div>
+    <div class="coming-soon-panel">修行は近日実装予定です</div>
+    <button class="back-btn" data-back="masmon-manage">戻る</button>
+  </div>
+
+  <div id="screen-skin" class="screen hidden">
+    <div class="screen-heading">スキン変更</div>
+    <div class="coming-soon-panel">スキン変更は近日実装予定です</div>
+    <button class="back-btn" data-back="masmon-manage">戻る</button>
+  </div>
+
   <!-- 5. 地形選択 -->
-  <div id="screen-stage-select" class="screen hidden">
-    <div class="screen-heading">地形選択</div>
-    <div id="stage-list" class="card-list"></div>
+  <div id="screen-cpu-mode" class="screen hidden">
+    <div class="screen-heading">CPU戦 モード選択</div>
+    <div class="cpu-mode-list">
+      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>1 on 1</strong><small>CPUと1対1で対戦</small></button>
+      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>近日実装予定</small></button>
+      <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>近日実装予定</small></button>
+    </div>
     <button class="back-btn" data-back="home">戻る</button>
+  </div>
+
+  <div id="screen-stage-select" class="screen hidden">
+    <div class="stage-select-heading"><img src="assets/images/app-icon.png" alt=""><span>ステージセレクト</span></div>
+    <div id="stage-list" class="card-list"></div>
+    <div class="stage-select-guide">ステージを選択してください</div>
+    <button class="back-btn" data-back="cpu-mode">戻る</button>
   </div>
 
   <!-- 6. ファイター選択（CPU戦は1P/CPUのおはじきをファイターへ配置する） -->
@@ -115,14 +145,19 @@
     <div id="game-container">
       <canvas id="gameCanvas" width="1400" height="1000"></canvas>
       <div id="hud"></div>
+      <button id="battle-pause-btn" aria-label="ポーズ">Ⅱ</button>
+      <div id="battle-pause-overlay" class="hidden">PAUSE</div>
+      <div id="battle-countdown" class="hidden"><img id="battle-countdown-image" alt=""><span id="battle-countdown-text"></span></div>
     </div>
   </div>
 
   <!-- 8. リザルト画面 -->
   <div id="screen-result" class="screen hidden scrollable-screen result-screen">
     <div class="screen-heading">RESULT</div>
-    <div id="result-podium" class="result-podium"></div>
-    <div id="result-masmon-panel" class="result-masmon-panel hidden"></div>
+    <div class="result-main">
+      <div id="result-podium" class="result-podium"></div>
+      <div id="result-masmon-panel" class="result-masmon-panel hidden"></div>
+    </div>
     <button id="btn-result-continue" class="menu-btn result-continue-btn">ホームへ戻る</button>
   </div>
 
@@ -130,17 +165,19 @@
 
   <script type="module" src="js/firebase-init.js"></script>
   <script src="js/config.js"></script>
-  <script src="js/moves.js"></script>
-  <script src="js/physics.js"></script>
-  <script src="js/fighter.js"></script>
+  <script src="js/moves.js?v=27"></script>
+  <script src="js/fighters/irumine-moves.js?v=28"></script>
+  <script src="js/fighters/dullahan-moves.js?v=27"></script>
+  <script src="js/physics.js?v=30"></script>
+  <script src="js/fighter.js?v=30"></script>
   <script src="js/fighters-data.js"></script>
-  <script src="js/stage.js"></script>
+  <script src="js/stage.js?v=30"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js"></script>
+  <script src="js/growth-system.js?v=27"></script>
   <script src="js/input.js"></script>
-  <script src="js/game.js"></script>
-  <script src="js/flow.js"></script>
+  <script src="js/game.js?v=30"></script>
+  <script src="js/flow.js?v=30"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

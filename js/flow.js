@@ -7,6 +7,7 @@ const AppFlow = {
   selectedStageKey: null,
   selectedCpuLevel: 3,
   selectedManageMasmonId: null,
+  manageIdleTimer: null,
 
   // トークン配置状態（CPU戦用）。値は { fighterKey, masmonId(nullable) } または null
   tokens: { p1: null, cpu1: null },
@@ -50,12 +51,14 @@ const AppFlow = {
 
   // 全ファイター/ステージ画像を事前読み込み（読み込み完了後にバトル開始しても即座に表示される）
   preloadAssets(onDone) {
-    const urls = ['assets/images/home.png', 'assets/images/logo.png'];
+    const urls = ['assets/images/home.png', 'assets/images/logo.png', 'assets/images/stage-select-background.png', 'assets/images/masmon-manage-background.png', 'assets/images/training-background.png'];
     Object.values(FIGHTERS).forEach(f => {
       if (f.idleImage) urls.push(f.idleImage);
       if (f.stockIcon) urls.push(f.stockIcon);
       if (f.walkSheetSrc) urls.push(f.walkSheetSrc);
       if (f.idleFrameSrcs) urls.push(...f.idleFrameSrcs);
+      if (f.jumpFrameSrcs) urls.push(...f.jumpFrameSrcs);
+      if (f.airIdleSrc) urls.push(f.airIdleSrc);
     });
     Object.values(STAGES).forEach(s => {
       if (s.background) urls.push(s.background);
@@ -81,6 +84,10 @@ const AppFlow = {
   },
 
   showScreen(name) {
+    if (name !== 'masmon-manage' && this.manageIdleTimer) {
+      clearInterval(this.manageIdleTimer);
+      this.manageIdleTimer = null;
+    }
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     document.getElementById('screen-' + name).classList.remove('hidden');
 
@@ -115,7 +122,7 @@ const AppFlow = {
   buildStageList() {
     const list = document.getElementById('stage-list');
     list.innerHTML = Object.values(STAGES).map(s => `
-      <button class="select-card" data-stage="${s.key}" style="background-image:url('${s.background}')">
+      <button class="select-card${s.key === this.selectedStageKey ? ' selected' : ''}" data-stage="${s.key}" style="background-image:url('${s.background}')">
         <span class="select-card-label">${s.displayName}</span>
       </button>
     `).join('');
@@ -172,14 +179,22 @@ const AppFlow = {
     });
 
     document.getElementById('btn-cpu').addEventListener('click', () => {
+      this.showScreen('cpu-mode');
+    });
+    document.getElementById('btn-mode-1on1').addEventListener('click', () => {
       this.selectedMode = 'cpu';
+      this.selectedStageKey = null;
+      this.buildStageList();
       this._resetFighterSelectState();
       this.showScreen('stage-select');
     });
+    document.getElementById('btn-mode-hundred').addEventListener('click', () => alert('100人組手は近日実装予定です'));
+    document.getElementById('btn-mode-endless').addEventListener('click', () => alert('エンドレスモードは近日実装予定です'));
     document.getElementById('btn-multi').addEventListener('click', () => {
       alert('マルチ対戦は近日実装予定です');
     });
     document.getElementById('btn-training').addEventListener('click', () => this.openMasmonManage());
+    document.getElementById('btn-manage-training').addEventListener('click', () => this.openTraining());
     document.getElementById('btn-gacha').addEventListener('click', () => {
       alert('ガチャは近日実装予定です');
     });
@@ -191,6 +206,11 @@ const AppFlow = {
     document.getElementById('stage-list').addEventListener('click', (e) => {
       const card = e.target.closest('.select-card');
       if (!card) return;
+      if (this.selectedStageKey !== card.dataset.stage) {
+        this.selectedStageKey = card.dataset.stage;
+        document.querySelectorAll('#stage-list .select-card').forEach(el => el.classList.toggle('selected', el === card));
+        return;
+      }
       this.selectedStageKey = card.dataset.stage;
       this.buildFighterList(); // マスモンが増えている可能性があるため再構築
       this._resetFighterSelectState();
@@ -242,26 +262,27 @@ const AppFlow = {
       this._startFromTokens();
     });
 
-    document.querySelectorAll('.back-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.showScreen(btn.dataset.back));
+    document.querySelectorAll('[data-back]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.back === 'masmon-manage') {
+          this.openMasmonManage();
+          return;
+        }
+        this.showScreen(btn.dataset.back);
+      });
     });
 
     document.getElementById('btn-result-continue').addEventListener('click', () => {
       this.showScreen('home');
     });
 
-    document.getElementById('masmon-manage-list').addEventListener('click', (e) => {
-      const card = e.target.closest('[data-manage-masmon]');
+    document.getElementById('masmon-roster').addEventListener('click', (e) => {
+      const card = e.target.closest('[data-masmon-id]');
       if (!card) return;
-      this.selectedManageMasmonId = card.dataset.manageMasmon;
+      this.selectedManageMasmonId = card.dataset.masmonId;
       this.renderMasmonManage();
     });
-    document.getElementById('masmon-action-panel').addEventListener('click', (e) => {
-      const action = e.target.closest('[data-manage-action]')?.dataset.manageAction;
-      if (action === 'training') this.openTraining();
-      if (action === 'practice') alert('修行は近日実装予定です');
-      if (action === 'skin') alert('スキン変更は近日実装予定です');
-    });
+
     document.getElementById('training-list').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-training]');
       if (btn) this.performTraining(btn.dataset.training);
@@ -269,37 +290,75 @@ const AppFlow = {
   },
 
   openMasmonManage() {
-    const list = MasmonStore.loadAll();
-    if (!list.some(m => m.id === this.selectedManageMasmonId)) this.selectedManageMasmonId = null;
-    this.renderMasmonManage();
     this.showScreen('masmon-manage');
+    const list = MasmonStore.loadAll();
+    if (!list.some(m => m.id === this.selectedManageMasmonId)) {
+      this.selectedManageMasmonId = list[0]?.id || null;
+    }
+    this.renderMasmonManage();
   },
 
   renderMasmonManage() {
     const list = MasmonStore.loadAll();
-    const listEl = document.getElementById('masmon-manage-list');
-    const panel = document.getElementById('masmon-action-panel');
+    const roster = document.getElementById('masmon-roster');
+    const image = document.getElementById('masmon-current-image');
+    const name = document.getElementById('masmon-current-name');
     if (!list.length) {
-      listEl.innerHTML = '<div class="empty-message">所持マスモンがいません。CPU戦後に登録できます。</div>';
-      panel.classList.add('hidden');
+      image.removeAttribute('src');
+      image.style.display = 'none';
+      name.textContent = '所持マスモンがいません';
+      roster.textContent = 'CPU戦後にマスモンを登録できます';
       return;
     }
-    listEl.innerHTML = list.map(m => {
+    image.style.display = '';
+    roster.innerHTML = list.map(m => {
       const base = FIGHTERS[m.baseFighterKey] || {};
       const selected = m.id === this.selectedManageMasmonId ? ' selected' : '';
-      const bg = base.idleImage ? `background-image:url('${base.idleImage}')` : `background-color:${base.color || '#333'}`;
-      return `<button class="masmon-manage-card${selected}" data-manage-masmon="${m.id}">
-        <span class="masmon-thumb" style="${bg}"></span><span>${m.name}<small>Lv.${m.level} ／ チケット ${m.trainingTickets || 0}枚</small></span>
+      return `<button class="masmon-roster-card${selected}" data-masmon-id="${m.id}" aria-label="マスモンを選択">
+        <img src="${base.idleImage || ''}" alt=""><span></span><small>Lv.${m.level}</small>
       </button>`;
     }).join('');
+    list.forEach((m, index) => {
+      const label = roster.children[index]?.querySelector('span');
+      if (label) label.textContent = m.name;
+    });
     const selected = list.find(m => m.id === this.selectedManageMasmonId);
-    panel.classList.toggle('hidden', !selected);
-    panel.innerHTML = selected ? `<div class="selected-masmon-name">${selected.name}に何をしますか？</div>
-      <div class="masmon-actions"><button data-manage-action="training">トレーニング</button><button data-manage-action="practice">修行</button><button data-manage-action="skin">スキン変更</button></div>` : '';
+    if (selected) {
+      const base = FIGHTERS[selected.baseFighterKey] || {};
+      this._startManageIdleAnimation(base, image);
+      name.textContent = `${selected.name}　Lv.${selected.level}`;
+    }
+  },
+
+  _startManageIdleAnimation(base, image) {
+    if (this.manageIdleTimer) {
+      clearInterval(this.manageIdleTimer);
+      this.manageIdleTimer = null;
+    }
+    const frames = base.idleFrameSrcs?.length ? base.idleFrameSrcs : [base.idleImage].filter(Boolean);
+    if (!frames.length) {
+      image.removeAttribute('src');
+      return;
+    }
+    let frameIndex = 0;
+    image.src = frames[frameIndex];
+    if (frames.length === 1) return;
+    const frameMs = Math.max(80, (base.idleFrameDuration || 8) * (1000 / 60));
+    this.manageIdleTimer = setInterval(() => {
+      frameIndex = (frameIndex + 1) % frames.length;
+      image.src = frames[frameIndex];
+    }, frameMs);
   },
 
   openTraining() {
-    if (!this._selectedManageMasmon()) return;
+    if (!this._selectedManageMasmon()) {
+      const firstMasmon = MasmonStore.loadAll()[0];
+      if (!firstMasmon) {
+        alert('トレーニングできるマスモンがいません');
+        return;
+      }
+      this.selectedManageMasmonId = firstMasmon.id;
+    }
     this.renderTraining();
     this.showScreen('training');
   },
@@ -315,7 +374,7 @@ const AppFlow = {
     const stats = GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: m.trainingStats }, m.aptitudes, m.level);
     const effects = {
       life: '生存力', power: '打撃技の威力', intelligence: '必殺技の威力',
-      accuracy: '攻撃の届く範囲', evasion: '移動速度', defense: '吹っ飛びにくさ',
+      accuracy: 'クリティカル率', evasion: '移動速度', defense: '吹っ飛びにくさ',
     };
     document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count">🎟 ${m.trainingTickets || 0}枚</span>
       <div class="stat-grid">${GROWTH.STAT_KEYS.map(k => `<span>${labels[k]} <b>${stats[k]}</b><small>適性 ${m.aptitudes[k]}</small><em>${effects[k]}</em></span>`).join('')}</div>`;
@@ -591,22 +650,37 @@ const AppFlow = {
     this.playBattleIntro(this.lastLaunchOptions);
   },
 
-  // Loading演出 → "FIGHT!" 掛け声 → バトル開始
-  playBattleIntro(startOptions) {
+  // Loading後にバトル画面へ移り、操作不能の3・2・1・FIGHTカウントを表示する。
+  async playBattleIntro(startOptions) {
     this.showScreen('battle-intro');
     const loadingEl = document.getElementById('battle-intro-loading');
     const fightEl = document.getElementById('battle-intro-fight');
     loadingEl.classList.remove('hidden');
     fightEl.classList.add('hidden');
-
-    setTimeout(() => {
-      loadingEl.classList.add('hidden');
-      fightEl.classList.remove('hidden');
-      setTimeout(() => {
-        this.showScreen('battle');
-        window.startBattle(startOptions);
-      }, 750);
-    }, 600);
+    await new Promise(resolve => setTimeout(resolve, 600));
+    this.showScreen('battle');
+    window.startBattle(startOptions);
+    const overlay = document.getElementById('battle-countdown');
+    const image = document.getElementById('battle-countdown-image');
+    const text = document.getElementById('battle-countdown-text');
+    overlay.classList.remove('hidden');
+    const steps = [
+      { file: 'gong3.png', text: '3', ms: 700 }, { file: 'gong2.png', text: '2', ms: 700 },
+      { file: 'gong1.png', text: '1', ms: 700 }, { file: 'gong.png', text: 'FIGHT!', ms: 650 },
+    ];
+    for (const step of steps) {
+      image.classList.toggle('gong-final', step.file === 'gong.png');
+      text.textContent = step.text;
+      text.style.display = '';
+      image.style.display = 'none';
+      image.onload = () => { image.style.display = ''; text.style.display = 'none'; };
+      image.onerror = () => { image.style.display = 'none'; text.style.display = ''; };
+      image.src = `assets/images/battle/${step.file}`;
+      await new Promise(resolve => setTimeout(resolve, step.ms));
+    }
+    overlay.classList.add('hidden');
+    image.classList.remove('gong-final');
+    window.setBattleInputLocked(false);
   },
 
   // ---- バトル終了後（game.jsから呼ばれる） ----
@@ -622,7 +696,7 @@ const AppFlow = {
 
     if (opts.p1MasmonId) {
       this._renderMasmonExpResult(panel, opts, p1Entry);
-    } else if (MasmonStore.loadAll().length === 0) {
+    } else if (p1Entry && p1Entry.rank === 1) {
       this._renderRegistrationPrompt(panel, opts);
     } else {
       panel.classList.add('hidden');
@@ -681,16 +755,78 @@ const AppFlow = {
     if (!record) { panel.classList.add('hidden'); return; }
 
     const expGain = GROWTH.computeExpGain(p1Entry ? p1Entry.rank : 2, 2, opts.cpuLevel);
+    const startLevel = record.level;
+    const startExp = record.exp;
     const levelResult = GROWTH.addExp(record, expGain);
     MasmonStore.update(record);
 
     panel.innerHTML = `
-      <div>${record.name} は経験値を ${expGain} 獲得！</div>
+      <div class="masmon-exp-result">
+        <div><strong>${record.name}</strong>　EXP +${expGain}</div>
+        <div class="masmon-exp-heading"><b id="masmon-exp-level">Lv.${startLevel}</b><span id="masmon-exp-numbers"></span></div>
+        <div class="masmon-exp-track"><div id="masmon-exp-fill" class="masmon-exp-fill"></div></div>
+        <div id="masmon-level-callout" class="masmon-level-callout"></div>
+      </div>
       ${levelResult.leveledUp
         ? `<div>レベルアップ！ Lv.${levelResult.fromLevel} → Lv.${levelResult.toLevel}</div><div>トレーニングチケットを ${levelResult.ticketsGained}枚 獲得！</div>`
         : `<div>現在 Lv.${record.level}</div>`}
     `;
+    this._animateMasmonExp(startLevel, startExp, expGain);
     this.buildFighterList();
+  },
+
+  async _animateMasmonExp(startLevel, startExp, expGain) {
+    const levelEl = document.getElementById('masmon-exp-level');
+    const numbersEl = document.getElementById('masmon-exp-numbers');
+    const fillEl = document.getElementById('masmon-exp-fill');
+    const calloutEl = document.getElementById('masmon-level-callout');
+    if (!levelEl || !numbersEl || !fillEl || !calloutEl) return;
+
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+    let level = startLevel;
+    let exp = startExp;
+    let remaining = expGain;
+
+    while (remaining > 0 && level < GROWTH.LEVEL_MAX) {
+      const required = GROWTH.expForLevel(level);
+      const gainedThisLevel = Math.min(remaining, required - exp);
+      const nextExp = exp + gainedThisLevel;
+      levelEl.textContent = `Lv.${level}`;
+      numbersEl.textContent = `${exp} / ${required}`;
+      fillEl.style.transition = 'none';
+      fillEl.style.width = `${Math.min(100, exp / required * 100)}%`;
+      void fillEl.offsetWidth;
+      fillEl.style.transition = 'width 700ms cubic-bezier(.2,.8,.2,1)';
+      fillEl.style.width = `${Math.min(100, nextExp / required * 100)}%`;
+      await wait(720);
+      numbersEl.textContent = `${nextExp} / ${required}`;
+      exp = nextExp;
+      remaining -= gainedThisLevel;
+
+      if (exp >= required) {
+        level++;
+        calloutEl.textContent = `LEVEL UP!　Lv.${level}`;
+        calloutEl.classList.remove('show');
+        void calloutEl.offsetWidth;
+        calloutEl.classList.add('show');
+        await wait(520);
+        exp = 0;
+        if (level < GROWTH.LEVEL_MAX) {
+          const nextRequired = GROWTH.expForLevel(level);
+          levelEl.textContent = `Lv.${level}`;
+          numbersEl.textContent = `0 / ${nextRequired}`;
+          fillEl.style.transition = 'none';
+          fillEl.style.width = '0%';
+          void fillEl.offsetWidth;
+        }
+      }
+    }
+
+    if (level >= GROWTH.LEVEL_MAX) {
+      levelEl.textContent = `Lv.${GROWTH.LEVEL_MAX}`;
+      numbersEl.textContent = 'MAX';
+      fillEl.style.width = '100%';
+    }
   },
 };
 

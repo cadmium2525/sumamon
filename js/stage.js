@@ -18,8 +18,27 @@ const STAGES = {
       { x: 830, y: 560, w: 150, h: 20 },   // 右浮島
     ],
     spawnPoints: [
-      { x: 495, y: 500 },
-      { x: 905, y: 500 },
+      { x: 495, y: 450 },
+      { x: 905, y: 450 },
+      { x: 550, y: 670 },
+      { x: 780, y: 670 },
+    ],
+  },
+  cosmo: {
+    key: 'cosmo',
+    displayName: 'コスモ',
+    background: 'assets/images/field/cosmo/background.png',
+    platformImage: 'assets/images/field/cosmo/platform.png',
+    worldWidth: CONFIG.CANVAS_W,
+    worldHeight: CONFIG.CANVAS_H,
+    platforms: [
+      { x: 250, y: 750, w: 900, h: 30 },
+      { x: 420, y: 560, w: 150, h: 20 },
+      { x: 830, y: 560, w: 150, h: 20 },
+    ],
+    spawnPoints: [
+      { x: 495, y: 450 },
+      { x: 905, y: 450 },
       { x: 550, y: 670 },
       { x: 780, y: 670 },
     ],

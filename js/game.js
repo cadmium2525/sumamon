@@ -17,6 +17,117 @@ const blastBounds = {
 let players = [];
 let cpuController = null;
 let loopStarted = false;
+let projectiles = [];
+let battlePaused = false;
+let battleInputLocked = false;
+
+const pauseButton = document.getElementById('battle-pause-btn');
+const pauseOverlay = document.getElementById('battle-pause-overlay');
+pauseButton.addEventListener('click', () => {
+  if (window._matchOver || battleInputLocked) return;
+  battlePaused = !battlePaused;
+  pauseButton.textContent = battlePaused ? '▶' : 'Ⅱ';
+  pauseOverlay.classList.toggle('hidden', !battlePaused);
+});
+
+window.setBattleInputLocked = locked => { battleInputLocked = !!locked; };
+
+function updateProjectiles() {
+  for (const owner of players) {
+    const request = owner.consumeProjectileRequest();
+    if (!request) continue;
+    const cfg = request.config;
+    const sprite = request.move.projectileSprite ? new Image() : null;
+    if (sprite) sprite.src = request.move.projectileSprite;
+    projectiles.push({ owner, move: request.move, sprite, config: cfg,
+      x: owner.facing === 1 ? owner.x + owner.w : owner.x - cfg.width,
+      y: owner.y + owner.h * 0.42, vx: owner.facing * cfg.speed,
+      vy: 0, w: cfg.width, h: cfg.height, life: cfg.lifetime, hit: false, exploding: 0 });
+  }
+  for (const p of projectiles) {
+    if (p.exploding > 0) {
+      p.exploding--;
+      if (p.exploding <= 0) p.hit = true;
+      continue;
+    }
+    const isBomb = p.config.type === 'bomb';
+    const previousBottom = p.y + p.h;
+    p.x += p.vx;
+    if (isBomb) {
+      p.vy += p.config.gravity || 0.25;
+      p.y += p.vy;
+      for (const platform of Stage.platforms) {
+        const surfaceY = platform.surfaceY != null ? platform.surfaceY : platform.y;
+        const withinX = p.x + p.w > platform.x && p.x < platform.x + platform.w;
+        if (withinX && p.vy >= 0 && previousBottom <= surfaceY + 3 && p.y + p.h >= surfaceY) {
+          p.y = surfaceY - p.h;
+          p.vy = 0;
+          p.vx *= p.config.groundFriction || 0.985;
+          break;
+        }
+      }
+    }
+    p.life--;
+    if (isBomb && p.life <= 0) {
+      const radius = p.config.explosionRadius || 90;
+      const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+      for (const target of players) {
+        if (target === p.owner || target.dead) continue;
+        const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
+        if (Math.hypot(tx - cx, ty - cy) <= radius) target.takeHit(p.owner, p.move);
+      }
+      p.exploding = 12;
+      p.vx = 0;
+      p.vy = 0;
+      continue;
+    }
+    if (isBomb) continue;
+    for (const target of players) {
+      if (target === p.owner || target.dead || p.hit) continue;
+      if (Physics.rectsOverlap({ x: p.x, y: p.y, w: p.w, h: p.h }, target.getHurtbox())) {
+        target.takeHit(p.owner, p.move);
+        p.hit = true;
+      }
+    }
+  }
+  projectiles = projectiles.filter(p => !p.hit && (p.life > 0 || p.exploding > 0) &&
+    p.x > blastBounds.left && p.x < blastBounds.right && p.y < blastBounds.bottom);
+}
+
+function drawProjectiles() {
+  for (const p of projectiles) {
+    ctx.save();
+    ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+    if (p.exploding > 0) {
+      const progress = 1 - p.exploding / 12;
+      const radius = (p.config.explosionRadius || 90) * (0.45 + progress * 0.55);
+      ctx.globalAlpha = Math.max(.15, p.exploding / 12);
+      const gradient = ctx.createRadialGradient(0, 0, 4, 0, 0, radius);
+      gradient.addColorStop(0, '#fff7b0'); gradient.addColorStop(.35, '#ff9f1a'); gradient.addColorStop(1, 'rgba(255,45,0,0)');
+      ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      continue;
+    }
+    if (p.vx < 0) ctx.scale(-1, 1);
+    if (p.sprite && p.sprite.complete && p.sprite.naturalWidth > 0) {
+      ctx.drawImage(p.sprite, -p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+      continue;
+    }
+    if (p.config.type === 'bomb') {
+      ctx.fillStyle = '#27232f'; ctx.strokeStyle = '#ffb02e'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = Math.floor(p.life / 10) % 2 ? '#ff3b30' : '#ffe66d';
+      ctx.beginPath(); ctx.arc(5, -8, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      continue;
+    }
+    ctx.strokeStyle = '#ffe88a'; ctx.fillStyle = '#fff4bd'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-p.w / 2, 0); ctx.lineTo(p.w / 2 - 8, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.w / 2, 0); ctx.lineTo(p.w / 2 - 12, -7); ctx.lineTo(p.w / 2 - 12, 7); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
 
 function checkAttacks() {
   for (const attacker of players) {
@@ -28,6 +139,43 @@ function checkAttacks() {
         target.takeHit(attacker, attacker.currentMove);
         attacker.hasHitThisAttack = true;
       }
+    }
+  }
+}
+
+function resolveFighterCollisions() {
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      const a = players[i], b = players[j];
+      if (a.dead || b.dead || a.grabbedBy || b.grabbedBy || !Physics.rectsOverlap(a.getHurtbox(), b.getHurtbox())) continue;
+
+      const aBottom = a.y + a.h, bBottom = b.y + b.h;
+      const aWasAbove = a.y < b.y && a.vy >= 0 && aBottom - a.vy <= b.y + 12;
+      const bWasAbove = b.y < a.y && b.vy >= 0 && bBottom - b.vy <= a.y + 12;
+      if (aWasAbove || bWasAbove) {
+        const top = aWasAbove ? a : b;
+        const bottom = aWasAbove ? b : a;
+        top.y = bottom.y - top.h;
+        const centerDifference = Math.abs((top.x + top.w / 2) - (bottom.x + bottom.w / 2));
+        const directStomp = centerDifference <= Math.min(top.w, bottom.w) * 0.38;
+        if (directStomp) {
+          top.vy = -Math.max(7, Math.abs(top.vy) * 0.8);
+          top.onGround = false;
+        } else {
+          top.vy = 0;
+          top.onGround = true;
+        }
+        continue;
+      }
+
+      const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      if (overlapX <= 0) continue;
+      const aIsLeft = a.x + a.w / 2 <= b.x + b.w / 2;
+      const separation = overlapX / 2 + 0.1;
+      a.x += aIsLeft ? -separation : separation;
+      b.x += aIsLeft ? separation : -separation;
+      if ((aIsLeft && a.vx > 0) || (!aIsLeft && a.vx < 0)) a.vx = 0;
+      if ((aIsLeft && b.vx < 0) || (!aIsLeft && b.vx > 0)) b.vx = 0;
     }
   }
 }
@@ -151,7 +299,7 @@ function loop() {
   // 万一この中で想定外の例外が起きても、それによってrequestAnimationFrameの連鎖が
   // 途切れて「敵を倒してもリザルト画面に進まない」ような無言のフリーズが起きないようにする。
   try {
-    if (players.length && !window._matchOver) {
+    if (players.length && !window._matchOver && !battlePaused && !battleInputLocked) {
       const p1Input = mergeInputs(input.getPlayer1Input(), vpad.getState());
       players[0].applyInput(p1Input);
 
@@ -159,9 +307,11 @@ function loop() {
       players[1].applyInput(p2Input);
 
       for (const p of players) p.update(Stage.platforms, blastBounds);
+      resolveFighterCollisions();
       checkLedges();
       checkGrabs();
       checkAttacks();
+      updateProjectiles();
       checkMatchEnd();
     }
 
@@ -172,6 +322,7 @@ function loop() {
     Camera.apply(ctx);
     Stage.draw(ctx); // 足場・ブラストラインはカメラに追従する
     for (const p of players) p.draw(ctx);
+    drawProjectiles();
     ctx.restore();
     updateHUD();
   } catch (e) {
@@ -199,6 +350,7 @@ window.startBattle = function startBattle(options) {
 
   function buildOptions(def, masmon) {
     return {
+      fighterKey: def.key,
       grabRange: def.grabRange,
       name: masmon ? masmon.name : def.displayName,
       stockIconSrc: def.stockIcon,
@@ -215,6 +367,11 @@ window.startBattle = function startBattle(options) {
       idleFrameSrcs: def.idleFrameSrcs,
       idleFrameContentBox: def.idleFrameContentBox,
       idleFrameDuration: def.idleFrameDuration,
+      jumpFrameSrcs: def.jumpFrameSrcs,
+      jumpFrameContentBox: def.jumpFrameContentBox,
+      jumpFrameDuration: def.jumpFrameDuration,
+      airIdleSrc: def.airIdleSrc,
+      airIdleContentBox: def.airIdleContentBox,
     };
   }
 
@@ -230,6 +387,11 @@ window.startBattle = function startBattle(options) {
   }
 
   window._matchOver = false;
+  projectiles = [];
+  battlePaused = false;
+  battleInputLocked = true;
+  pauseButton.textContent = 'Ⅱ';
+  pauseOverlay.classList.add('hidden');
   players = [
     new Fighter('p1', resolveStats(p1Def, p1Masmon),
       p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon)),

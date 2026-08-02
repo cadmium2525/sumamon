@@ -12,6 +12,8 @@ class Fighter {
     this.color = color;
     this.spawn = spawn;
     this.stockIconSrc = options.stockIconSrc || null;
+    this.fighterKey = options.fighterKey || null;
+    this.moveSet = (window.FIGHTER_MOVESETS && window.FIGHTER_MOVESETS[this.fighterKey]) || {};
 
     // 当たり判定サイズ：画像を解析した実寸。未指定時は基準サイズにフォールバック。
     this.w = options.hurtboxWidth || CONFIG.BASE_HURTBOX_W;
@@ -47,6 +49,28 @@ class Fighter {
       });
     }
 
+    // ジャンプ開始のコマ送りと、ジャンプモーション終了後の空中待機画像
+    this.jumpAnimFrames = [];
+    this.jumpAnimFramesLoadedCount = 0;
+    this.jumpFrameContentBox = options.jumpFrameContentBox || null;
+    this.jumpFrameDuration = options.jumpFrameDuration || 5;
+    if (options.jumpFrameSrcs && options.jumpFrameSrcs.length) {
+      this.jumpAnimFrames = options.jumpFrameSrcs.map(src => {
+        const img = new Image();
+        img.onload = () => { this.jumpAnimFramesLoadedCount++; };
+        img.src = src;
+        return img;
+      });
+    }
+    this.airIdle = null;
+    this.airIdleLoaded = false;
+    this.airIdleContentBox = options.airIdleContentBox || this.jumpFrameContentBox;
+    if (options.airIdleSrc) {
+      this.airIdle = new Image();
+      this.airIdle.onload = () => { this.airIdleLoaded = true; };
+      this.airIdle.src = options.airIdleSrc;
+    }
+
     // 歩行アニメーション（スプライトシート）。無い場合は静止画のまま表示される。
     this.walkSheet = null;
     this.walkSheetLoaded = false;
@@ -77,6 +101,8 @@ class Fighter {
     this.vy = 0;
     this.facing = 1;
     this.onGround = false;
+    this.groundedPlatform = null;
+    this.dropThroughTimer = 0;
     this.jumpsUsed = 0;
     this.damagePercent = 0;
     this.stocks = CONFIG.STOCK_DEFAULT;
@@ -86,8 +112,11 @@ class Fighter {
     this.motionTimer = 0;
 
     this.attackTimer = 0;
+    this.recoveryTimer = 0;
     this.currentMove = null;
     this.hasHitThisAttack = false;
+    this._projectileSpawned = false;
+    this._projectileRequest = null;
     this.hitstun = 0;
 
     this.shielding = false;
@@ -101,6 +130,7 @@ class Fighter {
     // ジャンプ（小ジャンプ/大ジャンプ判定）
     this.jumpFrames = 0;
     this.jumpCutDone = true;
+    this.jumpAnimTimer = -1;
     this.prevShieldHeld = false;
     this._airDodgeUsed = false;
 
@@ -170,6 +200,7 @@ class Fighter {
     this.updateEdges(input);
 
     if (this.hitstun > 0) return;
+    if (this.recoveryTimer > 0) return;
     if (this.dazedTimer > 0) { this.dazedTimer--; return; } // シールド破壊後のピヨリ：操作不能
     if (this.dodgeTimer > 0) {
       this.dodgeTimer--;
@@ -210,6 +241,13 @@ class Fighter {
 
     const wasOnGround = this.onGround; // ジャンプ処理より前の接地状態（同フレーム誤爆防止）
     if (wasOnGround) this._airDodgeUsed = false;
+    if (wasOnGround && this.groundedPlatform > 0 && this.downEdge) {
+      this.dropThroughTimer = 14;
+      this.onGround = false;
+      this.groundedPlatform = null;
+      this.y += 8;
+      return;
+    }
 
     // シールドボタンのエッジ検出（空中緊急回避の一回性トリガーに使用）
     const shieldWasHeld = this.prevShieldHeld;
@@ -283,6 +321,7 @@ class Fighter {
       this.onGround = false;
       this.jumpFrames = 0;
       this.jumpCutDone = false;
+      this.jumpAnimTimer = 0;
     }
     if (!this.jumpCutDone) {
       this.jumpFrames++;
@@ -346,10 +385,11 @@ class Fighter {
     const specialPressed = input.special && !this.prevSpecialHeld;
     if (specialPressed && this.attackTimer <= 0) {
       const dir = this.getHeldDirection(input);
-      const move = MOVES.special[dir || 'neutral'];
+      const moveKey = dir || 'neutral';
+      const move = (this.moveSet.special && this.moveSet.special[moveKey]) || MOVES.special[moveKey];
 
       // 上B（recoveryBoostを持つ技）は空中では1回のみ使用可能。使用後は着地するまで行動不能。
-      if (move.recoveryBoost && !wasOnGround) {
+      if (move.recoveryBoost) {
         if (this._usedUpSpecialAirborne) {
           this.prevSpecialHeld = input.special;
           return;
@@ -378,7 +418,10 @@ class Fighter {
     this.dodgeTimer = 0;
     this.attackTimer = 0;
     this.currentMove = null;
+    this.recoveryTimer = 0;
     this.jumpsUsed = 0;
+    this._usedUpSpecialAirborne = false;
+    this.helpless = false;
     this.ledgeHangFrames = 0;
     this.facing = ledge.edge === 'left' ? 1 : -1;
   }
@@ -395,6 +438,7 @@ class Fighter {
       this.vy = CONFIG.JUMP_POWER;
       this.jumpsUsed = 1;
       this.invincible = Math.max(this.invincible, 10);
+      this.jumpAnimTimer = 0;
     } else {
       this.vy = 0;
     }
@@ -518,6 +562,13 @@ class Fighter {
     this.currentMove = move;
     this.attackTimer = move.duration;
     this.hasHitThisAttack = false;
+    this._projectileSpawned = false;
+  }
+
+  consumeProjectileRequest() {
+    const request = this._projectileRequest;
+    this._projectileRequest = null;
+    return request;
   }
 
   getHitbox() {
@@ -526,7 +577,8 @@ class Fighter {
     const framesElapsed = m.duration - this.attackTimer;
     if (framesElapsed < m.active[0] || framesElapsed > m.active[1]) return null;
     const scale = this.attackScale || 1;
-    const range = m.range * scale * (1 + this.stats.accuracy * 0.03);
+    if (m.projectile) return null;
+    const range = m.range * scale;
     const boxH = m.h * scale;
     const yOff = (m.yOff || 0) * scale;
     const x = this.facing === 1 ? this.x + this.w : this.x - range;
@@ -543,6 +595,9 @@ class Fighter {
     if (this.invincible > 0 || this.dead) return;
 
     let dmg = Physics.computeDamage(move.dmgBase, attacker.stats[move.statKey]);
+    const criticalChance = Math.min(0.18, 0.01 + Math.max(0, attacker.stats.accuracy || 0) * 0.0015);
+    const critical = Math.random() < criticalChance;
+    if (critical) dmg *= 1.2;
     let kbBase = move.kbBase;
 
     if (this.shielding) {
@@ -565,6 +620,7 @@ class Fighter {
     this.hitstun = this.shielding ? 4 : Math.min(50, Math.max(6, Math.round(kb * 3)));
     this.attackTimer = 0;
     this.currentMove = null;
+    this.recoveryTimer = 0;
   }
 
   update(platforms, blastBounds) {
@@ -587,8 +643,23 @@ class Fighter {
       return;
     }
     if (this.ledgeCooldown > 0) this.ledgeCooldown--;
+    if (this.dropThroughTimer > 0) this.dropThroughTimer--;
 
-    if (this.attackTimer > 0) this.attackTimer--;
+    if (this.attackTimer > 0) {
+      const elapsed = this.currentMove ? this.currentMove.duration - this.attackTimer : 0;
+      if (this.currentMove && this.currentMove.projectile && !this._projectileSpawned &&
+          elapsed >= (this.currentMove.projectile.spawnFrame || this.currentMove.active[0])) {
+        this._projectileSpawned = true;
+        this._projectileRequest = { move: this.currentMove, config: this.currentMove.projectile };
+      }
+      this.attackTimer--;
+      if (this.attackTimer <= 0 && this.currentMove) {
+        this.recoveryTimer = this.currentMove.endlag || 0;
+        this.currentMove = null;
+      }
+    } else if (this.recoveryTimer > 0) {
+      this.recoveryTimer--;
+    }
     if (this.invincible > 0) this.invincible--;
     if (this.hitstun > 0) this.hitstun--;
 
@@ -602,6 +673,9 @@ class Fighter {
       this._airDodgeUsed = false;
       this._usedUpSpecialAirborne = false;
       this.helpless = false;
+      this.jumpAnimTimer = -1;
+    } else if (this.jumpAnimTimer >= 0) {
+      this.jumpAnimTimer++;
     }
 
     // このフレームで「移動中」とみなすか（歩行アニメで使用）
@@ -671,11 +745,38 @@ class Fighter {
     else if (this.grabbedBy) bodyColor = 'rgba(200,200,200,0.9)';
 
     const useWalkFrame = this.walkSheet && this.walkSheetLoaded && this.showWalkFrame && this.walkFrameContentBox;
+    const airborne = !this.onGround && !this.onLedge;
+    const jumpAnimLength = this.jumpAnimFrames.length * this.jumpFrameDuration;
+    const useJumpSequence = airborne && this.jumpAnimTimer >= 0 && this.jumpAnimTimer < jumpAnimLength &&
+      this.jumpAnimFramesLoadedCount >= this.jumpAnimFrames.length && this.jumpFrameContentBox;
+    const jumpFrameIndex = useJumpSequence
+      ? Math.min(this.jumpAnimFrames.length - 1, Math.floor(this.jumpAnimTimer / this.jumpFrameDuration))
+      : -1;
+    const airFrameImg = useJumpSequence ? this.jumpAnimFrames[jumpFrameIndex] : (airborne && this.airIdleLoaded ? this.airIdle : null);
+    const airFrameBox = useJumpSequence ? this.jumpFrameContentBox : this.airIdleContentBox;
+    const useAirFrame = !!(airFrameImg && airFrameBox);
     const idleFrameImg = this.idleFrames.length ? this.idleFrames[this.idleAnimFrame] : null;
-    const useIdleFrame = !useWalkFrame && idleFrameImg && idleFrameImg.complete &&
+    const useIdleFrame = !useAirFrame && !useWalkFrame && idleFrameImg && idleFrameImg.complete &&
       this.idleFramesLoadedCount >= this.idleFrames.length && this.idleFrameContentBox;
 
-    if (useIdleFrame) {
+    if (useAirFrame) {
+      const cx = this.x + this.w / 2;
+      const contentH = airFrameBox.bottom - airFrameBox.top;
+      const scale = this.h / contentH;
+      const drawW = airFrameImg.width * scale;
+      const drawH = airFrameImg.height * scale;
+      const contentCenterX = ((airFrameBox.left + airFrameBox.right) / 2) * scale;
+      const drawX = cx - contentCenterX;
+      const drawY = this.y - airFrameBox.top * scale;
+      ctx.save();
+      if (this.facing === -1) {
+        ctx.translate(cx, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-cx, 0);
+      }
+      ctx.drawImage(airFrameImg, drawX, drawY, drawW, drawH);
+      ctx.restore();
+    } else if (useIdleFrame) {
       // 待機コマ送りアニメーション（移動中も含め常にこのループを表示する）
       const cx = this.x + this.w / 2;
       const box = this.idleFrameContentBox;
@@ -808,12 +909,9 @@ class Fighter {
     }
     ctx.restore();
 
-    // ダメージ%・技名・状態表示
+    // 技名・状態表示（ダメージ%はHUDに集約）
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`${Math.floor(this.damagePercent)}%`, this.x + this.w / 2, this.y - 8);
-
     ctx.font = '11px sans-serif';
     if (this.dazedTimer > 0) {
       ctx.fillText('ピヨ', this.x + this.w / 2, this.y - 22);

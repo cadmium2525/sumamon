@@ -33,6 +33,15 @@ const FIGHTERS = {
     ],
     idleFrameContentBox: { left: 0, top: 1, right: 209, bottom: 249 },
     idleFrameDuration: 8, // 1コマ何フレーム表示するか（60fps想定で約0.13秒/コマ）
+    jumpFrameSrcs: [
+      'assets/images/fighter/irumine/jump/frame_001.png',
+      'assets/images/fighter/irumine/jump/frame_002.png',
+      'assets/images/fighter/irumine/jump/frame_003.png',
+    ],
+    jumpFrameContentBox: { left: 0, top: 30, right: 402, bottom: 520 },
+    jumpFrameDuration: 5,
+    airIdleSrc: 'assets/images/fighter/irumine/jump/air_idle.png',
+    airIdleContentBox: { left: 0, top: 12, right: 399, bottom: 502 },
     stats: null,
   },
   dullahan: {

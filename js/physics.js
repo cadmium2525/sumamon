@@ -41,7 +41,10 @@ const Physics = {
   // surfaceY: 足場画像の上端からPLATFORM_SURFACE_RATIO分下にある実際の設置面（Stage側で算出）
   resolvePlatformCollision(entity, platforms) {
     entity.onGround = false;
-    for (const p of platforms) {
+    entity.groundedPlatform = null;
+    for (let index = 0; index < platforms.length; index++) {
+      const p = platforms[index];
+      if (index > 0 && entity.dropThroughTimer > 0) continue;
       const surfaceY = p.surfaceY != null ? p.surfaceY : p.y;
       const feetY = entity.y + entity.h;
       const prevFeetY = feetY - entity.vy;
@@ -50,6 +53,7 @@ const Physics = {
         entity.y = surfaceY - entity.h;
         entity.vy = 0;
         entity.onGround = true;
+        entity.groundedPlatform = index;
         entity.jumpsUsed = 0;
       }
     }
