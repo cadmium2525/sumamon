@@ -30,6 +30,7 @@ const AppFlow = {
   selectedManageMasmonId: null,
   manageIdleTimer: null,
   shopToastTimer: null,
+  trainingItemToastTimer: null,
 
   // トークン配置状態（CPU戦用）。値は { fighterKey, masmonId(nullable) } または null
   tokens: { p1: null, cpu1: null },
@@ -627,7 +628,23 @@ const AppFlow = {
     const statLabels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
     this.renderTraining(`${item?.name || 'アイテム'}を使用：${statLabels[statKey]} +${effect.amount}`);
     this.renderMasmonManage();
-    this.openTrainingItemModal();
+    this.closeTrainingItemModal();
+    this.showTrainingItemToast(item, monster, statLabels[statKey], effect.amount);
+  },
+
+  showTrainingItemToast(item, monster, statLabel, amount) {
+    const toast = document.getElementById('training-item-toast');
+    if (!toast) return;
+    clearTimeout(this.trainingItemToastTimer);
+    const image = document.getElementById('training-item-toast-image');
+    image.src = item?.image || '';
+    image.alt = item?.name || '使用したアイテム';
+    document.getElementById('training-item-toast-title').textContent = `${item?.name || 'アイテム'}を使用！`;
+    document.getElementById('training-item-toast-message').textContent = `${monster.name}の${statLabel}が ${amount} アップしました！`;
+    toast.classList.remove('hidden', 'show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    this.trainingItemToastTimer = setTimeout(() => toast.classList.add('hidden'), 2800);
   },
 
   bindAuthEvents() {

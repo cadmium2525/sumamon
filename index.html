@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=41">
+<link rel="stylesheet" href="css/style.css?v=42">
 </head>
 <body class="layout-pending">
 
@@ -228,6 +228,14 @@
         <div id="training-item-list" class="training-item-list"></div>
       </div>
     </div>
+    <div id="training-item-toast" class="training-item-toast hidden" aria-live="polite">
+      <div class="training-item-toast-glow"></div>
+      <img id="training-item-toast-image" alt="">
+      <div>
+        <strong id="training-item-toast-title"></strong>
+        <p id="training-item-toast-message"></p>
+      </div>
+    </div>
   </div>
 
   <div id="screen-practice" class="screen hidden">
@@ -348,7 +356,7 @@
   <script src="js/input.js?v=4"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=35"></script>
-  <script src="js/flow.js?v=39"></script>
+  <script src="js/flow.js?v=40"></script>
   <script src="js/pwa.js?v=2"></script>
 </body>
 </html>

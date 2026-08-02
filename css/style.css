@@ -1224,7 +1224,7 @@ body.layout-pending .screen { visibility: hidden; }
   top: 67%;
   left: 7.5%;
   width: 22%;
-  height: 8.5%;
+  height: 10%;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -1485,7 +1485,25 @@ body.layout-pending .screen { visibility: hidden; }
 .training-use-actions { display: flex; gap: 5px; margin-top: 6px; }
 .training-use-actions button { flex: 1; padding: 5px; border: 1px solid #76cfff; border-radius: 6px; color: #fff; background: rgba(29,111,158,.5); font-size: 10px; font-weight: 800; }
 .training-use-empty { grid-column: 1 / -1; padding: 28px; color: #bccbd5; text-align: center; }
+.training-item-toast { position: fixed; z-index: 900; top: 50%; left: 50%; display: grid; grid-template-columns: 78px minmax(210px, 1fr); align-items: center; gap: 14px; width: min(480px, 76vw); padding: 14px 20px; overflow: hidden; border: 2px solid #ffe081; border-radius: 15px; color: #fff; background: linear-gradient(135deg, rgba(50,35,9,.98), rgba(12,37,45,.98)); box-shadow: 0 12px 38px rgba(0,0,0,.75), 0 0 30px rgba(255,211,83,.32); pointer-events: none; opacity: 0; transform: translate(-50%, -50%) scale(.82); }
+.training-item-toast.hidden { display: none; }
+.training-item-toast.show { animation: trainingItemToastIn 2.8s ease both; }
+.training-item-toast img { position: relative; z-index: 1; width: 78px; height: 78px; border-radius: 10px; object-fit: contain; filter: drop-shadow(0 0 10px rgba(255,230,125,.7)); animation: trainingItemImagePop 2.8s ease both; }
+.training-item-toast > div:last-child { position: relative; z-index: 1; }
+.training-item-toast strong { display: block; color: #ffe99f; font-size: 18px; }
+.training-item-toast p { margin-top: 5px; color: #eafff1; font-size: 13px; font-weight: 800; }
+.training-item-toast-glow { position: absolute; z-index: 0; top: 50%; left: 42px; width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle, rgba(255,242,140,.72), rgba(255,194,51,.14) 48%, transparent 70%); transform: translate(-50%, -50%); animation: trainingItemGlow 1.1s ease-in-out infinite alternate; }
+@keyframes trainingItemToastIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.78); } 12%, 82% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -55%) scale(.96); } }
+@keyframes trainingItemImagePop { 0% { transform: scale(.4) rotate(-10deg); } 16% { transform: scale(1.18) rotate(4deg); } 28%, 100% { transform: scale(1) rotate(0); } }
+@keyframes trainingItemGlow { from { opacity: .55; transform: translate(-50%, -50%) scale(.82); } to { opacity: 1; transform: translate(-50%, -50%) scale(1.08); } }
 .empty-message { padding: 20px; opacity: .75; }
+
+@media (max-height: 430px) {
+  .training-item-toast { grid-template-columns: 60px minmax(190px, 1fr); width: min(450px, 72vw); padding: 10px 16px; }
+  .training-item-toast img { width: 60px; height: 60px; }
+  .training-item-toast strong { font-size: 15px; }
+  .training-item-toast p { font-size: 11px; }
+}
 
 /* トレーニング項目が縦に伸びても「戻る」を常に操作できる位置へ固定する */
 #screen-training {
