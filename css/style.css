@@ -768,6 +768,8 @@ html, body {
 .settings-tab:last-child { border-radius: 0 8px 8px 0; }
 .settings-tab.active { color: #082139; background: #8edbff; }
 .settings-pane.hidden { display: none; }
+.sound-enable-setting { font-weight: 800; }
+.sound-ios-note { display: block; margin: -3px 0 8px; color: #9fb4c2; font-size: 9px; line-height: 1.35; }
 .volume-setting { margin: 10px 0 14px; }
 .volume-setting > strong { display: block; margin-bottom: 5px; color: #d7eeff; }
 .volume-controls { display: grid; grid-template-columns: 34px minmax(110px, 1fr) 34px 34px; align-items: center; gap: 6px; }

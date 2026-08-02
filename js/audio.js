@@ -1,5 +1,5 @@
 // ==== BGM / SE 管理 ====
-// iPhone Safari / PWA の自動再生制限に合わせ、最初のユーザー操作で音声要素を有効化する。
+// iOSではHTMLAudioElement.volumeが効かないため、音量はWeb AudioのGainNodeで制御する。
 const AudioManager = {
   SETTINGS_KEY: 'smamon_audio_settings',
   tracks: {
@@ -12,12 +12,17 @@ const AudioManager = {
   },
   bgmVolume: 70,
   seVolume: 70,
+  soundEnabled: true,
   currentTrack: null,
   desiredTrack: null,
   unlocked: false,
   bgm: null,
-  sePools: {},
-  sePoolIndex: {},
+  context: null,
+  masterGain: null,
+  bgmGain: null,
+  seGain: null,
+  effectBuffers: {},
+  activeSeSources: new Set(),
 
   init() {
     this.loadSettings();
@@ -25,15 +30,9 @@ const AudioManager = {
     this.bgm.loop = true;
     this.bgm.preload = 'auto';
     this.bgm.playsInline = true;
-    Object.entries(this.effects).forEach(([key, effect]) => {
-      this.sePools[key] = Array.from({ length: 4 }, () => {
-        const audio = new Audio(effect.src);
-        audio.preload = 'auto';
-        audio.playsInline = true;
-        return audio;
-      });
-      this.sePoolIndex[key] = 0;
-    });
+    this.createAudioGraph();
+    this.loadEffectBuffers();
+
     const unlock = () => this.unlock();
     window.addEventListener('pointerdown', unlock, { capture: true, passive: true, once: true });
     window.addEventListener('touchstart', unlock, { capture: true, passive: true, once: true });
@@ -45,54 +44,81 @@ const AudioManager = {
     window.addEventListener('pageshow', () => this.resumeDesiredTrack());
   },
 
+  isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  },
+
   loadSettings() {
+    const defaultEnabled = !this.isIOS();
     try {
       const saved = JSON.parse(localStorage.getItem(this.SETTINGS_KEY));
       if (saved) {
         this.bgmVolume = this.clampVolume(saved.bgmVolume, 70);
         this.seVolume = this.clampVolume(saved.seVolume, 70);
+        this.soundEnabled = typeof saved.soundEnabled === 'boolean' ? saved.soundEnabled : defaultEnabled;
+        return;
       }
     } catch (error) { /* 初期値を使用 */ }
+    this.soundEnabled = defaultEnabled;
   },
 
   saveSettings() {
     try {
-      localStorage.setItem(this.SETTINGS_KEY, JSON.stringify({ bgmVolume: this.bgmVolume, seVolume: this.seVolume }));
+      localStorage.setItem(this.SETTINGS_KEY, JSON.stringify({
+        bgmVolume: this.bgmVolume,
+        seVolume: this.seVolume,
+        soundEnabled: this.soundEnabled,
+      }));
     } catch (error) { /* 保存できなくてもゲームは続行 */ }
   },
 
-  clampVolume(value, fallback = 0) {
-    const number = Number(value);
-    return Number.isFinite(number) ? Math.max(0, Math.min(100, Math.round(number))) : fallback;
+  createAudioGraph() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    try {
+      this.context = new AudioContextClass();
+      this.masterGain = this.context.createGain();
+      this.bgmGain = this.context.createGain();
+      this.seGain = this.context.createGain();
+      this.bgmGain.connect(this.masterGain);
+      this.seGain.connect(this.masterGain);
+      this.masterGain.connect(this.context.destination);
+      this.context.createMediaElementSource(this.bgm).connect(this.bgmGain);
+      this.applyVolumes();
+    } catch (error) {
+      console.warn('音声出力を初期化できませんでした:', error);
+      this.context = null;
+    }
+  },
+
+  async loadEffectBuffers() {
+    if (!this.context) return;
+    await Promise.all(Object.entries(this.effects).map(async ([key, effect]) => {
+      try {
+        const response = await fetch(effect.src);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.arrayBuffer();
+        this.effectBuffers[key] = await this.context.decodeAudioData(data.slice(0));
+      } catch (error) {
+        console.warn(`${key} SEを読み込めませんでした:`, error);
+      }
+    }));
   },
 
   async unlock() {
     if (this.unlocked) return;
     this.unlocked = true;
-    // BGMのplayはユーザー操作の同期処理内で先に呼び、iOSの再生許可を確実に得る。
-    if (this.desiredTrack) {
-      this.resumeDesiredTrack();
-    } else if (this.bgm) {
-      this.bgm.muted = true;
-      const unlockBgm = this.bgm.play();
-      if (unlockBgm && typeof unlockBgm.then === 'function') {
-        unlockBgm.then(() => {
-          this.bgm.pause();
-          this.bgm.currentTime = 0;
-          this.bgm.muted = false;
-          this.applyBgmVolume();
-        }).catch(() => { this.bgm.muted = false; });
-      }
+    // 音源は再生せずAudioContextだけを再開する。TAP START時のSE誤再生を防ぐ。
+    if (this.context?.state === 'suspended') {
+      try { await this.context.resume(); } catch (error) { /* 次の操作で再試行 */ }
     }
-    const unlockEffects = Object.values(this.sePools).flat().map(async audio => {
-      const previousVolume = audio.volume;
-      audio.volume = 0;
-      try { await audio.play(); } catch (error) { /* 次の操作で再試行可能 */ }
-      audio.pause();
-      audio.currentTime = 0;
-      audio.volume = previousVolume;
-    });
-    await Promise.allSettled(unlockEffects);
+    this.resumeDesiredTrack();
+  },
+
+  clampVolume(value, fallback = 0) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(0, Math.min(100, Math.round(number))) : fallback;
   },
 
   setScene(sceneName, mode) {
@@ -120,12 +146,13 @@ const AudioManager = {
       this.bgm.load();
       this.currentTrack = trackKey;
     }
-    this.applyBgmVolume();
+    this.applyVolumes();
     this.resumeDesiredTrack();
   },
 
   resumeDesiredTrack() {
-    if (!this.unlocked || !this.desiredTrack || document.hidden || !this.bgm) return;
+    if (!this.unlocked || !this.soundEnabled || !this.desiredTrack || document.hidden || !this.bgm) return;
+    if (this.context?.state === 'suspended') this.context.resume().catch(() => {});
     if (this.currentTrack !== this.desiredTrack) this.playBgm(this.desiredTrack);
     const promise = this.bgm.play();
     if (promise && typeof promise.catch === 'function') promise.catch(() => {});
@@ -138,38 +165,69 @@ const AudioManager = {
     this.currentTrack = null;
   },
 
-  applyBgmVolume() {
-    if (!this.bgm || !this.currentTrack) return;
-    const base = this.tracks[this.currentTrack]?.baseVolume || 1;
-    this.bgm.volume = Math.max(0, Math.min(1, base * this.bgmVolume / 100));
+  applyVolumes() {
+    const now = this.context?.currentTime || 0;
+    if (this.masterGain) this.masterGain.gain.setValueAtTime(this.soundEnabled ? 1 : 0, now);
+    if (this.bgmGain) {
+      const base = this.tracks[this.currentTrack]?.baseVolume || 1;
+      this.bgmGain.gain.setValueAtTime(base * this.bgmVolume / 100, now);
+    } else if (this.bgm) {
+      this.bgm.volume = this.soundEnabled ? this.bgmVolume / 100 : 0;
+    }
+    if (this.seGain) this.seGain.gain.setValueAtTime(this.seVolume / 100, now);
+  },
+
+  setSoundEnabled(enabled) {
+    this.soundEnabled = !!enabled;
+    this.applyVolumes();
+    this.saveSettings();
+    if (this.soundEnabled) this.resumeDesiredTrack();
+    else {
+      this.bgm?.pause();
+      this.stopAllSe();
+    }
+    return this.soundEnabled;
   },
 
   setBgmVolume(value) {
     this.bgmVolume = this.clampVolume(value, this.bgmVolume);
-    this.applyBgmVolume();
+    this.applyVolumes();
     this.saveSettings();
     return this.bgmVolume;
   },
 
   setSeVolume(value) {
     this.seVolume = this.clampVolume(value, this.seVolume);
+    this.applyVolumes();
     this.saveSettings();
     return this.seVolume;
   },
 
   playSe(effectKey) {
-    if (!this.unlocked) return;
+    if (!this.unlocked || !this.soundEnabled || !this.context || this.context.state !== 'running') return;
+    const buffer = this.effectBuffers[effectKey];
     const effect = this.effects[effectKey];
-    const pool = this.sePools[effectKey];
-    if (!effect || !pool?.length) return;
-    const index = this.sePoolIndex[effectKey] % pool.length;
-    this.sePoolIndex[effectKey] = index + 1;
-    const audio = pool[index];
-    audio.pause();
-    audio.currentTime = 0;
-    audio.volume = Math.max(0, Math.min(1, effect.baseVolume * this.seVolume / 100));
-    const promise = audio.play();
-    if (promise && typeof promise.catch === 'function') promise.catch(() => {});
+    if (!buffer || !effect) return;
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    gain.gain.value = effect.baseVolume;
+    source.buffer = buffer;
+    source.connect(gain);
+    gain.connect(this.seGain);
+    this.activeSeSources.add(source);
+    source.onended = () => {
+      this.activeSeSources.delete(source);
+      source.disconnect();
+      gain.disconnect();
+    };
+    source.start(0);
+  },
+
+  stopAllSe() {
+    this.activeSeSources.forEach(source => {
+      try { source.stop(); } catch (error) { /* 既に停止済み */ }
+    });
+    this.activeSeSources.clear();
   },
 };
 

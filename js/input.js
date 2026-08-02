@@ -141,13 +141,15 @@ class VirtualPad {
           <label><input type="checkbox" id="cfg-b"> Bボタンを表示</label>
         </div>
         <div class="settings-pane hidden" data-settings-pane="audio">
+          <label class="sound-enable-setting"><input id="cfg-sound-enabled" type="checkbox"> サウンド出力を有効にする</label>
+          <small class="sound-ios-note">iPhoneのマナースイッチはPWAから取得できないため、消音時はここをOFFにしてください</small>
           <div class="volume-setting" data-volume-kind="bgm">
             <strong>BGM</strong>
-            <div class="volume-controls"><button data-volume-step="-1">←</button><input id="cfg-bgm-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1">→</button><output id="cfg-bgm-volume-value">70</output></div>
+            <div class="volume-controls"><button data-volume-step="-1" aria-label="BGM音量を下げる">−</button><input id="cfg-bgm-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1" aria-label="BGM音量を上げる">＋</button><output id="cfg-bgm-volume-value">70</output></div>
           </div>
           <div class="volume-setting" data-volume-kind="se">
             <strong>SE</strong>
-            <div class="volume-controls"><button data-volume-step="-1">←</button><input id="cfg-se-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1">→</button><output id="cfg-se-volume-value">70</output></div>
+            <div class="volume-controls"><button data-volume-step="-1" aria-label="SE音量を下げる">−</button><input id="cfg-se-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1" aria-label="SE音量を上げる">＋</button><output id="cfg-se-volume-value">70</output></div>
           </div>
         </div>
         <button id="vpad-settings-close">閉じる</button>
@@ -169,6 +171,7 @@ class VirtualPad {
       cfgTapJump: settingsRoot.querySelector('#cfg-tapjump'),
       cfgShield: settingsRoot.querySelector('#cfg-shield'),
       cfgB: settingsRoot.querySelector('#cfg-b'),
+      cfgSoundEnabled: settingsRoot.querySelector('#cfg-sound-enabled'),
       cfgBgmVolume: settingsRoot.querySelector('#cfg-bgm-volume'),
       cfgBgmVolumeValue: settingsRoot.querySelector('#cfg-bgm-volume-value'),
       cfgSeVolume: settingsRoot.querySelector('#cfg-se-volume'),
@@ -195,6 +198,7 @@ class VirtualPad {
     this.el.cfgBgmVolumeValue.textContent = AudioManager.bgmVolume;
     this.el.cfgSeVolume.value = AudioManager.seVolume;
     this.el.cfgSeVolumeValue.textContent = AudioManager.seVolume;
+    this.el.cfgSoundEnabled.checked = AudioManager.soundEnabled;
   }
 
   _bindEvents() {
@@ -223,6 +227,9 @@ class VirtualPad {
     this.el.cfgTapJump.addEventListener('change', onCfgChange);
     this.el.cfgShield.addEventListener('change', onCfgChange);
     this.el.cfgB.addEventListener('change', onCfgChange);
+    this.el.cfgSoundEnabled.addEventListener('change', () => {
+      AudioManager.setSoundEnabled(this.el.cfgSoundEnabled.checked);
+    });
     const updateVolume = kind => {
       const slider = kind === 'bgm' ? this.el.cfgBgmVolume : this.el.cfgSeVolume;
       const output = kind === 'bgm' ? this.el.cfgBgmVolumeValue : this.el.cfgSeVolumeValue;
