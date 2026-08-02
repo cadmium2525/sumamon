@@ -532,7 +532,9 @@ const AppFlow = {
   },
 
   _bindTokenDrag() {
-    document.querySelectorAll('#token-bar .token').forEach(token => {
+    document.querySelectorAll('#token-bar .token, #fighter-list .card-token-badge').forEach(token => {
+      if (token.dataset.dragBound === 'true') return;
+      token.dataset.dragBound = 'true';
       token.addEventListener('pointerdown', (e) => {
         if (e.button != null && e.button !== 0) return;
         e.preventDefault();
@@ -541,8 +543,20 @@ const AppFlow = {
         const startY = e.clientY;
         let moved = false;
         let hoveredCard = null;
+        const isPlacedToken = token.classList.contains('card-token-badge');
+        const dragVisual = isPlacedToken ? token.cloneNode(true) : token;
+        if (isPlacedToken) {
+          const rect = token.getBoundingClientRect();
+          dragVisual.classList.add('dragging', 'token-drag-ghost');
+          dragVisual.style.left = `${rect.left}px`;
+          dragVisual.style.top = `${rect.top}px`;
+          dragVisual.style.width = `${rect.width}px`;
+          dragVisual.style.height = `${rect.height}px`;
+          document.body.appendChild(dragVisual);
+          token.classList.add('drag-source');
+        }
         token.setPointerCapture(e.pointerId);
-        token.classList.add('dragging');
+        if (!isPlacedToken) token.classList.add('dragging');
         this.activeTokenId = tokenId;
         this._renderTokenBar();
 
@@ -561,7 +575,7 @@ const AppFlow = {
           const dx = moveEvent.clientX - startX;
           const dy = moveEvent.clientY - startY;
           if (Math.hypot(dx, dy) > 7) moved = true;
-          token.style.transform = `translate(${dx}px, ${dy}px) scale(1.12)`;
+          dragVisual.style.transform = `translate(${dx}px, ${dy}px) scale(1.12)`;
           const nextCard = cardAt(moveEvent.clientX, moveEvent.clientY);
           if (nextCard !== hoveredCard) {
             clearHover();
@@ -579,7 +593,9 @@ const AppFlow = {
             : null;
           clearHover();
           token.classList.remove('dragging');
-          token.style.transform = '';
+          token.classList.remove('drag-source');
+          dragVisual.style.transform = '';
+          if (isPlacedToken) dragVisual.remove();
           if (dropCard) {
             this._placeTokenOnCard(tokenId, dropCard);
             this.suppressTokenClickUntil = Date.now() + 350;
@@ -622,6 +638,7 @@ const AppFlow = {
         if (t && t.fighterKey === fighterKey && (t.masmonId || null) === masmonId) {
           const badge = document.createElement('span');
           badge.className = 'card-token-badge';
+          badge.dataset.token = id;
           badge.textContent = id === 'p1' ? '1P' : 'CPU';
           badge.style.background = id === 'p1' ? '#ff4757' : '#f5f5f5';
           badge.style.color = id === 'p1' ? '#fff' : '#222';
@@ -629,6 +646,7 @@ const AppFlow = {
         }
       });
     });
+    this._bindTokenDrag();
   },
 
   _updateFightButtonVisibility() {
