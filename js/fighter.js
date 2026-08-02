@@ -547,7 +547,7 @@ class Fighter {
     const move = THROWS[key];
     const dir = key === 'side' ? (input.left ? -1 : 1) : this.facing;
 
-    const dmg = Physics.computeDamage(move.dmgBase, this.stats[move.statKey]);
+    const dmg = Physics.computeDamage(move.dmgBase, this.stats[move.statKey], target.stats.life);
     target.damagePercent += dmg;
     const kb = Physics.computeKnockback(move.kbBase, target.damagePercent, this.stats[move.statKey], target.stats.defense);
     const angleRad = (move.angle * Math.PI) / 180;
@@ -609,8 +609,10 @@ class Fighter {
   takeHit(attacker, move) {
     if (this.invincible > 0 || this.dead) return;
 
-    let dmg = Physics.computeDamage(move.dmgBase, attacker.stats[move.statKey]);
-    const criticalChance = Math.min(0.18, 0.01 + Math.max(0, attacker.stats.accuracy || 0) * 0.0015);
+    let dmg = Physics.computeDamage(move.dmgBase, attacker.stats[move.statKey], this.stats.life);
+    const accuracyGrowth = Math.max(0, (attacker.stats.accuracy || 10) - 10);
+    const criticalChance = Math.min(CONFIG.CRITICAL_CHANCE_MAX,
+      CONFIG.CRITICAL_CHANCE_BASE + accuracyGrowth * CONFIG.ACCURACY_CRITICAL_SCALE);
     const critical = Math.random() < criticalChance;
     if (critical) dmg *= 1.2;
     let kbBase = move.kbBase;
@@ -769,7 +771,8 @@ class Fighter {
     }
     const baseAlpha = ctx.globalAlpha;
     if (nextImage && blend > 0) {
-      ctx.globalAlpha = baseAlpha * (1 - blend);
+      // 元のコマを薄くしないことで、合成中に全体が点滅するのを防ぐ。
+      ctx.globalAlpha = baseAlpha;
       drawOne(image);
       ctx.globalAlpha = baseAlpha * blend;
       drawOne(nextImage);

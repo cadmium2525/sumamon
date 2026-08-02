@@ -132,7 +132,7 @@ const DebugMotionViewer = {
         const phase = position - Math.floor(position);
         const raw = Math.max(0, Math.min(1, (phase - .45) / .55));
         const blend = raw * raw * (3 - 2 * raw);
-        this._drawFrame(this._image(motion.frames[index]), motion.box, 1 - blend);
+        this._drawFrame(this._image(motion.frames[index]), motion.box, 1);
         this._drawFrame(this._image(motion.frames[next]), motion.box, blend);
       }
     }

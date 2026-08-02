@@ -9,17 +9,30 @@ const CONFIG = {
   BLAST_MARGIN: 260, // 画面外どこまで飛んだらKOか
 
   // 回避ステータス -> 落下速度への影響（ダッシュが速い代わりに落下も速い）
-  EVASION_FALL_SCALE: 0.025, // 回避1につき落下速度+2.5%
+  EVASION_FALL_SCALE: 0.003,
+  EVASION_FALL_BONUS_MAX: 0.3,
 
   // 吹っ飛び計算共通係数（各技のkbBaseと組み合わせて使用）
-  KB_DAMAGE_SCALE: 0.22,   // 蓄積ダメージ%の影響係数
-  KB_POWER_SCALE: 0.06,    // ちから/かしこさの影響係数
-  DEFENSE_SCALE: 0.02,     // 丈夫さ 1 = 2% 減衰
+  KB_BASE_MULTIPLIER: 0.82,
+  KB_DAMAGE_SCALE: 0.07,
+  KB_POWER_SCALE: 0.006,
+  KB_STAT_BONUS_MAX: 0.65,
+  DEFENSE_SCALE: 0.003,
+  DEFENSE_REDUCTION_MAX: 0.35,
+
+  DAMAGE_STAT_SCALE: 0.01,
+  DAMAGE_STAT_BONUS_MAX: 1.2,
+  LIFE_DAMAGE_REDUCTION_SCALE: 0.002,
+  LIFE_DAMAGE_REDUCTION_MAX: 0.35,
+  CRITICAL_CHANCE_BASE: 0.005,
+  ACCURACY_CRITICAL_SCALE: 0.0007,
+  CRITICAL_CHANCE_MAX: 0.12,
 
   // 移動（通常は遅め、ダッシュで倍速程度に）
   WALK_SPEED_BASE: 1.6,
   DASH_SPEED_BASE: 3.2,
-  EVASION_SPEED_SCALE: 0.05, // 回避1につき速度+5%
+  EVASION_SPEED_SCALE: 0.006,
+  EVASION_SPEED_BONUS_MAX: 0.55,
 
   // 左スティックの倒し込み量(0〜1)による 歩き/ダッシュ/ステップ の判定
   // ・DASH_TILT_THRESHOLD以上倒す = ダッシュ判定（保持し続ければ走り、すぐ離せば結果的に短い「ステップ」になる）
