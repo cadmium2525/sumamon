@@ -337,6 +337,44 @@ const UserProfileStore = {
     return record;
   },
 
+  async submitEndlessScore(score) {
+    const value = Math.max(0, Math.floor(Number(score) || 0));
+    if (!this.currentUid || !window.FirebaseDB) return false;
+    const { db, doc, getDoc, setDoc } = window.FirebaseDB;
+    try {
+      const rankingRef = doc(db, 'endlessRankings', this.currentUid);
+      const existing = await getDoc(rankingRef);
+      const old = existing.exists() ? existing.data() : null;
+      // 同点では先に記録した日時を維持する。
+      if (old && (Number(old.score) || 0) >= value) return false;
+      await setDoc(rankingRef, {
+        uid: this.currentUid,
+        nickname: this.data.nickname || 'ブリーダー',
+        iconKey: this.data.iconKey || 'irumine',
+        score: value,
+        achievedAt: Date.now(),
+      });
+      return true;
+    } catch (error) {
+      console.error('エンドレスランキングの保存に失敗しました:', error);
+      return false;
+    }
+  },
+
+  async loadEndlessRankings() {
+    if (!window.FirebaseDB) return [];
+    const { db, collection, getDocs } = window.FirebaseDB;
+    try {
+      const snapshot = await getDocs(collection(db, 'endlessRankings'));
+      return snapshot.docs.map(item => item.data()).sort((a, b) =>
+        (Number(b.score) || 0) - (Number(a.score) || 0) ||
+        (Number(a.achievedAt) || Number.MAX_SAFE_INTEGER) - (Number(b.achievedAt) || Number.MAX_SAFE_INTEGER));
+    } catch (error) {
+      console.error('エンドレスランキングの読み込みに失敗しました:', error);
+      return [];
+    }
+  },
+
   purchaseItem(itemId, price, quantity = 1) {
     const count = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
     const cost = Math.max(0, Number(price) || 0) * count;

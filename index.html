@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=42">
+<link rel="stylesheet" href="css/style.css?v=43">
 </head>
 <body class="layout-pending">
 
@@ -253,17 +253,25 @@
   <!-- 5. 地形選択 -->
   <div id="screen-cpu-mode" class="screen hidden">
     <div class="screen-heading">CPU戦 モード選択</div>
-    <div class="cpu-count-picker"><span>CPU人数</span>
+    <div class="cpu-count-picker"><span>同時出現CPU人数</span>
       <button class="cpu-count-btn active" data-cpu-count="1">1人</button>
       <button class="cpu-count-btn" data-cpu-count="2">2人</button>
       <button class="cpu-count-btn" data-cpu-count="3">3人</button>
     </div>
     <div class="cpu-mode-list">
       <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small></button>
-      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>近日実装予定</small></button>
-      <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>近日実装予定</small></button>
+      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>100体撃破でクリアバッジ獲得</small></button>
+      <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>限界まで撃破数に挑戦</small></button>
     </div>
+    <button id="btn-endless-ranking" class="endless-ranking-button">🏆 エンドレスランキング</button>
     <button class="back-btn" data-back="home">戻る</button>
+    <div id="endless-ranking-modal" class="endless-ranking-modal hidden" role="dialog" aria-modal="true" aria-labelledby="endless-ranking-title">
+      <div class="endless-ranking-dialog">
+        <button id="endless-ranking-close" aria-label="閉じる">×</button>
+        <h2 id="endless-ranking-title">エンドレスランキング</h2>
+        <div id="endless-ranking-list"></div>
+      </div>
+    </div>
   </div>
 
   <div id="screen-stage-select" class="screen hidden">
@@ -276,6 +284,7 @@
   <!-- 6. ファイター選択（CPU戦は1P/CPUのおはじきをファイターへ配置する） -->
   <div id="screen-fighter-select" class="screen hidden">
     <div class="screen-heading" id="fighter-select-heading">ファイター選択</div>
+    <div class="fighter-longpress-guide">モンスターアイコンを長押しするとステータスを確認できます</div>
     <div id="token-bar" class="token-bar hidden"></div>
     <div id="fighter-list" class="card-list"></div>
     <button id="btn-fight-start" class="fight-start-btn hidden">FIGHT!</button>
@@ -288,7 +297,6 @@
           <h2 id="fighter-status-name"></h2>
           <div id="fighter-status-level"></div>
           <div id="fighter-status-grid" class="fighter-status-grid"></div>
-          <small>アイコンを長押しすると確認できます</small>
         </div>
       </div>
     </div>
@@ -312,6 +320,7 @@
     <div id="game-container">
       <canvas id="gameCanvas" width="1400" height="1000"></canvas>
       <div id="hud"></div>
+      <div id="battle-survival-counter" class="battle-survival-counter hidden"></div>
       <button id="battle-pause-btn" aria-label="ポーズ">Ⅱ</button>
       <div id="battle-pause-overlay" class="hidden">PAUSE</div>
       <div id="battle-countdown" class="hidden"><img id="battle-countdown-image" alt=""><span id="battle-countdown-text"></span></div>
@@ -346,17 +355,17 @@
   <script src="js/fighters/irumine-moves.js?v=31"></script>
   <script src="js/fighters/dullahan-moves.js?v=27"></script>
   <script src="js/physics.js?v=31"></script>
-  <script src="js/fighter.js?v=35"></script>
+  <script src="js/fighter.js?v=36"></script>
   <script src="js/fighters-data.js"></script>
   <script src="js/debug-mode.js?v=2"></script>
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=33"></script>
+  <script src="js/growth-system.js?v=34"></script>
   <script src="js/input.js?v=4"></script>
   <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=35"></script>
-  <script src="js/flow.js?v=40"></script>
+  <script src="js/game.js?v=36"></script>
+  <script src="js/flow.js?v=41"></script>
   <script src="js/pwa.js?v=2"></script>
 </body>
 </html>

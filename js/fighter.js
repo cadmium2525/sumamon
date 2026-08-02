@@ -12,6 +12,7 @@ class Fighter {
     this.color = color;
     this.spawn = spawn;
     this.stockIconSrc = options.stockIconSrc || null;
+    this.knockbackTakenMultiplier = Math.max(0.1, Number(options.knockbackTakenMultiplier) || 1);
     this.fighterKey = options.fighterKey || null;
     this.moveSet = (window.FIGHTER_MOVESETS && window.FIGHTER_MOVESETS[this.fighterKey]) || {};
     this.moveAnimations = new Map();
@@ -691,7 +692,7 @@ class Fighter {
     }
 
     this.damagePercent += dmg;
-    const kb = Physics.computeKnockback(kbBase, this.damagePercent, attacker.stats[move.statKey], this.stats.defense);
+    const kb = Physics.computeKnockback(kbBase, this.damagePercent, attacker.stats[move.statKey], this.stats.defense) * this.knockbackTakenMultiplier;
     const angleRad = (move.angle * Math.PI) / 180;
     const dir = move.backHit ? -attacker.facing : attacker.facing;
 

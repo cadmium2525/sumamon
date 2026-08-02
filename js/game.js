@@ -27,6 +27,9 @@ let lastLoopTime = 0;
 let simulationAccumulator = 0;
 let lastNetworkProjectileCount = 0;
 let lastNetworkExplosionCount = 0;
+let survivalBattle = null;
+let spawnSurvivalCpu = null;
+const survivalCounter = document.getElementById('battle-survival-counter');
 
 const pauseButton = document.getElementById('battle-pause-btn');
 const pauseOverlay = document.getElementById('battle-pause-overlay');
@@ -82,6 +85,7 @@ function updateProjectiles() {
       const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
       for (const target of players) {
         if (target === p.owner || target.dead) continue;
+        if (survivalBattle && p.owner !== players[0] && target !== players[0]) continue;
         const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
         if (Math.hypot(tx - cx, ty - cy) <= radius) target.takeHit(p.owner, p.move);
       }
@@ -94,6 +98,7 @@ function updateProjectiles() {
     if (isBomb) continue;
     for (const target of players) {
       if (target === p.owner || target.dead || p.hit) continue;
+      if (survivalBattle && p.owner !== players[0] && target !== players[0]) continue;
       if (Physics.rectsOverlap({ x: p.x, y: p.y, w: p.w, h: p.h }, target.getHurtbox())) {
         target.takeHit(p.owner, p.move);
         p.hit = true;
@@ -145,6 +150,7 @@ function checkAttacks() {
     if (!hb || attacker.hasHitThisAttack) continue;
     for (const target of players) {
       if (target === attacker || target.dead) continue;
+      if (survivalBattle && attacker !== players[0] && target !== players[0]) continue;
       if (Physics.rectsOverlap(hb, target.getHurtbox())) {
         target.takeHit(attacker, attacker.currentMove);
         attacker.hasHitThisAttack = true;
@@ -198,6 +204,7 @@ function checkGrabs() {
 
     for (const target of players) {
       if (target === grabber || target.dead) continue;
+      if (survivalBattle && grabber !== players[0] && target !== players[0]) continue;
       if (target.grabbedBy || target.downed || target.invincible > 0 || target.dodgeTimer > 0) continue;
 
       const dx = target.x - grabber.x;
@@ -289,6 +296,28 @@ function computeRanking() {
 }
 
 function checkMatchEnd() {
+  if (survivalBattle) {
+    const p1 = players[0];
+    if (p1.dead && !window._matchOver) {
+      finishSurvivalBattle(false);
+      return;
+    }
+    players.slice(1).forEach((fighter, index) => {
+      if (window._matchOver) return;
+      if (!fighter.dead || fighter.survivalHandled) return;
+      fighter.survivalHandled = true;
+      survivalBattle.defeated++;
+      if (survivalBattle.mode === 'hundred' && survivalBattle.defeated >= 100) {
+        finishSurvivalBattle(true);
+        return;
+      }
+      setTimeout(() => {
+        if (!window._matchOver && survivalBattle && spawnSurvivalCpu) spawnSurvivalCpu(index + 1);
+      }, 450);
+    });
+    updateSurvivalCounter();
+    return;
+  }
   const alive = players.filter(p => !p.dead);
   if (alive.length <= 1 && !window._matchOver) {
     window._matchOver = true;
@@ -307,6 +336,29 @@ function checkMatchEnd() {
       }
     }, 800);
   }
+}
+
+function updateSurvivalCounter() {
+  if (!survivalCounter || !survivalBattle) return;
+  survivalCounter.classList.remove('hidden');
+  survivalCounter.textContent = survivalBattle.mode === 'hundred'
+    ? `撃破 ${Math.min(100, survivalBattle.defeated)} / 100`
+    : `撃破 ${survivalBattle.defeated}`;
+}
+
+function finishSurvivalBattle(cleared) {
+  if (window._matchOver || !survivalBattle) return;
+  window._matchOver = true;
+  const p1 = players[0];
+  const result = {
+    ranking: [{ fighterIndex: 0, rank: cleared ? 1 : 2, name: p1.name, color: p1.color,
+      spriteSrc: p1.sprite?.src || null, kos: survivalBattle.defeated,
+      falls: p1.falls, selfDestructs: p1.selfDestructs }],
+    survival: { mode: survivalBattle.mode, defeated: survivalBattle.defeated, cleared },
+  };
+  setTimeout(() => {
+    try { AppFlow.onMatchEnd(result); } catch (error) { console.error('連戦リザルトへの遷移に失敗しました:', error); }
+  }, 700);
 }
 
 function createNetworkSnapshot() {
@@ -388,7 +440,9 @@ function runAuthoritativeSimulationStep(p1Input, network) {
 
   if (cpuControllers.length) {
     cpuControllers.forEach(controller => {
-      const candidates = players.filter(p => p !== controller.fighter && !p.dead);
+      const candidates = survivalBattle
+        ? [players[0]].filter(p => p && !p.dead)
+        : players.filter(p => p !== controller.fighter && !p.dead);
       if (!candidates.length) return;
       controller.opponent = candidates.reduce((nearest, candidate) =>
         Math.abs(candidate.x - controller.fighter.x) < Math.abs(nearest.x - controller.fighter.x) ? candidate : nearest);
@@ -523,6 +577,9 @@ window.startBattle = function startBattle(options) {
   }
 
   window._matchOver = false;
+  survivalBattle = null;
+  spawnSurvivalCpu = null;
+  survivalCounter?.classList.add('hidden');
   projectiles = [];
   lastNetworkProjectileCount = 0;
   lastNetworkExplosionCount = 0;
@@ -553,7 +610,39 @@ window.startBattle = function startBattle(options) {
   } else {
     players = [new Fighter('p1', resolveStats(p1Def, p1Masmon),
       p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon))];
-    cpuSelections.forEach((selection, index) => {
+    const isSurvival = options.mode === 'cpu' && ['hundred', 'endless'].includes(options.cpuMode);
+    if (isSurvival) {
+      players[0].stocks = 3;
+      survivalBattle = { mode: options.cpuMode, defeated: 0 };
+      const candidates = [
+        ...MasmonStore.loadAll().filter(monster => monster.id !== options.p1MasmonId && FIGHTERS[monster.baseFighterKey])
+          .map(monster => ({ fighterKey: monster.baseFighterKey, masmon: monster })),
+        ...Object.values(FIGHTERS).filter(def => def.key !== options.p1Key)
+          .map(def => ({ fighterKey: def.key, masmon: null })),
+      ];
+      if (!candidates.length) candidates.push({ fighterKey: options.p2Key, masmon: null });
+
+      spawnSurvivalCpu = (slot, initial = false) => {
+        const choice = candidates[Math.floor(Math.random() * candidates.length)];
+        const def = FIGHTERS[choice.fighterKey] || FIGHTERS.dullahan || FIGHTERS.irumine;
+        const progress = options.cpuMode === 'hundred'
+          ? Math.min(1, survivalBattle.defeated / 99)
+          : Math.min(1, survivalBattle.defeated / 80);
+        const cpuLevel = Math.max(1, Math.min(9, 1 + Math.floor(progress * 8)));
+        const stats = applyCpuLevelStats(resolveStats(def, choice.masmon), def, choice.masmon, cpuLevel);
+        const fighterOptions = buildOptions(def, choice.masmon);
+        fighterOptions.knockbackTakenMultiplier = 1.85 - progress * 0.85;
+        const fighter = new Fighter(`cpu${slot}`, stats, def.color,
+          Stage.spawnPoints[slot] || Stage.spawnPoints[1] || Stage.spawnPoints[0], fighterOptions);
+        fighter.stocks = 1;
+        fighter.hudLabel = `CPU${slot}`;
+        fighter.survivalCpuLevel = cpuLevel;
+        players[slot] = fighter;
+        if (!initial) cpuControllers[slot - 1] = new CPUController(fighter, players[0], cpuLevel);
+      };
+      for (let slot = 1; slot <= options.cpuCount; slot++) spawnSurvivalCpu(slot, true);
+      updateSurvivalCounter();
+    } else cpuSelections.forEach((selection, index) => {
       const def = FIGHTERS[selection.fighterKey] || FIGHTERS.dullahan || FIGHTERS.irumine;
       const masmon = selection.masmonId
         ? MasmonStore.loadAll().find(m => m.id === selection.masmonId)
@@ -576,7 +665,7 @@ window.startBattle = function startBattle(options) {
   cpuControllers = options.mode === 'multi'
     ? players.filter(fighter => fighter.isNetworkCpu).map(fighter => new CPUController(fighter, players[0], 9))
     : options.mode === 'cpu'
-      ? players.slice(1).map(fighter => new CPUController(fighter, players[0], options.cpuLevel || 3))
+      ? players.slice(1).map(fighter => new CPUController(fighter, players[0], fighter.survivalCpuLevel || options.cpuLevel || 3))
       : [];
 
   if (!loopStarted) {

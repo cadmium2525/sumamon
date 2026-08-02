@@ -267,6 +267,34 @@ const AppFlow = {
     this.shopToastTimer = setTimeout(() => toast.classList.add('hidden'), 2600);
   },
 
+  openCpuMode(mode) {
+    this.selectedMode = 'cpu';
+    this.selectedCpuMode = mode;
+    this.selectedCpuLevel = mode === 'normal' ? this.selectedCpuLevel : 1;
+    this.selectedStageKey = null;
+    this.buildStageList();
+    this._resetFighterSelectState();
+    this.showScreen('stage-select');
+  },
+
+  async openEndlessRanking() {
+    const modal = document.getElementById('endless-ranking-modal');
+    const list = document.getElementById('endless-ranking-list');
+    modal.classList.remove('hidden');
+    list.innerHTML = '<div class="ranking-loading">ランキングを読み込み中…</div>';
+    const rankings = await UserProfileStore.loadEndlessRankings();
+    if (!rankings.length) {
+      list.innerHTML = '<div class="ranking-loading">まだ記録がありません</div>';
+      return;
+    }
+    list.innerHTML = rankings.slice(0, 50).map((entry, index) => `
+      <div class="endless-ranking-entry${entry.uid === this.currentUser?.uid ? ' is-me' : ''}">
+        <b>${index + 1}</b><img src="${this._profileIconSrc(entry.iconKey)}" alt="">
+        <span><strong>${this.escapeHtml(entry.nickname || 'ブリーダー')}</strong><small>${new Date(entry.achievedAt || 0).toLocaleDateString('ja-JP')}</small></span>
+        <em>${Math.max(0, Number(entry.score) || 0)}体</em>
+      </div>`).join('');
+  },
+
   buildStageList() {
     const list = document.getElementById('stage-list');
     list.innerHTML = Object.values(STAGES).map(s => `
@@ -287,15 +315,17 @@ const AppFlow = {
       return this._fighterCardHtml({
         fighterKey: m.baseFighterKey, masmonId: m.id,
         label: `${m.name}（Lv.${m.level}）`, img: base.idleImage, color: base.color,
+        hundredBadge: !!m.badges?.hundred,
       });
     });
     list.innerHTML = templateCards.join('') + masmonCards.join('');
   },
 
-  _fighterCardHtml({ fighterKey, masmonId, label, img, color }) {
+  _fighterCardHtml({ fighterKey, masmonId, label, img, color, hundredBadge = false }) {
     const bg = img ? `background-image:url('${img}')` : `background-color:${color}`;
     return `
       <button class="select-card fighter-card" data-fighter="${fighterKey}" ${masmonId ? `data-masmon="${masmonId}"` : ''} style="${bg}">
+        ${hundredBadge ? '<span class="hundred-clear-badge" title="100人組手クリア">100</span>' : ''}
         <span class="select-card-label">${label}</span>
       </button>
     `;
@@ -337,12 +367,7 @@ const AppFlow = {
       this.showScreen('cpu-mode');
     });
     document.getElementById('btn-mode-1on1').addEventListener('click', () => {
-      this.selectedMode = 'cpu';
-      this.selectedCpuMode = 'normal';
-      this.selectedStageKey = null;
-      this.buildStageList();
-      this._resetFighterSelectState();
-      this.showScreen('stage-select');
+      this.openCpuMode('normal');
     });
     document.querySelectorAll('.cpu-count-btn').forEach(button => {
       button.addEventListener('click', () => {
@@ -350,8 +375,13 @@ const AppFlow = {
         document.querySelectorAll('.cpu-count-btn').forEach(el => el.classList.toggle('active', el === button));
       });
     });
-    document.getElementById('btn-mode-hundred').addEventListener('click', () => alert('100人組手は近日実装予定です'));
-    document.getElementById('btn-mode-endless').addEventListener('click', () => alert('エンドレスモードは近日実装予定です'));
+    document.getElementById('btn-mode-hundred').addEventListener('click', () => this.openCpuMode('hundred'));
+    document.getElementById('btn-mode-endless').addEventListener('click', () => this.openCpuMode('endless'));
+    document.getElementById('btn-endless-ranking').addEventListener('click', () => this.openEndlessRanking());
+    document.getElementById('endless-ranking-close').addEventListener('click', () => document.getElementById('endless-ranking-modal').classList.add('hidden'));
+    document.getElementById('endless-ranking-modal').addEventListener('click', event => {
+      if (event.target.id === 'endless-ranking-modal') event.currentTarget.classList.add('hidden');
+    });
     document.getElementById('btn-multi').addEventListener('click', () => {
       this.selectedMode = 'multi';
       if (window.Multiplayer) Multiplayer.openMenu();
@@ -437,7 +467,8 @@ const AppFlow = {
     });
 
     document.getElementById('btn-fight-start').addEventListener('click', () => {
-      this.showScreen('cpu-level');
+      if (this.selectedCpuMode === 'normal') this.showScreen('cpu-level');
+      else this._startFromTokens();
     });
 
     document.getElementById('cpu-level-list').addEventListener('click', (e) => {
@@ -510,7 +541,7 @@ const AppFlow = {
       const base = FIGHTERS[m.baseFighterKey] || {};
       const selected = m.id === this.selectedManageMasmonId ? ' selected' : '';
       return `<button class="masmon-roster-card${selected}" data-masmon-id="${m.id}" aria-label="マスモンを選択">
-        <img src="${base.idleImage || ''}" alt=""><span></span><small>Lv.${m.level}</small>
+        <img src="${base.idleImage || ''}" alt="">${m.badges?.hundred ? '<i class="hundred-clear-badge">100</i>' : ''}<span></span><small>Lv.${m.level}</small>
       </button>`;
     }).join('');
     list.forEach((m, index) => {
@@ -787,8 +818,8 @@ const AppFlow = {
     const records = UserProfileStore.data.battleRecords || {};
     const entries = [
       { label: 'CPU戦・通常バトル', record: records.cpu?.normal },
-      { label: 'CPU戦・100人組手', record: records.cpu?.hundred, comingSoon: true },
-      { label: 'CPU戦・エンドレス', record: records.cpu?.endless, comingSoon: true },
+      { label: 'CPU戦・100人組手', record: records.cpu?.hundred },
+      { label: 'CPU戦・エンドレス', record: records.cpu?.endless },
       { label: 'マルチ対戦', record: records.multi },
     ];
     document.getElementById('mypage-record-list').innerHTML = entries.map(entry => {
@@ -892,22 +923,26 @@ const AppFlow = {
   },
 
   _resetFighterSelectState() {
+    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
     this.tokens = { p1: null };
-    for (let i = 1; i <= this.selectedCpuCount; i++) this.tokens[`cpu${i}`] = null;
+    if (!survivalMode) {
+      for (let i = 1; i <= this.selectedCpuCount; i++) this.tokens[`cpu${i}`] = null;
+    }
     this.activeTokenId = null;
     const tokenBar = document.getElementById('token-bar');
     if (this.selectedMode === 'cpu') {
       tokenBar.classList.remove('hidden');
       tokenBar.innerHTML = `<div class="token token-1p" data-token="p1">1P</div>` +
-        Array.from({ length: this.selectedCpuCount }, (_, i) =>
+        Array.from({ length: survivalMode ? 0 : this.selectedCpuCount }, (_, i) =>
           `<div class="token token-cpu" data-token="cpu${i + 1}">CPU${i + 1}</div>`).join('');
       this._bindTokenDrag();
     } else {
       tokenBar.classList.add('hidden');
       tokenBar.innerHTML = '';
     }
-    document.getElementById('fighter-select-heading').textContent =
-      this.selectedMode === 'cpu' ? '1P・CPUの玉をモンスターへ移動してください' : 'ファイター選択';
+    document.getElementById('fighter-select-heading').textContent = survivalMode
+      ? `${this.selectedCpuMode === 'hundred' ? '100人組手' : 'エンドレス'} 使用モンスター選択`
+      : this.selectedMode === 'cpu' ? '1P・CPUの玉をモンスターへ移動してください' : 'ファイター選択';
     this._renderCardBadges();
     this._updateFightButtonVisibility();
   },
@@ -1010,11 +1045,12 @@ const AppFlow = {
   },
 
   _renderCardBadges() {
+    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
     document.querySelectorAll('#fighter-list .select-card').forEach(card => {
       card.querySelectorAll('.card-token-badge').forEach(b => b.remove());
       const fighterKey = card.dataset.fighter;
       const masmonId = card.dataset.masmon || null;
-      ['p1', ...Array.from({ length: this.selectedCpuCount }, (_, i) => `cpu${i + 1}`)].forEach((id, tokenIndex) => {
+      ['p1', ...Array.from({ length: survivalMode ? 0 : this.selectedCpuCount }, (_, i) => `cpu${i + 1}`)].forEach((id, tokenIndex) => {
         const t = this.tokens[id];
         if (t && t.fighterKey === fighterKey && (t.masmonId || null) === masmonId) {
           const badge = document.createElement('span');
@@ -1033,27 +1069,30 @@ const AppFlow = {
 
   _updateFightButtonVisibility() {
     const btn = document.getElementById('btn-fight-start');
-    const cpuTokens = Array.from({ length: this.selectedCpuCount }, (_, i) => this.tokens[`cpu${i + 1}`]);
+    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
+    const cpuTokens = Array.from({ length: survivalMode ? 0 : this.selectedCpuCount }, (_, i) => this.tokens[`cpu${i + 1}`]);
     const ready = this.selectedMode === 'cpu' && this.tokens.p1 && cpuTokens.every(Boolean);
     btn.classList.toggle('hidden', !ready);
   },
 
   _startFromTokens() {
-    const cpuFighters = Array.from({ length: this.selectedCpuCount }, (_, i) => {
+    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
+    const cpuFighters = Array.from({ length: survivalMode ? 0 : this.selectedCpuCount }, (_, i) => {
       const token = this.tokens[`cpu${i + 1}`];
       return { fighterKey: token.fighterKey, masmonId: token.masmonId };
     });
+    const fallbackCpuKey = Object.keys(FIGHTERS).find(key => key !== this.tokens.p1.fighterKey) || this.tokens.p1.fighterKey;
     this.lastLaunchOptions = {
       stageKey: this.selectedStageKey,
       p1Key: this.tokens.p1.fighterKey,
-      p2Key: this.tokens.cpu1.fighterKey,
+      p2Key: this.tokens.cpu1?.fighterKey || fallbackCpuKey,
       p1MasmonId: this.tokens.p1.masmonId,
-      p2MasmonId: this.tokens.cpu1.masmonId,
+      p2MasmonId: this.tokens.cpu1?.masmonId || null,
       cpuCount: this.selectedCpuCount,
       cpuFighters,
       mode: this.selectedMode,
       cpuMode: this.selectedCpuMode,
-      cpuLevel: this.selectedCpuLevel,
+      cpuLevel: survivalMode ? 1 : this.selectedCpuLevel,
     };
     this.playBattleIntro(this.lastLaunchOptions);
   },
@@ -1104,7 +1143,8 @@ const AppFlow = {
       Multiplayer.broadcastMatchEnd(result.ranking);
     }
     this.showScreen('result');
-    this.renderPodium(result.ranking);
+    if (result.survival) this.renderSurvivalResult(result.survival);
+    else this.renderPodium(result.ranking);
 
     const opts = this.lastLaunchOptions || {};
     const localFighterIndex = opts.mode === 'multi' ? (opts.localFighterIndex || 0) : 0;
@@ -1120,6 +1160,28 @@ const AppFlow = {
     } else {
       panel.classList.add('hidden');
       panel.innerHTML = '';
+    }
+
+    if (result.survival) {
+      panel.classList.remove('hidden');
+      const title = result.survival.mode === 'hundred'
+        ? (result.survival.cleared ? '100人組手クリア！' : '100人組手終了')
+        : 'エンドレスモード終了';
+      panel.insertAdjacentHTML('afterbegin', `<div class="survival-result-summary"><strong>${title}</strong><span>${result.survival.defeated}体 撃破</span></div>`);
+      if (result.survival.mode === 'hundred' && result.survival.cleared && opts.p1MasmonId) {
+        const monster = MasmonStore.loadAll().find(item => item.id === opts.p1MasmonId);
+        if (monster) {
+          monster.badges = { ...(monster.badges || {}), hundred: true };
+          MasmonStore.update(monster);
+          panel.insertAdjacentHTML('beforeend', '<div class="hundred-badge-reward">🏅 100人組手クリアバッジを獲得！</div>');
+          this.buildFighterList();
+        }
+      }
+      if (result.survival.mode === 'endless') {
+        UserProfileStore.submitEndlessScore(result.survival.defeated).then(updated => {
+          if (updated) panel.insertAdjacentHTML('beforeend', '<div class="endless-record-reward">🏆 ランキング記録を更新しました！</div>');
+        });
+      }
     }
 
     const breederResult = UserProfileStore.addBreederExp(50);
@@ -1146,6 +1208,17 @@ const AppFlow = {
         <div class="result-entry-record">撃墜 ${r.kos || 0} / 被撃墜 ${r.falls || 0}${r.selfDestructs ? ` / 自滅 ${r.selfDestructs}` : ''}</div>
       </div>
     `).join('');
+  },
+
+  renderSurvivalResult(survival) {
+    const podium = document.getElementById('result-podium');
+    podium.dataset.count = '1';
+    const cleared = survival.mode === 'hundred' && survival.cleared;
+    podium.innerHTML = `<div class="survival-result-hero ${cleared ? 'cleared' : ''}">
+      <span>${survival.mode === 'hundred' ? '100人組手' : 'ENDLESS'}</span>
+      <strong>${survival.defeated}</strong><small>体撃破</small>
+      ${cleared ? '<em>COMPLETE!</em>' : ''}
+    </div>`;
   },
 
   _renderRegistrationPrompt(panel, opts) {

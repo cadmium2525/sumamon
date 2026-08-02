@@ -1024,6 +1024,23 @@ body.layout-pending .screen { visibility: hidden; }
 .cpu-mode-card strong, .cpu-mode-card small { display: block; }
 .cpu-mode-card strong { font-size: 20px; }
 .cpu-mode-card small { margin-top: 10px; color: #b9d8ec; }
+.endless-ranking-button { margin-top: 12px; padding: 8px 20px; border: 1px solid #f1ce65; border-radius: 9px; color: #fff1ad; background: rgba(38,27,8,.9); font-weight: 900; }
+.endless-ranking-modal { position: fixed; z-index: 850; inset: 0; display: flex; align-items: center; justify-content: center; padding: max(15px, env(safe-area-inset-top)) max(50px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(50px, env(safe-area-inset-left)); background: rgba(0,0,0,.76); }
+.endless-ranking-modal.hidden { display: none; }
+.endless-ranking-dialog { position: relative; width: min(560px, 82vw); max-height: 82vh; overflow-y: auto; padding: 15px; border: 2px solid #e6c35c; border-radius: 14px; color: #fff; background: linear-gradient(150deg, #172b3f, #08121d); touch-action: pan-y; }
+.endless-ranking-dialog > button { position: absolute; top: 5px; right: 7px; width: 30px; height: 30px; border: 0; color: #fff; background: transparent; font-size: 22px; }
+.endless-ranking-dialog h2 { margin-bottom: 10px; color: #ffe99d; text-align: center; }
+.endless-ranking-entry { display: grid; grid-template-columns: 30px 42px 1fr 62px; align-items: center; gap: 8px; padding: 6px 9px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.endless-ranking-entry.is-me { background: rgba(255,210,69,.16); }
+.endless-ranking-entry > b { color: #ffdc70; font-size: 17px; text-align: center; }
+.endless-ranking-entry img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+.endless-ranking-entry span strong, .endless-ranking-entry span small { display: block; }
+.endless-ranking-entry span small { color: #9fb6c7; font-size: 9px; }
+.endless-ranking-entry em { color: #8deaff; font-size: 15px; font-style: normal; font-weight: 900; text-align: right; }
+.ranking-loading { padding: 25px; color: #b9cfdd; text-align: center; }
+.fighter-longpress-guide { z-index: 5; margin: -5px 0 5px; padding: 4px 13px; border-radius: 12px; color: #fff4bd; background: rgba(0,0,0,.58); font-size: 11px; font-weight: 800; }
+.hundred-clear-badge { position: absolute; z-index: 8; top: 5px; right: 5px; display: grid; place-items: center; width: 32px; height: 32px; border: 2px solid #fff1a5; border-radius: 50%; color: #fff8c9; background: radial-gradient(circle at 35% 30%, #ffda57, #9d5400); box-shadow: 0 0 12px rgba(255,213,67,.75); font-size: 10px; font-style: normal; font-weight: 950; }
+.masmon-roster-card { position: relative; }
 .cpu-count-picker { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 7px 12px; border-radius: 20px; background: rgba(0,0,0,.35); font-size: 12px; }
 .cpu-count-btn { padding: 6px 11px; border: 1px solid rgba(255,255,255,.35); border-radius: 16px; color: #fff; background: rgba(255,255,255,.08); }
 .cpu-count-btn.active { color: #09213a; background: #8edbff; font-weight: 800; }
@@ -1146,6 +1163,16 @@ body.layout-pending .screen { visibility: hidden; }
 
 #battle-pause-btn { position: absolute; z-index: 90; top: max(12px, env(safe-area-inset-top)); right: max(58px, calc(env(safe-area-inset-right) + 52px)); width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.7); border-radius: 8px; color: #fff; background: rgba(0,0,0,.62); font-size: 18px; font-weight: 900; }
 #battle-pause-overlay { position: absolute; z-index: 80; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(0,0,0,.55); font-size: clamp(42px, 10vw, 90px); font-weight: 950; letter-spacing: .12em; pointer-events: none; }
+.battle-survival-counter { position: absolute; z-index: 42; top: max(12px, env(safe-area-inset-top)); left: 50%; padding: 7px 18px; border: 2px solid rgba(255,226,116,.86); border-radius: 18px; color: #fff5c7; background: rgba(9,18,31,.88); box-shadow: 0 3px 14px rgba(0,0,0,.55); font-size: 16px; font-weight: 950; transform: translateX(-50%); pointer-events: none; }
+.survival-result-hero { display: grid; place-items: center; min-width: 240px; padding: 20px; border: 2px solid #79d8ff; border-radius: 16px; background: rgba(6,24,42,.88); }
+.survival-result-hero > span { color: #cceeff; font-size: 18px; font-weight: 900; }
+.survival-result-hero > strong { color: #fff; font-size: 64px; line-height: 1; }
+.survival-result-hero > small { color: #9edfff; }
+.survival-result-hero > em { margin-top: 7px; color: #ffe169; font-size: 20px; font-style: normal; font-weight: 950; }
+.survival-result-hero.cleared { border-color: #ffe169; box-shadow: 0 0 25px rgba(255,211,71,.35); }
+.survival-result-summary { display: flex; justify-content: space-between; gap: 14px; margin-bottom: 8px; color: #dff6ff; }
+.survival-result-summary strong { color: #ffe899; }
+.hundred-badge-reward, .endless-record-reward { margin-top: 8px; color: #ffe579; font-weight: 900; }
 #battle-pause-overlay.hidden, #battle-countdown.hidden { display: none; }
 #battle-countdown { position: absolute; z-index: 85; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 #battle-countdown img { width: min(45vw, 430px); max-height: 58vh; object-fit: contain; }
