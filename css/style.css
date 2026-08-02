@@ -1021,14 +1021,16 @@ html, body {
   min-height: 260px;
 }
 .result-main { display: flex; width: min(94vw, 900px); min-height: 250px; align-items: center; justify-content: center; gap: 22px; }
-.result-entry-record { margin-top: 3px; font-size: 10px; color: #cce8ff; white-space: nowrap; }
+.result-entry-record { margin-top: 3px; font-size: 10px; line-height: 1.35; color: #cce8ff; text-align: center; white-space: normal; }
 .exp-breakdown { margin-top: 5px; font-size: 11px; color: #bfe4ff; }
 .result-main .result-podium { width: 52%; min-width: 0; }
 .result-main .result-masmon-panel { width: 42%; max-width: 380px; margin-top: 0; }
 
 .result-entry {
   display: flex;
+  min-width: 0;
   flex-direction: column;
+  flex: 1 1 0;
   align-items: center;
   transition: transform 0.3s ease-out;
 }
@@ -1465,7 +1467,8 @@ html, body {
 #screen-training > .back-btn {
   position: fixed;
   left: 14px;
-  bottom: 14px;
+  top: max(10px, env(safe-area-inset-top));
+  bottom: auto;
   z-index: 20;
   margin-top: 0;
   background: rgba(12,18,32,.94);
@@ -1484,6 +1487,11 @@ html, body {
   .result-entry[data-rank] { transform: none; }
   .result-entry-rank { margin-top: 3px; }
   .result-masmon-panel { padding: 9px 14px; }
+  .result-main { width: calc(100vw - max(28px, env(safe-area-inset-left)) - max(28px, env(safe-area-inset-right))); gap: 12px; }
+  .result-main .result-podium { width: 56%; }
+  .result-main .result-masmon-panel { width: 44%; max-width: 350px; }
+  .result-entry { max-width: 25%; }
+  .result-entry-record { width: 100%; font-size: 8px; }
   .training-list { grid-template-columns: repeat(5, minmax(115px, 1fr)); width: min(96vw, 900px); }
   .training-card { padding: 7px 9px; }
   .scrollable-screen .screen-heading { margin-bottom: 8px; }
