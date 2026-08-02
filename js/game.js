@@ -20,6 +20,7 @@ let loopStarted = false;
 let projectiles = [];
 let battlePaused = false;
 let battleInputLocked = false;
+const networkProjectileSprites = new Map();
 
 const pauseButton = document.getElementById('battle-pause-btn');
 const pauseOverlay = document.getElementById('battle-pause-overlay');
@@ -300,33 +301,104 @@ function checkMatchEnd() {
   }
 }
 
+function createNetworkSnapshot() {
+  const fighterKeys = [
+    'x','y','vx','vy','facing','onGround','damagePercent','stocks','dead','tumbling','tumbleRotation',
+    'downed','shielding','shieldHP','dazedTimer','dodgeTimer','invincible','isMoving','attackTimer',
+    'recoveryTimer','jumpAnimTimer','idleAnimTimer','idleAnimFrame','animTimer','animFrame',
+    'helpless','kos','falls','selfDestructs','eliminatedAt',
+  ];
+  return {
+    fighters: players.map(fighter => ({
+      ...Object.fromEntries(fighterKeys.map(key => [key, fighter[key]])),
+      currentMoveKey: networkMoveKey(fighter),
+    })),
+    projectiles: projectiles.map(projectile => ({
+      x: projectile.x, y: projectile.y, vx: projectile.vx, vy: projectile.vy,
+      w: projectile.w, h: projectile.h, life: projectile.life, hit: projectile.hit,
+      exploding: projectile.exploding, config: projectile.config,
+      spritePath: projectile.move && projectile.move.projectileSprite,
+    })),
+  };
+}
+
+function networkMoveKey(fighter) {
+  if (!fighter.currentMove) return null;
+  for (const [groupKey, group] of Object.entries(fighter.moveSet || {})) {
+    for (const [moveKey, move] of Object.entries(group || {})) {
+      if (move === fighter.currentMove) return `${groupKey}:${moveKey}`;
+    }
+  }
+  return null;
+}
+
+function resolveNetworkMove(fighter, key) {
+  if (!key) return null;
+  const [groupKey, moveKey] = key.split(':');
+  return fighter.moveSet?.[groupKey]?.[moveKey] || null;
+}
+
+function applyNetworkSnapshot(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.fighters)) return;
+  snapshot.fighters.forEach((state, index) => {
+    const fighter = players[index];
+    if (!fighter || !state) return;
+    const { currentMoveKey, ...values } = state;
+    Object.assign(fighter, values);
+    fighter.currentMove = resolveNetworkMove(fighter, currentMoveKey);
+  });
+  if (Array.isArray(snapshot.projectiles)) {
+    projectiles = snapshot.projectiles.map(state => {
+      let sprite = null;
+      if (state.spritePath) {
+        sprite = window.PreloadedImages?.get(state.spritePath) || networkProjectileSprites.get(state.spritePath);
+        if (!sprite) { sprite = new Image(); sprite.src = state.spritePath; networkProjectileSprites.set(state.spritePath, sprite); }
+      }
+      return { ...state, sprite, owner: null, move: { projectileSprite: state.spritePath } };
+    });
+  }
+}
+
 function loop() {
   // 万一この中で想定外の例外が起きても、それによってrequestAnimationFrameの連鎖が
   // 途切れて「敵を倒してもリザルト画面に進まない」ような無言のフリーズが起きないようにする。
   try {
     if (players.length && !window._matchOver && !battlePaused && !battleInputLocked) {
       const p1Input = mergeInputs(input.getPlayer1Input(), vpad.getState());
-      players[0].applyInput(p1Input);
+      const network = window.Multiplayer && Multiplayer.role;
+      if (network === 'guest') {
+        Multiplayer.sendLocalInput(p1Input);
+        applyNetworkSnapshot(Multiplayer.consumeLatestState());
+      } else {
+        if (network === 'host') {
+          players.forEach((fighter, index) => {
+            if (fighter.isNetworkCpu) return;
+            fighter.applyInput(index === Multiplayer.localPlayerIndex ? p1Input : Multiplayer.getRemoteInput(index));
+          });
+        } else {
+          players[0].applyInput(p1Input);
+          if (!cpuControllers.length && players[1]) players[1].applyInput(input.getPlayer2Input());
+        }
 
-      if (cpuControllers.length) {
-        cpuControllers.forEach(controller => {
-          const candidates = players.filter(p => p !== controller.fighter && !p.dead);
-          if (!candidates.length) return;
-          controller.opponent = candidates.reduce((nearest, candidate) =>
-            Math.abs(candidate.x - controller.fighter.x) < Math.abs(nearest.x - controller.fighter.x) ? candidate : nearest);
-          controller.fighter.applyInput(controller.decide(blastBounds));
-        });
-      } else if (players[1]) {
-        players[1].applyInput(input.getPlayer2Input());
+        if (cpuControllers.length) {
+          cpuControllers.forEach(controller => {
+            const candidates = players.filter(p => p !== controller.fighter && !p.dead);
+            if (!candidates.length) return;
+            controller.opponent = candidates.reduce((nearest, candidate) =>
+              Math.abs(candidate.x - controller.fighter.x) < Math.abs(nearest.x - controller.fighter.x) ? candidate : nearest);
+            controller.fighter.applyInput(controller.decide(blastBounds));
+          });
+        }
+
+        for (const p of players) p.update(Stage.platforms, blastBounds);
+        resolveFighterCollisions();
+        checkLedges();
+        checkGrabs();
+        checkAttacks();
+        updateProjectiles();
+        checkMatchEnd();
+        if (network === 'host') Multiplayer.broadcastState(createNetworkSnapshot());
       }
-
-      for (const p of players) p.update(Stage.platforms, blastBounds);
-      resolveFighterCollisions();
-      checkLedges();
-      checkGrabs();
-      checkAttacks();
-      updateProjectiles();
-      checkMatchEnd();
     }
 
     ctx.clearRect(0, 0, CONFIG.CANVAS_W, CONFIG.CANVAS_H);
@@ -422,20 +494,40 @@ window.startBattle = function startBattle(options) {
   battleInputLocked = true;
   pauseButton.textContent = 'Ⅱ';
   pauseOverlay.classList.add('hidden');
-  players = [new Fighter('p1', resolveStats(p1Def, p1Masmon),
-    p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon))];
-  cpuSelections.forEach((selection, index) => {
-    const def = FIGHTERS[selection.fighterKey] || FIGHTERS.dullahan || FIGHTERS.irumine;
-    const masmon = selection.masmonId
-      ? MasmonStore.loadAll().find(m => m.id === selection.masmonId)
-      : null;
-    const baseStats = resolveStats(def, masmon);
-    players.push(new Fighter(`cpu${index + 1}`,
-      options.mode === 'cpu' ? applyCpuLevelStats(baseStats, def, masmon, options.cpuLevel) : baseStats,
-      def.color, Stage.spawnPoints[index + 1] || Stage.spawnPoints[0], buildOptions(def, masmon)));
-  });
-  players[0].hudLabel = '1P';
-  players.slice(1).forEach((fighter, index) => { fighter.hudLabel = options.mode === 'cpu' ? `CPU${index + 1}` : `${index + 2}P`; });
+  if (options.mode === 'multi' && Array.isArray(options.multiplayerRoster)) {
+    players = options.multiplayerRoster.slice(0, 4).map((entry, index) => {
+      const def = FIGHTERS[entry.fighterKey] || FIGHTERS.irumine;
+      const masmon = {
+        name: entry.name || def.displayName,
+        level: Math.max(1, Number(entry.level) || 1),
+        trainingStats: { ...(entry.trainingStats || {}) },
+        aptitudes: { ...(entry.aptitudes || GROWTH.aptitudesFor(def.key)) },
+      };
+      const baseStats = resolveStats(def, masmon);
+      const stats = entry.isCpu ? applyCpuLevelStats(baseStats, def, masmon, 9) : baseStats;
+      const fighter = new Fighter(`player${index + 1}`, stats, def.color,
+        Stage.spawnPoints[index] || Stage.spawnPoints[0], buildOptions(def, masmon));
+      fighter.hudLabel = entry.isCpu ? `CPU${index + 1}` : `${index + 1}P`;
+      fighter.playerUid = entry.playerUid;
+      fighter.isNetworkCpu = !!entry.isCpu;
+      return fighter;
+    });
+  } else {
+    players = [new Fighter('p1', resolveStats(p1Def, p1Masmon),
+      p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon))];
+    cpuSelections.forEach((selection, index) => {
+      const def = FIGHTERS[selection.fighterKey] || FIGHTERS.dullahan || FIGHTERS.irumine;
+      const masmon = selection.masmonId
+        ? MasmonStore.loadAll().find(m => m.id === selection.masmonId)
+        : null;
+      const baseStats = resolveStats(def, masmon);
+      players.push(new Fighter(`cpu${index + 1}`,
+        options.mode === 'cpu' ? applyCpuLevelStats(baseStats, def, masmon, options.cpuLevel) : baseStats,
+        def.color, Stage.spawnPoints[index + 1] || Stage.spawnPoints[0], buildOptions(def, masmon)));
+    });
+    players[0].hudLabel = '1P';
+    players.slice(1).forEach((fighter, index) => { fighter.hudLabel = options.mode === 'cpu' ? `CPU${index + 1}` : `${index + 2}P`; });
+  }
 
   // カメラを両者のスポーン中間点にリセット（前の試合の位置から急に飛ぶのを防ぐ）
   const activeSpawns = Stage.spawnPoints.slice(0, players.length);
@@ -443,9 +535,11 @@ window.startBattle = function startBattle(options) {
   const midY = activeSpawns.reduce((sum, point) => sum + point.y, 0) / activeSpawns.length;
   Camera.reset(midX, midY);
 
-  cpuControllers = options.mode === 'cpu'
-    ? players.slice(1).map(fighter => new CPUController(fighter, players[0], options.cpuLevel || 3))
-    : [];
+  cpuControllers = options.mode === 'multi'
+    ? players.filter(fighter => fighter.isNetworkCpu).map(fighter => new CPUController(fighter, players[0], 9))
+    : options.mode === 'cpu'
+      ? players.slice(1).map(fighter => new CPUController(fighter, players[0], options.cpuLevel || 3))
+      : [];
 
   if (!loopStarted) {
     loopStarted = true;

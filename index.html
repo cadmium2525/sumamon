@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=35">
+<link rel="stylesheet" href="css/style.css?v=36">
 </head>
 <body>
 
@@ -93,6 +93,42 @@
       </div>
     </div>
     <button class="back-btn" data-back="home">戻る</button>
+  </div>
+
+  <div id="screen-multi-menu" class="screen hidden multi-screen">
+    <div class="screen-heading">マルチプレイ</div>
+    <div class="multi-tabs">
+      <button class="multi-tab active" data-multi-tab="host">部屋を作る</button>
+      <button class="multi-tab" data-multi-tab="guest">部屋を探す</button>
+    </div>
+    <div class="multi-pane" data-multi-pane="host">
+      <div class="multi-config-row">
+        <label>対戦人数
+          <select id="multi-host-size"><option value="2">2人</option><option value="3">3人</option><option value="4" selected>4人</option></select>
+        </label>
+        <label>地形<select id="multi-host-stage"></select></label>
+      </div>
+      <h3>使用するマスモン</h3>
+      <div id="multi-host-masmons" class="multi-masmon-list"></div>
+      <button id="multi-create-room" class="multi-primary-btn">この設定で部屋を作る</button>
+    </div>
+    <div class="multi-pane hidden" data-multi-pane="guest">
+      <h3>使用するマスモン</h3>
+      <div id="multi-guest-masmons" class="multi-masmon-list"></div>
+      <button id="multi-find-rooms" class="multi-primary-btn">部屋を検索する</button>
+      <div id="multi-room-list" class="multi-room-list"></div>
+    </div>
+    <div id="multi-menu-message" class="multi-message" aria-live="polite"></div>
+    <button class="back-btn" data-back="home">戻る</button>
+  </div>
+
+  <div id="screen-multi-lobby" class="screen hidden multi-screen multi-lobby-screen">
+    <div class="screen-heading">対戦ロビー</div>
+    <div id="multi-lobby-room" class="multi-lobby-room"></div>
+    <div id="multi-lobby-members" class="multi-lobby-members"></div>
+    <div class="multi-lobby-note">空き枠には、参加者のマスモンを使うCPU Lv.9が入ります</div>
+    <button id="multi-start-battle" class="multi-primary-btn hidden">対戦開始</button>
+    <button id="multi-leave-room" class="back-btn">退出</button>
   </div>
 
   <div id="screen-debug" class="screen hidden debug-screen">
@@ -210,7 +246,8 @@
 
   <div id="orientation-overlay">横向きにしてください</div>
 
-  <script type="module" src="js/firebase-init.js"></script>
+  <script type="module" src="js/firebase-init.js?v=2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script src="js/config.js?v=2"></script>
   <script src="js/moves.js?v=27"></script>
   <script src="js/fighters/irumine-moves.js?v=31"></script>
@@ -224,8 +261,9 @@
   <script src="js/cpu-ai.js"></script>
   <script src="js/growth-system.js?v=30"></script>
   <script src="js/input.js"></script>
-  <script src="js/game.js?v=32"></script>
-  <script src="js/flow.js?v=35"></script>
+  <script src="js/multiplayer.js?v=1"></script>
+  <script src="js/game.js?v=33"></script>
+  <script src="js/flow.js?v=36"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

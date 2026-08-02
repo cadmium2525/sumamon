@@ -36,6 +36,7 @@ const AppFlow = {
     this.buildCpuLevelList();
     this.bindEvents();
     this.bindAuthEvents();
+    if (window.Multiplayer) Multiplayer.init();
     if (window.DebugMotionViewer) DebugMotionViewer.init();
     this.preloadAssets(() => this._afterPreload());
   },
@@ -329,7 +330,7 @@ const AppFlow = {
     document.getElementById('btn-mode-hundred').addEventListener('click', () => alert('100人組手は近日実装予定です'));
     document.getElementById('btn-mode-endless').addEventListener('click', () => alert('エンドレスモードは近日実装予定です'));
     document.getElementById('btn-multi').addEventListener('click', () => {
-      alert('マルチ対戦は近日実装予定です');
+      if (window.Multiplayer) Multiplayer.openMenu();
     });
     document.getElementById('btn-training').addEventListener('click', () => this.openMasmonManage());
     document.getElementById('btn-manage-training').addEventListener('click', () => this.openTraining());
@@ -428,6 +429,7 @@ const AppFlow = {
     });
 
     document.getElementById('btn-result-continue').addEventListener('click', () => {
+      if ((this.lastLaunchOptions || {}).mode === 'multi' && window.Multiplayer) Multiplayer.leaveRoom(false);
       this.showScreen('home');
     });
 
@@ -873,11 +875,15 @@ const AppFlow = {
   // ---- バトル終了後（game.jsから呼ばれる） ----
   // result: { ranking: [{fighterIndex, rank, name, color, spriteSrc}], }
   onMatchEnd(result) {
+    if ((this.lastLaunchOptions || {}).mode === 'multi' && window.Multiplayer?.role === 'host') {
+      Multiplayer.broadcastMatchEnd(result.ranking);
+    }
     this.showScreen('result');
     this.renderPodium(result.ranking);
 
-    const p1Entry = result.ranking.find(r => r.fighterIndex === 0);
     const opts = this.lastLaunchOptions || {};
+    const localFighterIndex = opts.mode === 'multi' ? (opts.localFighterIndex || 0) : 0;
+    const p1Entry = result.ranking.find(r => r.fighterIndex === localFighterIndex);
     const panel = document.getElementById('result-masmon-panel');
     panel.classList.remove('hidden');
 

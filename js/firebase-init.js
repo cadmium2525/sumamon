@@ -12,6 +12,10 @@ import {
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getDatabase, ref, set, update, remove, get, onValue, off, onDisconnect,
+  query, orderByChild, equalTo, serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDzjPtXF6Rx_CtGT20gFuYbV0WAt0lHGsc",
@@ -20,11 +24,14 @@ const firebaseConfig = {
   storageBucket: "sumamon-3845b.firebasestorage.app",
   messagingSenderId: "481369364054",
   appId: "1:481369364054:web:f2b1a9f424d8661d104df7",
+  // RTDBはFirebaseコンソールでasia-southeast1（シンガポール）に作成する想定。
+  databaseURL: "https://sumamon-3845b-default-rtdb.asia-southeast1.firebasedatabase.app",
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const rtdb = getDatabase(app);
 
 const USERNAME_DOMAIN = "@smamon.local";
 const toPseudoEmail = (username) => `${username.trim().toLowerCase()}${USERNAME_DOMAIN}`;
@@ -106,6 +113,10 @@ window.FirebaseAuth = {
 
 // マスモンデータ保存用（users/{uid}/monsters/{monsterId}）。growth-system.jsのMasmonStoreから使用する。
 window.FirebaseDB = { db, collection, doc, getDoc, getDocs, setDoc };
+window.FirebaseRTDB = {
+  db: rtdb, ref, set, update, remove, get, onValue, off, onDisconnect,
+  query, orderByChild, equalTo, serverTimestamp,
+};
 
 // 他のスクリプト（flow.js等、非moduleの通常scriptとして先に読み込まれる）に準備完了を知らせる
 window.dispatchEvent(new CustomEvent('firebase-auth-ready'));
