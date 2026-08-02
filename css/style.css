@@ -145,6 +145,18 @@ html, body {
 .screen.hidden { display: none; }
 .scrollable-screen { justify-content: flex-start; overflow-y: auto; padding: clamp(14px, 3vh, 28px) 12px; }
 
+.debug-entry { position: absolute; right: 14px; bottom: 12px; padding: 7px 13px; border: 1px solid #65d7ff; border-radius: 6px; color: #65d7ff; background: rgba(0,12,24,.8); font-size: 11px; font-weight: 800; }
+.debug-entry.hidden { display: none; }
+.debug-screen { gap: 9px; background: radial-gradient(circle at 50% 35%, #26384d, #080d14); }
+.debug-tabs { display: flex; gap: 6px; }
+.debug-tabs button { padding: 6px 14px; border: 1px solid rgba(255,255,255,.25); border-radius: 5px; color: #fff; background: rgba(255,255,255,.06); }
+.debug-tabs button.active { color: #08131d; background: #65d7ff; font-weight: 800; }
+.debug-tabs button:disabled { opacity: .35; }
+.debug-controls { display: flex; gap: 12px; }
+.debug-controls label { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.debug-controls select { min-width: 130px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.3); border-radius: 5px; color: #fff; background: #142232; }
+#debug-motion-canvas { width: min(70vw, 420px); max-height: 52vh; border: 1px solid rgba(101,215,255,.55); border-radius: 8px; background: #17202b; }
+
 .logo-title {
   font-size: clamp(28px, 6vw, 56px);
   font-weight: 800;

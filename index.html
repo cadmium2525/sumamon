@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=30">
+<link rel="stylesheet" href="css/style.css?v=31">
 </head>
 <body>
 
@@ -62,6 +62,18 @@
       <button class="menu-btn" id="btn-gacha">ガチャ</button>
     </div>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
+    <button id="btn-debug" class="debug-entry hidden">DEBUG</button>
+  </div>
+
+  <div id="screen-debug" class="screen hidden debug-screen">
+    <div class="screen-heading">デバッグモード</div>
+    <div class="debug-tabs"><button class="active">モーション確認</button><button disabled>BGM（今後追加）</button></div>
+    <div class="debug-controls">
+      <label>fighter<select id="debug-fighter-select"></select></label>
+      <label>モーション<select id="debug-motion-select"></select></label>
+    </div>
+    <canvas id="debug-motion-canvas" width="420" height="300"></canvas>
+    <button class="back-btn" data-back="home">戻る</button>
   </div>
 
   <!-- 4.5 マスモン管理 -->
@@ -169,15 +181,16 @@
   <script src="js/fighters/irumine-moves.js?v=30"></script>
   <script src="js/fighters/dullahan-moves.js?v=27"></script>
   <script src="js/physics.js?v=30"></script>
-  <script src="js/fighter.js?v=32"></script>
+  <script src="js/fighter.js?v=33"></script>
   <script src="js/fighters-data.js"></script>
+  <script src="js/debug-mode.js?v=1"></script>
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
   <script src="js/growth-system.js?v=27"></script>
   <script src="js/input.js"></script>
   <script src="js/game.js?v=31"></script>
-  <script src="js/flow.js?v=31"></script>
+  <script src="js/flow.js?v=32"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

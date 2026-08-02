@@ -752,6 +752,33 @@ class Fighter {
     this.helpless = false;
   }
 
+  _drawAnimationImage(ctx, image, box, nextImage, blend) {
+    const cx = this.x + this.w / 2;
+    const scale = this.h / (box.bottom - box.top);
+    const drawOne = img => {
+      const drawW = img.width * scale;
+      const drawH = img.height * scale;
+      const contentCenterX = ((box.left + box.right) / 2) * scale;
+      ctx.drawImage(img, cx - contentCenterX, this.y - box.top * scale, drawW, drawH);
+    };
+    ctx.save();
+    if (this.facing === -1) {
+      ctx.translate(cx, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-cx, 0);
+    }
+    const baseAlpha = ctx.globalAlpha;
+    if (nextImage && blend > 0) {
+      ctx.globalAlpha = baseAlpha * (1 - blend);
+      drawOne(image);
+      ctx.globalAlpha = baseAlpha * blend;
+      drawOne(nextImage);
+    } else {
+      drawOne(image);
+    }
+    ctx.restore();
+  }
+
   draw(ctx) {
     if (this.dead) return;
     ctx.save();
@@ -775,6 +802,10 @@ class Fighter {
     const moveFrameIndex = useMoveFrame
       ? Math.min(moveAnimation.images.length - 1, Math.floor(moveElapsed / (moveAnimation.config.frameDuration || 6)))
       : -1;
+    const crossfadeAmount = phase => {
+      const t = Math.max(0, Math.min(1, (phase - 0.45) / 0.55));
+      return t * t * (3 - 2 * t);
+    };
     const airborne = !this.onGround && !this.onLedge;
     const jumpAnimLength = this.jumpAnimFrames.length * this.jumpFrameDuration;
     const useJumpSequence = airborne && this.jumpAnimTimer >= 0 && this.jumpAnimTimer < jumpAnimLength &&
@@ -792,22 +823,10 @@ class Fighter {
     if (useMoveFrame) {
       const frame = moveAnimation.images[moveFrameIndex];
       const box = moveAnimation.config.contentBox;
-      const cx = this.x + this.w / 2;
-      const contentH = box.bottom - box.top;
-      const scale = this.h / contentH;
-      const drawW = frame.width * scale;
-      const drawH = frame.height * scale;
-      const contentCenterX = ((box.left + box.right) / 2) * scale;
-      const drawX = cx - contentCenterX;
-      const drawY = this.y - box.top * scale;
-      ctx.save();
-      if (this.facing === -1) {
-        ctx.translate(cx, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-cx, 0);
-      }
-      ctx.drawImage(frame, drawX, drawY, drawW, drawH);
-      ctx.restore();
+      const duration = moveAnimation.config.frameDuration || 6;
+      const nextFrame = moveAnimation.images[Math.min(moveFrameIndex + 1, moveAnimation.images.length - 1)];
+      this._drawAnimationImage(ctx, frame, box, nextFrame,
+        crossfadeAmount((moveElapsed % duration) / duration));
     } else if (useAirFrame) {
       const cx = this.x + this.w / 2;
       const contentH = airFrameBox.bottom - airFrameBox.top;
@@ -829,23 +848,9 @@ class Fighter {
       // 待機コマ送りアニメーション（移動中も含め常にこのループを表示する）
       const cx = this.x + this.w / 2;
       const box = this.idleFrameContentBox;
-      const contentH = box.bottom - box.top;
-      const scale = this.h / contentH;
-      const drawW = idleFrameImg.width * scale;
-      const drawH = idleFrameImg.height * scale;
-      const contentCenterX = ((box.left + box.right) / 2) * scale;
-      const contentTopScaled = box.top * scale;
-      const drawX = cx - contentCenterX;
-      const drawY = this.y - contentTopScaled;
-
-      ctx.save();
-      if (this.facing === -1) {
-        ctx.translate(cx, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-cx, 0);
-      }
-      ctx.drawImage(idleFrameImg, drawX, drawY, drawW, drawH);
-      ctx.restore();
+      const nextIdleFrame = this.idleFrames[(this.idleAnimFrame + 1) % this.idleFrames.length];
+      this._drawAnimationImage(ctx, idleFrameImg, box, nextIdleFrame,
+        crossfadeAmount(this.idleAnimTimer / this.idleFrameDuration));
 
       if (this.dazedTimer > 0 || this.shielding || this.grabbedBy) {
         const bottomY = this.y + this.h;

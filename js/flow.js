@@ -24,6 +24,7 @@ const AppFlow = {
     this.buildCpuLevelList();
     this.bindEvents();
     this.bindAuthEvents();
+    if (window.DebugMotionViewer) DebugMotionViewer.init();
     this.preloadAssets(() => this._afterPreload());
   },
 
@@ -84,18 +85,31 @@ const AppFlow = {
   },
 
   showScreen(name) {
+    if (name === 'debug' && !this._isDebugUser()) {
+      console.warn('デバッグモードへのアクセスが拒否されました');
+      name = 'home';
+    }
     if (name !== 'masmon-manage' && this.manageIdleTimer) {
       clearInterval(this.manageIdleTimer);
       this.manageIdleTimer = null;
     }
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     document.getElementById('screen-' + name).classList.remove('hidden');
+    if (window.DebugMotionViewer) DebugMotionViewer.setActive(name === 'debug');
 
     const gear = document.getElementById('vpad-settings-toggle');
     // ホームには専用の設定ボタンがあるため、共通の仮想パッド設定ボタンは隠して二重表示を防ぐ
     if (gear) gear.style.display = ['loading', 'start', 'auth', 'home'].includes(name) ? 'none' : '';
 
-    if (name === 'home') this._updateHomeProfile();
+    if (name === 'home') {
+      this._updateHomeProfile();
+      const debugButton = document.getElementById('btn-debug');
+      if (debugButton) debugButton.classList.toggle('hidden', !this._isDebugUser());
+    }
+  },
+
+  _isDebugUser() {
+    return !!(this.currentUser && String(this.currentUser.username).trim().toLowerCase() === 'cadmium');
   },
 
   _updateHomeProfile() {
@@ -201,6 +215,9 @@ const AppFlow = {
     document.getElementById('btn-home-settings').addEventListener('click', () => {
       vpad.el.settingsPanel.classList.remove('hidden');
       this.renderSettingsProfile();
+    });
+    document.getElementById('btn-debug').addEventListener('click', () => {
+      if (this._isDebugUser()) this.showScreen('debug');
     });
 
     document.getElementById('stage-list').addEventListener('click', (e) => {

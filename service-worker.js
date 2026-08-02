@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v33';
+const CACHE_NAME = 'smamon-app-v34';
 const APP_SHELL = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const APP_SHELL = [
   './js/camera.js',
   './js/config.js',
   './js/cpu-ai.js',
+  './js/debug-mode.js',
   './js/fighter.js',
   './js/fighters-data.js',
   './js/fighters/irumine-moves.js',
