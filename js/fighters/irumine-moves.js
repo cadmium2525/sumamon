@@ -19,6 +19,16 @@ window.FIGHTER_MOVESETS.irumine = {
         groundFriction: 0.985, explosionRadius: 105,
       },
       projectileSprite: 'assets/images/fighter/irumine/projectiles/bomb.png',
+      animation: {
+        frames: [
+          'assets/images/fighter/irumine/down_special/frame_001.png',
+          'assets/images/fighter/irumine/down_special/frame_002.png',
+          'assets/images/fighter/irumine/down_special/frame_003.png',
+          'assets/images/fighter/irumine/down_special/frame_004.png',
+        ],
+        frameDuration: 6,
+        contentBox: { left: 6, top: 6, right: 257, bottom: 333 },
+      },
     },
   },
 };

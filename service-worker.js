@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v32';
+const CACHE_NAME = 'smamon-app-v33';
 const APP_SHELL = [
   './',
   './index.html',
@@ -32,7 +32,12 @@ const APP_SHELL = [
   './assets/images/fighter/irumine/jump/frame_002.png',
   './assets/images/fighter/irumine/jump/frame_003.png',
   './assets/images/fighter/irumine/jump/air_idle.png',
-  './assets/images/fighter/irumine/projectiles/arrow.png'
+  './assets/images/fighter/irumine/projectiles/arrow.png',
+  './assets/images/fighter/irumine/projectiles/bomb.png',
+  './assets/images/fighter/irumine/down_special/frame_001.png',
+  './assets/images/fighter/irumine/down_special/frame_002.png',
+  './assets/images/fighter/irumine/down_special/frame_003.png',
+  './assets/images/fighter/irumine/down_special/frame_004.png'
 ];
 
 self.addEventListener('install', event => {

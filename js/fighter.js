@@ -14,6 +14,21 @@ class Fighter {
     this.stockIconSrc = options.stockIconSrc || null;
     this.fighterKey = options.fighterKey || null;
     this.moveSet = (window.FIGHTER_MOVESETS && window.FIGHTER_MOVESETS[this.fighterKey]) || {};
+    this.moveAnimations = new Map();
+    for (const moveGroup of Object.values(this.moveSet)) {
+      for (const move of Object.values(moveGroup || {})) {
+        const animation = move && move.animation;
+        if (!animation || !animation.frames || !animation.frames.length) continue;
+        const state = { images: [], loaded: 0, config: animation };
+        state.images = animation.frames.map(src => {
+          const image = new Image();
+          image.onload = () => { state.loaded++; };
+          image.src = src;
+          return image;
+        });
+        this.moveAnimations.set(move, state);
+      }
+    }
 
     // 当たり判定サイズ：画像を解析した実寸。未指定時は基準サイズにフォールバック。
     this.w = options.hurtboxWidth || CONFIG.BASE_HURTBOX_W;
@@ -751,6 +766,15 @@ class Fighter {
     else if (this.grabbedBy) bodyColor = 'rgba(200,200,200,0.9)';
 
     const useWalkFrame = this.walkSheet && this.walkSheetLoaded && this.showWalkFrame && this.walkFrameContentBox;
+    const moveAnimation = this.currentMove && this.attackTimer > 0
+      ? this.moveAnimations.get(this.currentMove)
+      : null;
+    const useMoveFrame = !!(moveAnimation && moveAnimation.config.contentBox &&
+      moveAnimation.loaded >= moveAnimation.images.length);
+    const moveElapsed = this.currentMove ? this.currentMove.duration - this.attackTimer : 0;
+    const moveFrameIndex = useMoveFrame
+      ? Math.min(moveAnimation.images.length - 1, Math.floor(moveElapsed / (moveAnimation.config.frameDuration || 6)))
+      : -1;
     const airborne = !this.onGround && !this.onLedge;
     const jumpAnimLength = this.jumpAnimFrames.length * this.jumpFrameDuration;
     const useJumpSequence = airborne && this.jumpAnimTimer >= 0 && this.jumpAnimTimer < jumpAnimLength &&
@@ -762,10 +786,29 @@ class Fighter {
     const airFrameBox = useJumpSequence ? this.jumpFrameContentBox : this.airIdleContentBox;
     const useAirFrame = !!(airFrameImg && airFrameBox);
     const idleFrameImg = this.idleFrames.length ? this.idleFrames[this.idleAnimFrame] : null;
-    const useIdleFrame = !useAirFrame && !useWalkFrame && idleFrameImg && idleFrameImg.complete &&
+    const useIdleFrame = !useMoveFrame && !useAirFrame && !useWalkFrame && idleFrameImg && idleFrameImg.complete &&
       this.idleFramesLoadedCount >= this.idleFrames.length && this.idleFrameContentBox;
 
-    if (useAirFrame) {
+    if (useMoveFrame) {
+      const frame = moveAnimation.images[moveFrameIndex];
+      const box = moveAnimation.config.contentBox;
+      const cx = this.x + this.w / 2;
+      const contentH = box.bottom - box.top;
+      const scale = this.h / contentH;
+      const drawW = frame.width * scale;
+      const drawH = frame.height * scale;
+      const contentCenterX = ((box.left + box.right) / 2) * scale;
+      const drawX = cx - contentCenterX;
+      const drawY = this.y - box.top * scale;
+      ctx.save();
+      if (this.facing === -1) {
+        ctx.translate(cx, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-cx, 0);
+      }
+      ctx.drawImage(frame, drawX, drawY, drawW, drawH);
+      ctx.restore();
+    } else if (useAirFrame) {
       const cx = this.x + this.w / 2;
       const contentH = airFrameBox.bottom - airFrameBox.top;
       const scale = this.h / contentH;
