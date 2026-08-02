@@ -6,6 +6,7 @@ const AppFlow = {
   selectedMode: null,     // 'cpu' | 'multi'
   selectedStageKey: null,
   selectedCpuLevel: 3,
+  selectedCpuCount: 1,
   selectedManageMasmonId: null,
   manageIdleTimer: null,
 
@@ -36,7 +37,18 @@ const AppFlow = {
       this.showScreen('start');
       return;
     }
-    const user = window.FirebaseAuth.getCurrentUser();
+    let user = window.FirebaseAuth.getCurrentUser();
+    if (!user) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('smamon_saved_login'));
+        if (saved?.username && saved?.password) {
+          await window.FirebaseAuth.logIn(saved.username, saved.password);
+          user = window.FirebaseAuth.getCurrentUser();
+        }
+      } catch (e) {
+        console.warn('保存済みアカウントの自動ログインに失敗しました:', e);
+      }
+    }
     if (user) {
       this.currentUser = user;
       await Promise.all([
@@ -52,34 +64,46 @@ const AppFlow = {
 
   // 全ファイター/ステージ画像を事前読み込み（読み込み完了後にバトル開始しても即座に表示される）
   preloadAssets(onDone) {
-    const urls = ['assets/images/home.png', 'assets/images/logo.png', 'assets/images/stage-select-background.png', 'assets/images/masmon-manage-background.png', 'assets/images/training-background.png'];
-    Object.values(FIGHTERS).forEach(f => {
-      if (f.idleImage) urls.push(f.idleImage);
-      if (f.stockIcon) urls.push(f.stockIcon);
-      if (f.walkSheetSrc) urls.push(f.walkSheetSrc);
-      if (f.idleFrameSrcs) urls.push(...f.idleFrameSrcs);
-      if (f.jumpFrameSrcs) urls.push(...f.jumpFrameSrcs);
-      if (f.airIdleSrc) urls.push(f.airIdleSrc);
-    });
-    Object.values(STAGES).forEach(s => {
-      if (s.background) urls.push(s.background);
-      if (s.platformImage) urls.push(s.platformImage);
-    });
+    const urls = new Set([
+      'assets/images/home.png', 'assets/images/logo.png', 'assets/images/app-icon.png',
+      'assets/images/stage-select-background.png', 'assets/images/masmon-manage-background.png',
+      'assets/images/training-background.png',
+      'assets/images/battle/gong3.png', 'assets/images/battle/gong2.png',
+      'assets/images/battle/gong1.png', 'assets/images/battle/gong.png',
+    ]);
+    const collectImages = value => {
+      if (!value) return;
+      if (typeof value === 'string' && /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(value)) {
+        urls.add(value);
+      } else if (Array.isArray(value)) {
+        value.forEach(collectImages);
+      } else if (typeof value === 'object') {
+        Object.values(value).forEach(collectImages);
+      }
+    };
+    collectImages(FIGHTERS);
+    collectImages(STAGES);
+    collectImages(window.FIGHTER_MOVESETS);
 
     const bar = document.getElementById('loading-bar-fill');
-    const total = urls.length;
+    const allUrls = [...urls];
+    const total = allUrls.length;
     if (total === 0) { onDone(); return; }
 
+    window.PreloadedImages = new Map();
     let loaded = 0;
-    urls.forEach(url => {
+    allUrls.forEach(url => {
       const img = new Image();
       const mark = () => {
+        window.PreloadedImages.set(url, img);
         loaded++;
         if (bar) bar.style.width = `${Math.floor((loaded / total) * 100)}%`;
         if (loaded >= total) onDone();
       };
-      img.onload = mark;
-      img.onerror = mark;
+      img.onload = () => {
+        if (img.decode) img.decode().catch(() => {}).finally(mark); else mark();
+      };
+      img.onerror = () => { console.error(`画像を読み込めませんでした: ${url}`); mark(); };
       img.src = url;
     });
   },
@@ -185,6 +209,7 @@ const AppFlow = {
       if (!this.currentUser) return;
       if (!confirm('ログアウトしますか？')) return;
       window.FirebaseAuth.logOut().then(() => {
+        localStorage.removeItem('smamon_saved_login');
         this.currentUser = null;
         MasmonStore.clearCache();
         UserProfileStore.clear();
@@ -201,6 +226,12 @@ const AppFlow = {
       this.buildStageList();
       this._resetFighterSelectState();
       this.showScreen('stage-select');
+    });
+    document.querySelectorAll('.cpu-count-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        this.selectedCpuCount = Math.max(1, Math.min(3, Number(button.dataset.cpuCount) || 1));
+        document.querySelectorAll('.cpu-count-btn').forEach(el => el.classList.toggle('active', el === button));
+      });
     });
     document.getElementById('btn-mode-hundred').addEventListener('click', () => alert('100人組手は近日実装予定です'));
     document.getElementById('btn-mode-endless').addEventListener('click', () => alert('エンドレスモードは近日実装予定です'));
@@ -528,15 +559,15 @@ const AppFlow = {
   },
 
   _resetFighterSelectState() {
-    this.tokens = { p1: null, cpu1: null };
+    this.tokens = { p1: null };
+    for (let i = 1; i <= this.selectedCpuCount; i++) this.tokens[`cpu${i}`] = null;
     this.activeTokenId = null;
     const tokenBar = document.getElementById('token-bar');
     if (this.selectedMode === 'cpu') {
       tokenBar.classList.remove('hidden');
-      tokenBar.innerHTML = `
-        <div class="token token-1p" data-token="p1">1P</div>
-        <div class="token token-cpu" data-token="cpu1">CPU</div>
-      `;
+      tokenBar.innerHTML = `<div class="token token-1p" data-token="p1">1P</div>` +
+        Array.from({ length: this.selectedCpuCount }, (_, i) =>
+          `<div class="token token-cpu" data-token="cpu${i + 1}">CPU${i + 1}</div>`).join('');
       this._bindTokenDrag();
     } else {
       tokenBar.classList.add('hidden');
@@ -650,15 +681,16 @@ const AppFlow = {
       card.querySelectorAll('.card-token-badge').forEach(b => b.remove());
       const fighterKey = card.dataset.fighter;
       const masmonId = card.dataset.masmon || null;
-      ['p1', 'cpu1'].forEach(id => {
+      ['p1', ...Array.from({ length: this.selectedCpuCount }, (_, i) => `cpu${i + 1}`)].forEach((id, tokenIndex) => {
         const t = this.tokens[id];
         if (t && t.fighterKey === fighterKey && (t.masmonId || null) === masmonId) {
           const badge = document.createElement('span');
           badge.className = 'card-token-badge';
           badge.dataset.token = id;
-          badge.textContent = id === 'p1' ? '1P' : 'CPU';
+          badge.textContent = id === 'p1' ? '1P' : id.toUpperCase();
           badge.style.background = id === 'p1' ? '#ff4757' : '#f5f5f5';
           badge.style.color = id === 'p1' ? '#fff' : '#222';
+          badge.style.left = `${6 + tokenIndex * 25}px`;
           card.appendChild(badge);
         }
       });
@@ -668,17 +700,24 @@ const AppFlow = {
 
   _updateFightButtonVisibility() {
     const btn = document.getElementById('btn-fight-start');
-    const ready = this.selectedMode === 'cpu' && this.tokens.p1 && this.tokens.cpu1;
+    const cpuTokens = Array.from({ length: this.selectedCpuCount }, (_, i) => this.tokens[`cpu${i + 1}`]);
+    const ready = this.selectedMode === 'cpu' && this.tokens.p1 && cpuTokens.every(Boolean);
     btn.classList.toggle('hidden', !ready);
   },
 
   _startFromTokens() {
+    const cpuFighters = Array.from({ length: this.selectedCpuCount }, (_, i) => {
+      const token = this.tokens[`cpu${i + 1}`];
+      return { fighterKey: token.fighterKey, masmonId: token.masmonId };
+    });
     this.lastLaunchOptions = {
       stageKey: this.selectedStageKey,
       p1Key: this.tokens.p1.fighterKey,
       p2Key: this.tokens.cpu1.fighterKey,
       p1MasmonId: this.tokens.p1.masmonId,
       p2MasmonId: this.tokens.cpu1.masmonId,
+      cpuCount: this.selectedCpuCount,
+      cpuFighters,
       mode: this.selectedMode,
       cpuLevel: this.selectedCpuLevel,
     };
@@ -710,7 +749,13 @@ const AppFlow = {
       image.style.display = 'none';
       image.onload = () => { image.style.display = ''; text.style.display = 'none'; };
       image.onerror = () => { image.style.display = 'none'; text.style.display = ''; };
-      image.src = `assets/images/battle/${step.file}`;
+      const countdownPath = `assets/images/battle/${step.file}`;
+      const cached = window.PreloadedImages?.get(countdownPath);
+      image.src = cached?.src || countdownPath;
+      if (cached?.complete && cached.naturalWidth > 0) {
+        image.style.display = '';
+        text.style.display = 'none';
+      }
       await new Promise(resolve => setTimeout(resolve, step.ms));
     }
     overlay.classList.add('hidden');
@@ -759,6 +804,7 @@ const AppFlow = {
         <div class="result-entry-portrait" style="${r.spriteSrc ? `background-image:url('${r.spriteSrc}')` : `background-color:${r.color}`}"></div>
         <div class="result-entry-rank">${r.rank}位</div>
         <div class="result-entry-name">${r.name}</div>
+        <div class="result-entry-record">撃墜 ${r.kos || 0} / 被撃墜 ${r.falls || 0}${r.selfDestructs ? ` / 自滅 ${r.selfDestructs}` : ''}</div>
       </div>
     `).join('');
   },
@@ -789,7 +835,14 @@ const AppFlow = {
     const record = list.find(m => m.id === opts.p1MasmonId);
     if (!record) { panel.classList.add('hidden'); return; }
 
-    const expGain = GROWTH.computeExpGain(p1Entry ? p1Entry.rank : 2, 2, opts.cpuLevel);
+    const expResult = GROWTH.computeBattleExp({
+      placement: p1Entry ? p1Entry.rank : (opts.cpuCount || 1) + 1,
+      totalFighters: (opts.cpuCount || 1) + 1,
+      kos: p1Entry?.kos || 0,
+      falls: p1Entry?.falls || 0,
+      cpuLevel: opts.cpuLevel,
+    });
+    const expGain = expResult.total;
     const startLevel = record.level;
     const startExp = record.exp;
     const levelResult = GROWTH.addExp(record, expGain);
@@ -798,6 +851,7 @@ const AppFlow = {
     panel.innerHTML = `
       <div class="masmon-exp-result">
         <div><strong>${record.name}</strong>　EXP +${expGain}</div>
+        <div class="exp-breakdown">順位 +${expResult.placementExp} ／ 撃墜 +${expResult.koExp} ／ 被撃墜 -${expResult.fallPenalty} ／ CPU倍率 ×${expResult.levelMultiplier.toFixed(1)}</div>
         <div class="masmon-exp-heading"><b id="masmon-exp-level">Lv.${startLevel}</b><span id="masmon-exp-numbers"></span></div>
         <div class="masmon-exp-track"><div id="masmon-exp-fill" class="masmon-exp-fill"></div></div>
         <div id="masmon-level-callout" class="masmon-level-callout"></div>

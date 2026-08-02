@@ -14,16 +14,16 @@ const GROWTH = {
     dullahan: { life: 'C', power: 'B', intelligence: 'B', accuracy: 'A', evasion: 'E', defense: 'B' },
   },
   TRAINING_MENU: {
-    running: { name: '走り込み', changes: { life: 3 } },
-    domino: { name: 'ドミノ倒し', changes: { power: 3 } },
-    study: { name: '猛勉強', changes: { intelligence: 3 } },
-    shooting: { name: 'しゃてき', changes: { accuracy: 3 } },
-    boulderDodge: { name: '巨石よけ', changes: { evasion: 3 } },
-    logBlock: { name: '丸太うけ', changes: { defense: 3 } },
-    weightPull: { name: '重り引き', changes: { power: 5, life: 2, evasion: -1 } },
-    meditation: { name: 'めいそう', changes: { intelligence: 5, accuracy: 2, defense: -1 } },
-    shiftingFloor: { name: '変動ゆか', changes: { evasion: 5, intelligence: 2, power: -1 } },
-    pool: { name: 'プール', changes: { defense: 5, life: 2, intelligence: -1 } },
+    running: { name: '走り込み', changes: { life: 7 } },
+    domino: { name: 'ドミノ倒し', changes: { power: 7 } },
+    study: { name: '猛勉強', changes: { intelligence: 7 } },
+    shooting: { name: 'しゃてき', changes: { accuracy: 7 } },
+    boulderDodge: { name: '巨石よけ', changes: { evasion: 7 } },
+    logBlock: { name: '丸太うけ', changes: { defense: 7 } },
+    weightPull: { name: '重り引き', changes: { power: 13, life: 5, evasion: -3 } },
+    meditation: { name: 'めいそう', changes: { intelligence: 13, accuracy: 5, defense: -3 } },
+    shiftingFloor: { name: '変動ゆか', changes: { evasion: 13, intelligence: 5, power: -3 } },
+    pool: { name: 'プール', changes: { defense: 13, life: 5, intelligence: -3 } },
   },
 
   // 適正ランクごとの「レベル1あたりの伸び幅」（控えめな値。カンストの999にはまず届かない）
@@ -101,6 +101,16 @@ const GROWTH = {
     // CPUレベル差が報酬にはっきり出るよう、Lv.1からLv.9まで段階的に倍率を上げる。
     const cpuBonus = 0.7 + Math.max(1, Math.min(9, cpuLevel || 3)) * 0.16;
     return Math.max(10, Math.round(base * placementBonus * cpuBonus));
+  },
+
+  computeBattleExp({ placement, totalFighters, kos, falls, cpuLevel }) {
+    const placementRewards = [100, 70, 50, 35];
+    const placementExp = placementRewards[Math.min(placementRewards.length - 1, Math.max(0, placement - 1))];
+    const koExp = Math.max(0, kos || 0) * 30;
+    const fallPenalty = Math.max(0, falls || 0) * 12;
+    const levelMultiplier = 0.8 + Math.max(1, Math.min(9, cpuLevel || 3)) * 0.1;
+    const total = Math.max(20, Math.round((placementExp + koExp - fallPenalty) * levelMultiplier));
+    return { total, placementExp, koExp, fallPenalty, levelMultiplier };
   },
 };
 

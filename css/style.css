@@ -45,6 +45,8 @@ html, body {
   pointer-events: none;
   z-index: 20;
 }
+#hud[data-count="3"], #hud[data-count="4"] { width: min(94vw, 1280px); gap: clamp(6px, 1.5vw, 22px); }
+#hud[data-count="3"] .phud, #hud[data-count="4"] .phud { width: min(21vw, 285px); }
 
 .phud {
   position: relative;
@@ -772,6 +774,9 @@ html, body {
 .cpu-mode-card strong, .cpu-mode-card small { display: block; }
 .cpu-mode-card strong { font-size: 20px; }
 .cpu-mode-card small { margin-top: 10px; color: #b9d8ec; }
+.cpu-count-picker { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 7px 12px; border-radius: 20px; background: rgba(0,0,0,.35); font-size: 12px; }
+.cpu-count-btn { padding: 6px 11px; border: 1px solid rgba(255,255,255,.35); border-radius: 16px; color: #fff; background: rgba(255,255,255,.08); }
+.cpu-count-btn.active { color: #09213a; background: #8edbff; font-weight: 800; }
 
 /* ==== バトル開幕演出 ==== */
 .fight-callout {
@@ -798,6 +803,8 @@ html, body {
   min-height: 260px;
 }
 .result-main { display: flex; width: min(94vw, 900px); min-height: 250px; align-items: center; justify-content: center; gap: 22px; }
+.result-entry-record { margin-top: 3px; font-size: 10px; color: #cce8ff; white-space: nowrap; }
+.exp-breakdown { margin-top: 5px; font-size: 11px; color: #bfe4ff; }
 .result-main .result-podium { width: 52%; min-width: 0; }
 .result-main .result-masmon-panel { width: 42%; max-width: 380px; margin-top: 0; }
 

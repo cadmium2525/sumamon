@@ -15,7 +15,7 @@ const blastBounds = {
 };
 
 let players = [];
-let cpuController = null;
+let cpuControllers = [];
 let loopStarted = false;
 let projectiles = [];
 let battlePaused = false;
@@ -37,8 +37,9 @@ function updateProjectiles() {
     const request = owner.consumeProjectileRequest();
     if (!request) continue;
     const cfg = request.config;
-    const sprite = request.move.projectileSprite ? new Image() : null;
-    if (sprite) sprite.src = request.move.projectileSprite;
+    const spritePath = request.move.projectileSprite;
+    const sprite = spritePath ? (window.PreloadedImages?.get(spritePath) || new Image()) : null;
+    if (sprite && !sprite.src) sprite.src = spritePath;
     projectiles.push({ owner, move: request.move, sprite, config: cfg,
       x: owner.facing === 1 ? owner.x + owner.w : owner.x - cfg.width,
       y: owner.y + owner.h * 0.42, vx: owner.facing * cfg.speed,
@@ -188,7 +189,7 @@ function checkGrabs() {
 
     for (const target of players) {
       if (target === grabber || target.dead) continue;
-      if (target.grabbedBy || target.invincible > 0 || target.dodgeTimer > 0) continue;
+      if (target.grabbedBy || target.downed || target.invincible > 0 || target.dodgeTimer > 0) continue;
 
       const dx = target.x - grabber.x;
       const facingMatches = (dx >= 0 && grabber.facing === 1) || (dx < 0 && grabber.facing === -1);
@@ -236,6 +237,7 @@ function checkLedges() {
 }
 
 function updateHUD() {
+  hud.dataset.count = String(players.length);
   hud.innerHTML = players.map(p => {
     const stockIconStyle = p.stockIconSrc
       ? `background-image:url('${p.stockIconSrc}')`
@@ -263,14 +265,17 @@ function updateHUD() {
 }
 
 function computeRanking() {
-  const alive = players.filter(p => !p.dead);
-  const dead = players.filter(p => p.dead);
+  const alive = players.filter(p => !p.dead).sort((a, b) => b.stocks - a.stocks || a.damagePercent - b.damagePercent);
+  const dead = players.filter(p => p.dead).sort((a, b) => b.eliminatedAt - a.eliminatedAt);
   return [...alive, ...dead].map((p, idx) => ({
     fighterIndex: players.indexOf(p),
     rank: idx + 1,
     name: p.name,
     color: p.color,
     spriteSrc: p.sprite ? p.sprite.src : null,
+    kos: p.kos,
+    falls: p.falls,
+    selfDestructs: p.selfDestructs,
   }));
 }
 
@@ -303,8 +308,17 @@ function loop() {
       const p1Input = mergeInputs(input.getPlayer1Input(), vpad.getState());
       players[0].applyInput(p1Input);
 
-      const p2Input = cpuController ? cpuController.decide(blastBounds) : input.getPlayer2Input();
-      players[1].applyInput(p2Input);
+      if (cpuControllers.length) {
+        cpuControllers.forEach(controller => {
+          const candidates = players.filter(p => p !== controller.fighter && !p.dead);
+          if (!candidates.length) return;
+          controller.opponent = candidates.reduce((nearest, candidate) =>
+            Math.abs(candidate.x - controller.fighter.x) < Math.abs(nearest.x - controller.fighter.x) ? candidate : nearest);
+          controller.fighter.applyInput(controller.decide(blastBounds));
+        });
+      } else if (players[1]) {
+        players[1].applyInput(input.getPlayer2Input());
+      }
 
       for (const p of players) p.update(Stage.platforms, blastBounds);
       resolveFighterCollisions();
@@ -339,13 +353,12 @@ window.startBattle = function startBattle(options) {
   Stage.load(stageData.key);
 
   const p1Def = FIGHTERS[options.p1Key] || FIGHTERS.irumine;
-  const p2Def = FIGHTERS[options.p2Key] || FIGHTERS.dullahan || FIGHTERS.irumine;
+  const cpuSelections = options.cpuFighters?.length
+    ? options.cpuFighters.slice(0, 3)
+    : [{ fighterKey: options.p2Key, masmonId: options.p2MasmonId }];
 
   const p1Masmon = options.p1MasmonId
     ? MasmonStore.loadAll().find(m => m.id === options.p1MasmonId)
-    : null;
-  const p2Masmon = options.p2MasmonId
-    ? MasmonStore.loadAll().find(m => m.id === options.p2MasmonId)
     : null;
 
   function buildOptions(def, masmon) {
@@ -409,25 +422,30 @@ window.startBattle = function startBattle(options) {
   battleInputLocked = true;
   pauseButton.textContent = 'Ⅱ';
   pauseOverlay.classList.add('hidden');
-  players = [
-    new Fighter('p1', resolveStats(p1Def, p1Masmon),
-      p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon)),
-    new Fighter('p2', options.mode === 'cpu'
-      ? applyCpuLevelStats(resolveStats(p2Def, p2Masmon), p2Def, p2Masmon, options.cpuLevel)
-      : resolveStats(p2Def, p2Masmon),
-      p2Def.color, Stage.spawnPoints[1], buildOptions(p2Def, p2Masmon)),
-  ];
+  players = [new Fighter('p1', resolveStats(p1Def, p1Masmon),
+    p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon))];
+  cpuSelections.forEach((selection, index) => {
+    const def = FIGHTERS[selection.fighterKey] || FIGHTERS.dullahan || FIGHTERS.irumine;
+    const masmon = selection.masmonId
+      ? MasmonStore.loadAll().find(m => m.id === selection.masmonId)
+      : null;
+    const baseStats = resolveStats(def, masmon);
+    players.push(new Fighter(`cpu${index + 1}`,
+      options.mode === 'cpu' ? applyCpuLevelStats(baseStats, def, masmon, options.cpuLevel) : baseStats,
+      def.color, Stage.spawnPoints[index + 1] || Stage.spawnPoints[0], buildOptions(def, masmon)));
+  });
   players[0].hudLabel = '1P';
-  players[1].hudLabel = options.mode === 'cpu' ? 'CPU' : '2P';
+  players.slice(1).forEach((fighter, index) => { fighter.hudLabel = options.mode === 'cpu' ? `CPU${index + 1}` : `${index + 2}P`; });
 
   // カメラを両者のスポーン中間点にリセット（前の試合の位置から急に飛ぶのを防ぐ）
-  const midX = (Stage.spawnPoints[0].x + Stage.spawnPoints[1].x) / 2;
-  const midY = (Stage.spawnPoints[0].y + Stage.spawnPoints[1].y) / 2;
+  const activeSpawns = Stage.spawnPoints.slice(0, players.length);
+  const midX = activeSpawns.reduce((sum, point) => sum + point.x, 0) / activeSpawns.length;
+  const midY = activeSpawns.reduce((sum, point) => sum + point.y, 0) / activeSpawns.length;
   Camera.reset(midX, midY);
 
-  cpuController = (options.mode === 'cpu')
-    ? new CPUController(players[1], players[0], options.cpuLevel || 3)
-    : null;
+  cpuControllers = options.mode === 'cpu'
+    ? players.slice(1).map(fighter => new CPUController(fighter, players[0], options.cpuLevel || 3))
+    : [];
 
   if (!loopStarted) {
     loopStarted = true;

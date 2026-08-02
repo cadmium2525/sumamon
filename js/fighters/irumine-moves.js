@@ -7,7 +7,7 @@ window.FIGHTER_MOVESETS.irumine = {
       duration: 24, active: [9, 9], range: 0, h: 0, yOff: 0,
       statKey: 'intelligence', endlag: 16,
       projectile: { speed: 12, width: 108, height: 30, lifetime: 95, spawnFrame: 9 },
-      projectileSprite: 'assets/images/fighter/irumine/projectiles/arrow.png?v=1',
+      projectileSprite: 'assets/images/fighter/irumine/projectiles/arrow.png',
     },
     down: {
       name: 'ローリングボム', dmgBase: 10, kbBase: 6, angle: 58,

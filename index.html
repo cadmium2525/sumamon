@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=31">
+<link rel="stylesheet" href="css/style.css?v=32">
 </head>
 <body>
 
@@ -115,8 +115,13 @@
   <!-- 5. 地形選択 -->
   <div id="screen-cpu-mode" class="screen hidden">
     <div class="screen-heading">CPU戦 モード選択</div>
+    <div class="cpu-count-picker"><span>CPU人数</span>
+      <button class="cpu-count-btn active" data-cpu-count="1">1人</button>
+      <button class="cpu-count-btn" data-cpu-count="2">2人</button>
+      <button class="cpu-count-btn" data-cpu-count="3">3人</button>
+    </div>
     <div class="cpu-mode-list">
-      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>1 on 1</strong><small>CPUと1対1で対戦</small></button>
+      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small></button>
       <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>近日実装予定</small></button>
       <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>近日実装予定</small></button>
     </div>
@@ -176,21 +181,21 @@
   <div id="orientation-overlay">横向きにしてください</div>
 
   <script type="module" src="js/firebase-init.js"></script>
-  <script src="js/config.js?v=1"></script>
+  <script src="js/config.js?v=2"></script>
   <script src="js/moves.js?v=27"></script>
-  <script src="js/fighters/irumine-moves.js?v=30"></script>
+  <script src="js/fighters/irumine-moves.js?v=31"></script>
   <script src="js/fighters/dullahan-moves.js?v=27"></script>
   <script src="js/physics.js?v=31"></script>
-  <script src="js/fighter.js?v=34"></script>
+  <script src="js/fighter.js?v=35"></script>
   <script src="js/fighters-data.js"></script>
   <script src="js/debug-mode.js?v=2"></script>
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=27"></script>
+  <script src="js/growth-system.js?v=28"></script>
   <script src="js/input.js"></script>
-  <script src="js/game.js?v=31"></script>
-  <script src="js/flow.js?v=32"></script>
+  <script src="js/game.js?v=32"></script>
+  <script src="js/flow.js?v=33"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

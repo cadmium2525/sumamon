@@ -141,6 +141,15 @@ class Fighter {
     this.dodgeType = null;
     this.invincible = 0;
     this.dead = false;
+    this.tumbling = false;
+    this.tumbleRotation = 0;
+    this.downed = false;
+    this.lastAttacker = null;
+    this.lastHitAt = 0;
+    this.kos = 0;
+    this.falls = 0;
+    this.selfDestructs = 0;
+    this.eliminatedAt = 0;
 
     // ジャンプ（小ジャンプ/大ジャンプ判定）
     this.jumpFrames = 0;
@@ -213,6 +222,58 @@ class Fighter {
   applyInput(input) {
     if (this.dead) return;
     this.updateEdges(input);
+
+    const hasWakeInput = input.left || input.right || input.up || input.down || input.jump ||
+      input.attack || input.special || input.shield || input.grab || Math.abs(input.stickX || 0) > 0.1;
+    if (this.downed) {
+      if (hasWakeInput) {
+        this.downed = false;
+        this.recoveryTimer = 8;
+      }
+      return;
+    }
+
+    const tumbleJumpCancel = input.jump && !this.prevJumpHeld;
+    const tumbleAttackCancel = input.attack && !this.prevAttackHeld;
+    const tumbleSpecialCancel = input.special && !this.prevSpecialHeld;
+    if (this.tumbling && !this.onGround && (tumbleJumpCancel || tumbleAttackCancel || tumbleSpecialCancel)) {
+      this.tumbling = false;
+      this.hitstun = 0;
+      if (tumbleJumpCancel && this.jumpsUsed >= CONFIG.MAX_JUMPS) {
+        this.tumbling = true;
+        this.hitstun = 1;
+        return;
+      }
+      if (tumbleJumpCancel && this.jumpsUsed < CONFIG.MAX_JUMPS) {
+        this.vy = CONFIG.JUMP_POWER;
+        this.jumpsUsed++;
+        this.jumpAnimTimer = 0;
+        this.prevJumpHeld = true;
+      } else if (tumbleSpecialCancel) {
+        const key = this.getHeldDirection(input) || 'neutral';
+        const move = (this.moveSet.special && this.moveSet.special[key]) || MOVES.special[key];
+        if (move.recoveryBoost && this._usedUpSpecialAirborne) {
+          this.tumbling = true;
+          this.hitstun = 1;
+          return;
+        }
+        this.startAttack(move);
+        if (move.dashForward) this.vx = this.facing * move.dashForward;
+        if (move.recoveryBoost) {
+          this._usedUpSpecialAirborne = true;
+          this.helpless = true;
+          this.vy = move.recoveryBoost;
+        }
+        this.prevSpecialHeld = true;
+      } else {
+        const dir = this.getHeldDirection(input);
+        const move = dir === 'up' ? MOVES.air.up : dir === 'down' ? MOVES.air.down :
+          dir === 'side' ? MOVES.air.forward : MOVES.air.neutral;
+        this.startAttack(move);
+        this.prevAttackHeld = true;
+      }
+      return;
+    }
 
     if (this.hitstun > 0) return;
     if (this.recoveryTimer > 0) return;
@@ -555,6 +616,10 @@ class Fighter {
     target.vy = -kb * Math.sin(angleRad);
     target.hitstun = Math.min(50, Math.max(6, Math.round(kb * 3)));
     target.onGround = false;
+    target.lastAttacker = this;
+    target.lastHitAt = Date.now();
+    target.downed = false;
+    target.tumbling = target.damagePercent >= CONFIG.TUMBLE_DAMAGE_THRESHOLD;
     target.grabbedBy = null;
 
     this.grabbing = null;
@@ -633,6 +698,12 @@ class Fighter {
     this.vx = dir * kb * Math.cos(angleRad);
     this.vy = -kb * Math.sin(angleRad);
     if (!this.shielding) this.onGround = false;
+    if (!this.shielding) {
+      this.lastAttacker = attacker;
+      this.lastHitAt = Date.now();
+      this.downed = false;
+      this.tumbling = this.damagePercent >= CONFIG.TUMBLE_DAMAGE_THRESHOLD;
+    }
 
     this.hitstun = this.shielding ? 4 : Math.min(50, Math.max(6, Math.round(kb * 3)));
     this.attackTimer = 0;
@@ -691,6 +762,16 @@ class Fighter {
     this.y += this.vy;
     Physics.resolvePlatformCollision(this, platforms);
 
+    if (this.tumbling && this.onGround) {
+      this.tumbling = false;
+      this.downed = true;
+      this.hitstun = 0;
+      this.vx = 0;
+      this.vy = 0;
+    } else if (this.tumbling) {
+      this.tumbleRotation += (this.vx < 0 ? -1 : 1) * 0.24;
+    }
+
     if (this.onGround) {
       this.ledgeLocked = false;
       this._airDodgeUsed = false;
@@ -737,9 +818,17 @@ class Fighter {
   }
 
   onKO() {
+    this.falls++;
+    const creditedAttacker = this.lastAttacker && this.lastAttacker !== this &&
+      Date.now() - this.lastHitAt <= CONFIG.KO_CREDIT_WINDOW_MS;
+    if (creditedAttacker) this.lastAttacker.kos++;
+    else this.selfDestructs++;
+    this.lastAttacker = null;
+    this.lastHitAt = 0;
     this.stocks--;
     if (this.stocks <= 0) {
       this.dead = true;
+      this.eliminatedAt = Date.now();
       return;
     }
     this.x = CONFIG.CANVAS_W / 2 - this.w / 2;
@@ -752,6 +841,9 @@ class Fighter {
     this._airDodgeUsed = false;
     this._usedUpSpecialAirborne = false;
     this.helpless = false;
+    this.tumbling = false;
+    this.downed = false;
+    this.tumbleRotation = 0;
   }
 
   _drawAnimationImage(ctx, image, box, nextImage, blend) {
@@ -787,6 +879,13 @@ class Fighter {
     ctx.save();
     if (this.invincible > 0 && Math.floor(this.invincible / 4) % 2 === 0) {
       ctx.globalAlpha = 0.4;
+    }
+    if (this.tumbling || this.downed) {
+      const cx = this.x + this.w / 2;
+      const cy = this.y + this.h / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate(this.downed ? this.facing * Math.PI / 2 : this.tumbleRotation);
+      ctx.translate(-cx, -cy);
     }
 
     let bodyColor = this.color;
