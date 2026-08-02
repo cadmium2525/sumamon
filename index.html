@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=36">
+<link rel="stylesheet" href="css/style.css?v=37">
 </head>
 <body>
 
@@ -45,7 +45,7 @@
 
   <!-- 4. ホーム画面 -->
   <div id="screen-home" class="screen hidden">
-    <button id="home-profile-card" class="home-profile-card" title="タップでログアウト">
+    <button id="home-profile-card" class="home-profile-card" title="マイページを開く">
       <img id="home-profile-icon" src="assets/images/fighter/irumine/stock.png" alt="プロフィールアイコン">
       <span class="home-profile-info">
         <span class="home-profile-name"><b id="home-nickname">ブリーダー</b></span>
@@ -63,6 +63,50 @@
     </div>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
     <button id="btn-debug" class="debug-entry hidden">DEBUG</button>
+  </div>
+
+  <!-- マイページ -->
+  <div id="screen-mypage" class="screen hidden mypage-screen">
+    <div class="mypage-shell">
+      <header class="mypage-header">
+        <div>
+          <div class="screen-heading">マイページ</div>
+          <small id="mypage-username">ユーザー名</small>
+        </div>
+        <div class="mypage-wallet"><b id="mypage-diamonds">💎 0</b><b id="mypage-practice-tickets">修行券 0</b></div>
+      </header>
+
+      <div class="mypage-main">
+        <section class="mypage-breeder-card">
+          <img id="mypage-current-icon" src="assets/images/fighter/irumine/stock.png" alt="プロフィールアイコン">
+          <div class="mypage-breeder-info">
+            <strong id="mypage-current-name">ブリーダー</strong>
+            <span id="mypage-breeder-level">ブリーダー Lv.1</span>
+            <div class="mypage-exp-track"><i id="mypage-exp-fill"></i></div>
+            <small id="mypage-exp-text">0 / 100 EXP</small>
+          </div>
+        </section>
+
+        <section class="mypage-edit-card">
+          <h2>プロフィール編集</h2>
+          <label class="mypage-field">ニックネーム
+            <input type="text" id="mypage-nickname" maxlength="16" placeholder="ニックネーム">
+          </label>
+          <div class="mypage-icon-label">アイコン</div>
+          <div class="mypage-icon-options">
+            <button class="mypage-icon-option" data-mypage-icon="irumine" aria-label="イルミネを選択"><img src="assets/images/fighter/irumine/stock.png" alt="イルミネ"></button>
+            <button class="mypage-icon-option" data-mypage-icon="dullahan" aria-label="デュラハンを選択"><img src="assets/images/fighter/dullahan/stock.png" alt="デュラハン"></button>
+          </div>
+          <div class="mypage-actions">
+            <button id="mypage-save" class="mypage-save">保存</button>
+            <button id="mypage-logout" class="mypage-logout">ログアウト</button>
+          </div>
+          <div id="mypage-message" class="mypage-message" aria-live="polite"></div>
+        </section>
+      </div>
+      <div class="mypage-future">今後、戦績や称号などのプロフィール項目を追加予定です</div>
+    </div>
+    <button class="back-btn" data-back="home">戻る</button>
   </div>
 
   <div id="screen-item-shop" class="screen hidden scrollable-screen item-shop-screen">
@@ -260,10 +304,10 @@
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
   <script src="js/growth-system.js?v=30"></script>
-  <script src="js/input.js"></script>
+  <script src="js/input.js?v=2"></script>
   <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=33"></script>
-  <script src="js/flow.js?v=36"></script>
+  <script src="js/game.js?v=34"></script>
+  <script src="js/flow.js?v=37"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

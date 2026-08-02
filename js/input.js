@@ -130,31 +130,11 @@ class VirtualPad {
     settingsRoot.innerHTML = `
       <button id="vpad-settings-toggle" title="操作設定">⚙</button>
       <div id="vpad-settings-panel" class="hidden">
-        <div class="settings-tabs">
-          <button class="settings-tab active" data-settings-tab="profile">プロフィール</button>
-          <button class="settings-tab" data-settings-tab="battle">バトル設定</button>
-        </div>
-        <div class="settings-pane" data-settings-pane="profile">
-          <h3>プロフィール</h3>
-          <label class="profile-field">ニックネーム<input type="text" id="cfg-nickname" maxlength="16" placeholder="ニックネーム"></label>
-          <div class="profile-icon-label">アイコン</div>
-          <div class="profile-icon-options">
-            <button class="profile-icon-option" data-profile-icon="irumine"><img src="assets/images/fighter/irumine/stock.png" alt="イルミネ"></button>
-            <button class="profile-icon-option" data-profile-icon="dullahan"><img src="assets/images/fighter/dullahan/stock.png" alt="デュラハン"></button>
-          </div>
-          <div id="cfg-breeder" class="profile-breeder">ブリーダー Lv.1</div>
-          <div id="cfg-diamonds" class="profile-diamonds">💎 0　修行券 0</div>
-          <button id="cfg-profile-save">保存</button>
-          <div id="cfg-profile-message" class="profile-message"></div>
-          <div class="profile-future">プロフィール項目は今後追加予定です</div>
-        </div>
-        <div class="settings-pane hidden" data-settings-pane="battle">
-          <h3>ボタン表示設定</h3>
-          <label><input type="checkbox" id="cfg-jump"> ジャンプボタンを表示（スティック上入力でもジャンプ可）</label>
-          <label><input type="checkbox" id="cfg-tapjump"> スティック上入力をジャンプとして扱う</label>
-          <label><input type="checkbox" id="cfg-shield"> シールドボタンを表示</label>
-          <label><input type="checkbox" id="cfg-b"> Bボタンを表示</label>
-        </div>
+        <h3>バトル設定</h3>
+        <label><input type="checkbox" id="cfg-jump"> ジャンプボタンを表示（スティック上入力でもジャンプ可）</label>
+        <label><input type="checkbox" id="cfg-tapjump"> スティック上入力をジャンプとして扱う</label>
+        <label><input type="checkbox" id="cfg-shield"> シールドボタンを表示</label>
+        <label><input type="checkbox" id="cfg-b"> Bボタンを表示</label>
         <button id="vpad-settings-close">閉じる</button>
       </div>
     `;
@@ -175,11 +155,6 @@ class VirtualPad {
       cfgShield: settingsRoot.querySelector('#cfg-shield'),
       cfgB: settingsRoot.querySelector('#cfg-b'),
       settingsClose: settingsRoot.querySelector('#vpad-settings-close'),
-      nickname: settingsRoot.querySelector('#cfg-nickname'),
-      diamonds: settingsRoot.querySelector('#cfg-diamonds'),
-      breeder: settingsRoot.querySelector('#cfg-breeder'),
-      profileSave: settingsRoot.querySelector('#cfg-profile-save'),
-      profileMessage: settingsRoot.querySelector('#cfg-profile-message'),
     };
     this._applyPadConfigToDOM();
   }
@@ -198,23 +173,9 @@ class VirtualPad {
     // --- 設定パネル ---
     this.el.settingsToggle.addEventListener('click', () => {
       this.el.settingsPanel.classList.toggle('hidden');
-      if (!this.el.settingsPanel.classList.contains('hidden')) window.AppFlow?.renderSettingsProfile();
     });
     this.el.settingsClose.addEventListener('click', () => {
       this.el.settingsPanel.classList.add('hidden');
-    });
-    document.querySelectorAll('.settings-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t === tab));
-        document.querySelectorAll('.settings-pane').forEach(pane => pane.classList.toggle('hidden', pane.dataset.settingsPane !== tab.dataset.settingsTab));
-        if (tab.dataset.settingsTab === 'profile') window.AppFlow?.renderSettingsProfile();
-      });
-    });
-    this.el.profileSave.addEventListener('click', () => window.AppFlow?.saveSettingsProfile());
-    document.querySelectorAll('.profile-icon-option').forEach(option => {
-      option.addEventListener('click', () => {
-        document.querySelectorAll('.profile-icon-option').forEach(item => item.classList.toggle('selected', item === option));
-      });
     });
     const onCfgChange = () => {
       this.padConfig.showJumpButton = this.el.cfgJump.checked;

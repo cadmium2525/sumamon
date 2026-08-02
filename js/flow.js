@@ -144,6 +144,7 @@ const AppFlow = {
       const debugButton = document.getElementById('btn-debug');
       if (debugButton) debugButton.classList.toggle('hidden', !this._isDebugUser());
     }
+    if (name === 'mypage') this.renderMyPage();
     if (name === 'item-shop') this.renderItemShop();
   },
 
@@ -301,15 +302,17 @@ const AppFlow = {
 
     document.getElementById('home-profile-card').addEventListener('click', () => {
       if (!this.currentUser) return;
-      if (!confirm('ログアウトしますか？')) return;
-      window.FirebaseAuth.logOut().then(() => {
-        localStorage.removeItem('smamon_saved_login');
-        this.currentUser = null;
-        MasmonStore.clearCache();
-        UserProfileStore.clear();
-        this.showScreen('auth');
+      this.showScreen('mypage');
+    });
+
+    document.querySelectorAll('.mypage-icon-option').forEach(option => {
+      option.addEventListener('click', () => {
+        document.querySelectorAll('.mypage-icon-option').forEach(item => item.classList.toggle('selected', item === option));
+        document.getElementById('mypage-current-icon').src = this._profileIconSrc(option.dataset.mypageIcon);
       });
     });
+    document.getElementById('mypage-save').addEventListener('click', () => this.saveMyPage());
+    document.getElementById('mypage-logout').addEventListener('click', () => this.logoutFromMyPage());
 
     document.getElementById('btn-cpu').addEventListener('click', () => {
       this.showScreen('cpu-mode');
@@ -353,7 +356,6 @@ const AppFlow = {
     document.getElementById('shop-purchase-confirm').addEventListener('click', () => this.confirmShopPurchase());
     document.getElementById('btn-home-settings').addEventListener('click', () => {
       vpad.el.settingsPanel.classList.remove('hidden');
-      this.renderSettingsProfile();
     });
     document.getElementById('btn-debug').addEventListener('click', () => {
       if (this._isDebugUser()) this.showScreen('debug');
@@ -640,31 +642,52 @@ const AppFlow = {
     });
   },
 
-  renderSettingsProfile() {
-    if (!vpad || !vpad.el) return;
-    vpad.el.nickname.value = UserProfileStore.data.nickname || (this.currentUser && this.currentUser.username) || '';
-    vpad.el.diamonds.textContent = `💎 ${UserProfileStore.data.diamonds || 0}　修行券 ${UserProfileStore.data.practiceTickets || 0}`;
+  renderMyPage() {
+    if (!this.currentUser) return;
+    const nickname = UserProfileStore.data.nickname || this.currentUser.username || '';
     const level = UserProfileStore.data.breederLevel || 1;
+    const exp = UserProfileStore.data.breederExp || 0;
     const needed = UserProfileStore.breederExpForLevel(level);
-    vpad.el.breeder.textContent = `ブリーダー Lv.${level}　${UserProfileStore.data.breederExp || 0} / ${needed} EXP`;
-    document.querySelectorAll('.profile-icon-option').forEach(option => {
-      option.classList.toggle('selected', option.dataset.profileIcon === UserProfileStore.data.iconKey);
+    const iconKey = UserProfileStore.data.iconKey || 'irumine';
+    document.getElementById('mypage-username').textContent = `USER: ${this.currentUser.username}`;
+    document.getElementById('mypage-current-name').textContent = nickname;
+    document.getElementById('mypage-current-icon').src = this._profileIconSrc(iconKey);
+    document.getElementById('mypage-breeder-level').textContent = `ブリーダー Lv.${level}`;
+    document.getElementById('mypage-exp-text').textContent = `${exp} / ${needed} EXP`;
+    document.getElementById('mypage-exp-fill').style.width = `${Math.min(100, exp / needed * 100)}%`;
+    document.getElementById('mypage-diamonds').textContent = `💎 ${UserProfileStore.data.diamonds || 0}`;
+    document.getElementById('mypage-practice-tickets').textContent = `修行券 ${UserProfileStore.data.practiceTickets || 0}`;
+    document.getElementById('mypage-nickname').value = nickname;
+    document.querySelectorAll('.mypage-icon-option').forEach(option => {
+      option.classList.toggle('selected', option.dataset.mypageIcon === iconKey);
     });
-    vpad.el.profileMessage.textContent = '';
+    document.getElementById('mypage-message').textContent = '';
   },
 
-  saveSettingsProfile() {
-    if (!vpad || !vpad.el) return;
-    const nickname = vpad.el.nickname.value.trim();
+  saveMyPage() {
+    const message = document.getElementById('mypage-message');
+    const nickname = document.getElementById('mypage-nickname').value.trim();
     if (!nickname) {
-      vpad.el.profileMessage.textContent = 'ニックネームを入力してください';
+      message.textContent = 'ニックネームを入力してください';
       return;
     }
     UserProfileStore.setNickname(nickname);
-    const selectedIcon = document.querySelector('.profile-icon-option.selected');
-    if (selectedIcon) UserProfileStore.setIcon(selectedIcon.dataset.profileIcon);
-    vpad.el.profileMessage.textContent = '保存しました';
+    const selectedIcon = document.querySelector('.mypage-icon-option.selected');
+    if (selectedIcon) UserProfileStore.setIcon(selectedIcon.dataset.mypageIcon);
     this._updateHomeProfile();
+    this.renderMyPage();
+    document.getElementById('mypage-message').textContent = 'プロフィールを保存しました';
+  },
+
+  logoutFromMyPage() {
+    if (!this.currentUser || !confirm('ログアウトしますか？')) return;
+    window.FirebaseAuth.logOut().then(() => {
+      localStorage.removeItem('smamon_saved_login');
+      this.currentUser = null;
+      MasmonStore.clearCache();
+      UserProfileStore.clear();
+      this.showScreen('auth');
+    });
   },
 
   _resetFighterSelectState() {

@@ -249,6 +249,69 @@ html, body {
 .home-profile-currency { justify-content: space-between; color: #a9edff; font-size: 9px; }
 .home-profile-currency b:last-child { color: #ffd98a; }
 
+/* ==== マイページ ==== */
+.mypage-screen {
+  display: block;
+  padding: max(12px, env(safe-area-inset-top)) max(54px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  overflow-y: auto;
+  color: #fff;
+  background:
+    linear-gradient(115deg, rgba(4,16,31,.93), rgba(13,48,70,.86)),
+    url('../assets/images/home.png') center / cover no-repeat;
+  touch-action: pan-y;
+}
+.mypage-shell { width: min(86vw, 900px); margin: 0 auto; }
+.mypage-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 10px; }
+.mypage-header .screen-heading { margin: 0; }
+.mypage-header small { color: rgba(255,255,255,.65); font-size: 10px; }
+.mypage-wallet { display: flex; gap: 16px; padding: 8px 13px; border: 1px solid rgba(148,221,255,.55); border-radius: 999px; background: rgba(3,20,38,.82); font-size: 12px; }
+.mypage-wallet b:first-child { color: #91e7ff; }
+.mypage-wallet b:last-child { color: #ffd98a; }
+.mypage-main { display: grid; grid-template-columns: minmax(230px, .85fr) minmax(320px, 1.15fr); gap: 12px; }
+.mypage-breeder-card, .mypage-edit-card { border: 1px solid rgba(169,222,255,.46); border-radius: 14px; background: linear-gradient(135deg, rgba(5,24,45,.94), rgba(12,47,64,.88)); box-shadow: 0 8px 22px rgba(0,0,0,.35); }
+.mypage-breeder-card { display: flex; align-items: center; gap: 14px; padding: 18px; }
+.mypage-breeder-card > img { width: clamp(82px, 12vw, 118px); height: clamp(82px, 12vw, 118px); flex: 0 0 auto; border: 3px solid #b8ecff; border-radius: 14px; object-fit: cover; box-shadow: 0 0 18px rgba(86,205,255,.28); }
+.mypage-breeder-info { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 6px; }
+.mypage-breeder-info strong { overflow: hidden; font-size: clamp(18px, 3vw, 27px); text-overflow: ellipsis; white-space: nowrap; }
+.mypage-breeder-info > span { color: #b8ff8a; font-size: 12px; font-weight: 800; }
+.mypage-breeder-info small { align-self: flex-end; color: rgba(255,255,255,.72); font-size: 10px; }
+.mypage-exp-track { height: 9px; overflow: hidden; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.12); }
+.mypage-exp-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2edb68, #c8ff58); }
+.mypage-edit-card { padding: 14px 18px; }
+.mypage-edit-card h2 { margin-bottom: 8px; font-size: 15px; }
+.mypage-field { display: block; color: rgba(255,255,255,.76); font-size: 11px; }
+.mypage-field input { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.3); border-radius: 7px; color: #fff; background: rgba(255,255,255,.08); font-size: 13px; }
+.mypage-icon-label { margin-top: 8px; color: rgba(255,255,255,.76); font-size: 11px; }
+.mypage-icon-options { display: flex; gap: 8px; margin-top: 5px; }
+.mypage-icon-option { width: 48px; height: 48px; padding: 2px; border: 2px solid transparent; border-radius: 9px; background: rgba(255,255,255,.08); }
+.mypage-icon-option.selected { border-color: #8edbff; box-shadow: 0 0 0 2px rgba(142,219,255,.22); }
+.mypage-icon-option img { width: 100%; height: 100%; border-radius: 5px; object-fit: cover; }
+.mypage-actions { display: flex; gap: 8px; margin-top: 10px; }
+.mypage-actions button { padding: 7px 18px; border-radius: 7px; font-size: 12px; font-weight: 800; }
+.mypage-save { border: 0; color: #082139; background: #8edbff; }
+.mypage-logout { border: 1px solid rgba(255,153,153,.55); color: #ffc1c1; background: rgba(130,20,30,.25); }
+.mypage-message { min-height: 16px; margin-top: 5px; color: #8ff0ad; font-size: 10px; }
+.mypage-future { margin-top: 7px; color: rgba(255,255,255,.48); font-size: 10px; text-align: center; }
+.mypage-screen > .back-btn { display: block; margin: 8px auto 0; }
+
+@media (orientation: landscape) and (max-height: 430px) {
+  .mypage-screen { padding-top: max(8px, env(safe-area-inset-top)); }
+  .mypage-shell { width: min(84vw, 760px); }
+  .mypage-header { margin-bottom: 6px; }
+  .mypage-wallet { padding: 6px 11px; }
+  .mypage-main { grid-template-columns: minmax(220px, .85fr) minmax(300px, 1.15fr); gap: 8px; }
+  .mypage-breeder-card { padding: 12px; }
+  .mypage-breeder-card > img { width: 82px; height: 82px; }
+  .mypage-edit-card { padding: 9px 13px; }
+  .mypage-edit-card h2 { margin-bottom: 5px; }
+  .mypage-field input { padding: 6px 9px; }
+  .mypage-icon-label { margin-top: 5px; }
+  .mypage-icon-option { width: 40px; height: 40px; }
+  .mypage-actions { margin-top: 6px; }
+  .mypage-actions button { padding: 6px 14px; }
+  .mypage-screen > .back-btn { margin-top: 5px; }
+}
+
 /* ==== ホーム画面背景 ==== */
 #screen-home {
   background:
@@ -670,23 +733,8 @@ html, body {
   touch-action: pan-y;
 }
 #vpad-settings-panel.hidden { display: none; }
-#vpad-settings-panel .settings-pane.hidden { display: none; }
 #vpad-settings-panel h3 { margin-bottom: 8px; font-size: 14px; }
 #vpad-settings-panel label { display: block; margin: 8px 0; }
-.settings-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 12px; }
-.settings-tab { padding: 8px 5px; border: 1px solid rgba(255,255,255,.25); border-radius: 6px; color: #fff; background: rgba(255,255,255,.08); }
-.settings-tab.active { color: #09213a; background: #8edbff; font-weight: 800; }
-.profile-field input { display: block; width: 100%; margin-top: 5px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.3); border-radius: 6px; color: #fff; background: rgba(255,255,255,.08); }
-.profile-icon-label { margin-top: 10px; font-size: 12px; }
-.profile-icon-options { display: flex; gap: 8px; margin-top: 5px; }
-.profile-icon-option { width: 48px; height: 48px; padding: 2px; border: 2px solid transparent; border-radius: 8px; background: rgba(255,255,255,.08); }
-.profile-icon-option.selected { border-color: #8edbff; box-shadow: 0 0 0 2px rgba(142,219,255,.25); }
-.profile-icon-option img { width: 100%; height: 100%; border-radius: 5px; object-fit: cover; }
-.profile-breeder { margin-top: 10px; font-size: 12px; font-weight: 700; }
-.profile-diamonds { margin: 12px 0; padding: 9px; border-radius: 7px; color: #9cecff; background: rgba(80,190,255,.12); font-weight: 800; }
-#cfg-profile-save { padding: 7px 18px; border: none; border-radius: 6px; color: #082139; background: #8edbff; font-weight: 800; }
-.profile-message { min-height: 18px; margin-top: 6px; color: #8ff0ad; font-size: 11px; }
-.profile-future { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.12); opacity: .55; font-size: 10px; }
 .diamond-reward { margin-top: 8px; color: #9cecff; font-size: 15px; font-weight: 900; }
 .breeder-reward { margin-top: 4px; color: #b8ff8a; font-size: 12px; font-weight: 700; }
 #vpad-settings-panel button#vpad-settings-close {

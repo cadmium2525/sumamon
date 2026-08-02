@@ -21,6 +21,10 @@ let projectiles = [];
 let battlePaused = false;
 let battleInputLocked = false;
 const networkProjectileSprites = new Map();
+const SIMULATION_STEP_MS = 1000 / 60;
+const MAX_SIMULATION_STEPS = 5;
+let lastLoopTime = 0;
+let simulationAccumulator = 0;
 
 const pauseButton = document.getElementById('battle-pause-btn');
 const pauseOverlay = document.getElementById('battle-pause-overlay');
@@ -359,46 +363,64 @@ function applyNetworkSnapshot(snapshot) {
   }
 }
 
-function loop() {
+function runAuthoritativeSimulationStep(p1Input, network) {
+  if (network === 'host') {
+    players.forEach((fighter, index) => {
+      if (fighter.isNetworkCpu) return;
+      fighter.applyInput(index === Multiplayer.localPlayerIndex ? p1Input : Multiplayer.getRemoteInput(index));
+    });
+  } else {
+    players[0].applyInput(p1Input);
+    if (!cpuControllers.length && players[1]) players[1].applyInput(input.getPlayer2Input());
+  }
+
+  if (cpuControllers.length) {
+    cpuControllers.forEach(controller => {
+      const candidates = players.filter(p => p !== controller.fighter && !p.dead);
+      if (!candidates.length) return;
+      controller.opponent = candidates.reduce((nearest, candidate) =>
+        Math.abs(candidate.x - controller.fighter.x) < Math.abs(nearest.x - controller.fighter.x) ? candidate : nearest);
+      controller.fighter.applyInput(controller.decide(blastBounds));
+    });
+  }
+
+  for (const p of players) p.update(Stage.platforms, blastBounds);
+  resolveFighterCollisions();
+  checkLedges();
+  checkGrabs();
+  checkAttacks();
+  updateProjectiles();
+  checkMatchEnd();
+  if (network === 'host') Multiplayer.broadcastState(createNetworkSnapshot());
+}
+
+function loop(timestamp) {
   // 万一この中で想定外の例外が起きても、それによってrequestAnimationFrameの連鎖が
   // 途切れて「敵を倒してもリザルト画面に進まない」ような無言のフリーズが起きないようにする。
   try {
+    const now = Number.isFinite(timestamp) ? timestamp : performance.now();
+    if (!lastLoopTime) lastLoopTime = now;
+    const elapsed = Math.max(0, Math.min(100, now - lastLoopTime));
+    lastLoopTime = now;
     if (players.length && !window._matchOver && !battlePaused && !battleInputLocked) {
       const p1Input = mergeInputs(input.getPlayer1Input(), vpad.getState());
       const network = window.Multiplayer && Multiplayer.role;
       if (network === 'guest') {
+        simulationAccumulator = 0;
         Multiplayer.sendLocalInput(p1Input);
         applyNetworkSnapshot(Multiplayer.consumeLatestState());
       } else {
-        if (network === 'host') {
-          players.forEach((fighter, index) => {
-            if (fighter.isNetworkCpu) return;
-            fighter.applyInput(index === Multiplayer.localPlayerIndex ? p1Input : Multiplayer.getRemoteInput(index));
-          });
-        } else {
-          players[0].applyInput(p1Input);
-          if (!cpuControllers.length && players[1]) players[1].applyInput(input.getPlayer2Input());
+        simulationAccumulator += elapsed;
+        let steps = 0;
+        while (simulationAccumulator >= SIMULATION_STEP_MS && steps < MAX_SIMULATION_STEPS) {
+          runAuthoritativeSimulationStep(p1Input, network);
+          simulationAccumulator -= SIMULATION_STEP_MS;
+          steps++;
         }
-
-        if (cpuControllers.length) {
-          cpuControllers.forEach(controller => {
-            const candidates = players.filter(p => p !== controller.fighter && !p.dead);
-            if (!candidates.length) return;
-            controller.opponent = candidates.reduce((nearest, candidate) =>
-              Math.abs(candidate.x - controller.fighter.x) < Math.abs(nearest.x - controller.fighter.x) ? candidate : nearest);
-            controller.fighter.applyInput(controller.decide(blastBounds));
-          });
-        }
-
-        for (const p of players) p.update(Stage.platforms, blastBounds);
-        resolveFighterCollisions();
-        checkLedges();
-        checkGrabs();
-        checkAttacks();
-        updateProjectiles();
-        checkMatchEnd();
-        if (network === 'host') Multiplayer.broadcastState(createNetworkSnapshot());
+        if (steps === MAX_SIMULATION_STEPS && simulationAccumulator >= SIMULATION_STEP_MS) simulationAccumulator = 0;
       }
+    } else {
+      simulationAccumulator = 0;
     }
 
     ctx.clearRect(0, 0, CONFIG.CANVAS_W, CONFIG.CANVAS_H);
@@ -492,6 +514,8 @@ window.startBattle = function startBattle(options) {
   projectiles = [];
   battlePaused = false;
   battleInputLocked = true;
+  simulationAccumulator = 0;
+  lastLoopTime = performance.now();
   pauseButton.textContent = 'Ⅱ';
   pauseOverlay.classList.add('hidden');
   if (options.mode === 'multi' && Array.isArray(options.multiplayerRoster)) {
