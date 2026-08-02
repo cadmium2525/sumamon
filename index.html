@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=44">
+<link rel="stylesheet" href="css/style.css?v=45">
 </head>
 <body class="layout-pending">
 
@@ -261,9 +261,11 @@
     <div class="cpu-mode-list">
       <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small></button>
       <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>100体撃破でクリアバッジ獲得</small></button>
-      <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>限界まで撃破数に挑戦</small></button>
+      <div class="endless-mode-column">
+        <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>限界まで撃破数に挑戦</small></button>
+        <button id="btn-endless-ranking" class="endless-ranking-button">🏆 エンドレスランキング</button>
+      </div>
     </div>
-    <button id="btn-endless-ranking" class="endless-ranking-button">🏆 エンドレスランキング</button>
     <button class="back-btn" data-back="home">戻る</button>
     <div id="endless-ranking-modal" class="endless-ranking-modal hidden" role="dialog" aria-modal="true" aria-labelledby="endless-ranking-title">
       <div class="endless-ranking-dialog">

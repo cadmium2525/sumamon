@@ -1024,7 +1024,9 @@ body.layout-pending .screen { visibility: hidden; }
 .cpu-mode-card strong, .cpu-mode-card small { display: block; }
 .cpu-mode-card strong { font-size: 20px; }
 .cpu-mode-card small { margin-top: 10px; color: #b9d8ec; }
-.endless-ranking-button { margin-top: 12px; padding: 8px 20px; border: 1px solid #f1ce65; border-radius: 9px; color: #fff1ad; background: rgba(38,27,8,.9); font-weight: 900; }
+.endless-mode-column { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.endless-mode-column .cpu-mode-card { width: 100%; }
+.endless-ranking-button { width: 100%; padding: 8px 10px; border: 1px solid #f1ce65; border-radius: 9px; color: #fff1ad; background: rgba(38,27,8,.9); font-weight: 900; }
 .endless-ranking-modal { position: fixed; z-index: 850; inset: 0; display: flex; align-items: center; justify-content: center; padding: max(15px, env(safe-area-inset-top)) max(50px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(50px, env(safe-area-inset-left)); background: rgba(0,0,0,.76); }
 .endless-ranking-modal.hidden { display: none; }
 .endless-ranking-dialog { position: relative; width: min(560px, 82vw); max-height: 82vh; overflow-y: auto; padding: 15px; border: 2px solid #e6c35c; border-radius: 14px; color: #fff; background: linear-gradient(150deg, #172b3f, #08121d); touch-action: pan-y; }
