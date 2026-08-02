@@ -345,4 +345,14 @@ const UserProfileStore = {
     this.save();
     return true;
   },
+
+  consumeItem(itemId, quantity = 1) {
+    const count = Math.max(1, Math.floor(Number(quantity) || 1));
+    if (!this.data.inventory) this.data.inventory = {};
+    const owned = Math.max(0, Number(this.data.inventory[itemId]) || 0);
+    if (owned < count) return false;
+    this.data.inventory[itemId] = owned - count;
+    this.save();
+    return true;
+  },
 };

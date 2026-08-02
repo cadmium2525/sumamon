@@ -130,11 +130,26 @@ class VirtualPad {
     settingsRoot.innerHTML = `
       <button id="vpad-settings-toggle" title="操作設定">⚙</button>
       <div id="vpad-settings-panel" class="hidden">
-        <h3>バトル設定</h3>
-        <label><input type="checkbox" id="cfg-jump"> ジャンプボタンを表示（スティック上入力でもジャンプ可）</label>
-        <label><input type="checkbox" id="cfg-tapjump"> スティック上入力をジャンプとして扱う</label>
-        <label><input type="checkbox" id="cfg-shield"> シールドボタンを表示</label>
-        <label><input type="checkbox" id="cfg-b"> Bボタンを表示</label>
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-settings-tab="battle">バトル設定</button>
+          <button class="settings-tab" data-settings-tab="audio">音量調節</button>
+        </div>
+        <div class="settings-pane" data-settings-pane="battle">
+          <label><input type="checkbox" id="cfg-jump"> ジャンプボタンを表示</label>
+          <label><input type="checkbox" id="cfg-tapjump"> スティック上入力でジャンプ</label>
+          <label><input type="checkbox" id="cfg-shield"> シールドボタンを表示</label>
+          <label><input type="checkbox" id="cfg-b"> Bボタンを表示</label>
+        </div>
+        <div class="settings-pane hidden" data-settings-pane="audio">
+          <div class="volume-setting" data-volume-kind="bgm">
+            <strong>BGM</strong>
+            <div class="volume-controls"><button data-volume-step="-1">←</button><input id="cfg-bgm-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1">→</button><output id="cfg-bgm-volume-value">70</output></div>
+          </div>
+          <div class="volume-setting" data-volume-kind="se">
+            <strong>SE</strong>
+            <div class="volume-controls"><button data-volume-step="-1">←</button><input id="cfg-se-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1">→</button><output id="cfg-se-volume-value">70</output></div>
+          </div>
+        </div>
         <button id="vpad-settings-close">閉じる</button>
       </div>
     `;
@@ -154,9 +169,14 @@ class VirtualPad {
       cfgTapJump: settingsRoot.querySelector('#cfg-tapjump'),
       cfgShield: settingsRoot.querySelector('#cfg-shield'),
       cfgB: settingsRoot.querySelector('#cfg-b'),
+      cfgBgmVolume: settingsRoot.querySelector('#cfg-bgm-volume'),
+      cfgBgmVolumeValue: settingsRoot.querySelector('#cfg-bgm-volume-value'),
+      cfgSeVolume: settingsRoot.querySelector('#cfg-se-volume'),
+      cfgSeVolumeValue: settingsRoot.querySelector('#cfg-se-volume-value'),
       settingsClose: settingsRoot.querySelector('#vpad-settings-close'),
     };
     this._applyPadConfigToDOM();
+    this._applyAudioSettingsToDOM();
   }
 
   _applyPadConfigToDOM() {
@@ -169,6 +189,14 @@ class VirtualPad {
     this.el.cfgB.checked = this.padConfig.showBButton;
   }
 
+  _applyAudioSettingsToDOM() {
+    if (!window.AudioManager) return;
+    this.el.cfgBgmVolume.value = AudioManager.bgmVolume;
+    this.el.cfgBgmVolumeValue.textContent = AudioManager.bgmVolume;
+    this.el.cfgSeVolume.value = AudioManager.seVolume;
+    this.el.cfgSeVolumeValue.textContent = AudioManager.seVolume;
+  }
+
   _bindEvents() {
     // --- 設定パネル ---
     this.el.settingsToggle.addEventListener('click', () => {
@@ -176,6 +204,12 @@ class VirtualPad {
     });
     this.el.settingsClose.addEventListener('click', () => {
       this.el.settingsPanel.classList.add('hidden');
+    });
+    this.el.settingsPanel.querySelectorAll('.settings-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        this.el.settingsPanel.querySelectorAll('.settings-tab').forEach(item => item.classList.toggle('active', item === tab));
+        this.el.settingsPanel.querySelectorAll('.settings-pane').forEach(pane => pane.classList.toggle('hidden', pane.dataset.settingsPane !== tab.dataset.settingsTab));
+      });
     });
     const onCfgChange = () => {
       this.padConfig.showJumpButton = this.el.cfgJump.checked;
@@ -189,6 +223,23 @@ class VirtualPad {
     this.el.cfgTapJump.addEventListener('change', onCfgChange);
     this.el.cfgShield.addEventListener('change', onCfgChange);
     this.el.cfgB.addEventListener('change', onCfgChange);
+    const updateVolume = kind => {
+      const slider = kind === 'bgm' ? this.el.cfgBgmVolume : this.el.cfgSeVolume;
+      const output = kind === 'bgm' ? this.el.cfgBgmVolumeValue : this.el.cfgSeVolumeValue;
+      const value = kind === 'bgm' ? AudioManager.setBgmVolume(slider.value) : AudioManager.setSeVolume(slider.value);
+      slider.value = value;
+      output.textContent = value;
+    };
+    this.el.cfgBgmVolume.addEventListener('input', () => updateVolume('bgm'));
+    this.el.cfgSeVolume.addEventListener('input', () => updateVolume('se'));
+    this.el.settingsPanel.querySelectorAll('[data-volume-step]').forEach(button => {
+      button.addEventListener('click', () => {
+        const kind = button.closest('[data-volume-kind]').dataset.volumeKind;
+        const slider = kind === 'bgm' ? this.el.cfgBgmVolume : this.el.cfgSeVolume;
+        slider.value = Number(slider.value) + Number(button.dataset.volumeStep);
+        updateVolume(kind);
+      });
+    });
 
     // --- ボタン (押しっぱなし判定にtouch/mouse両対応) ---
     const bind = (el, key) => {

@@ -12,6 +12,15 @@ const SHOP_ITEMS = [
   { id: 'dye_kit', name: '虹彩の染色セット', price: 800, image: 'assets/images/items/dye-kit.png', effect: 'スキンの色を変更（今後実装）', comingSoon: true },
 ];
 
+const STAT_ITEM_EFFECTS = {
+  vital_elixir: { amount: 20, stats: ['life', 'defense'] },
+  vital_tonic: { amount: 10, stats: ['life', 'defense'] },
+  skill_elixir: { amount: 20, stats: ['accuracy', 'evasion'] },
+  skill_tonic: { amount: 10, stats: ['accuracy', 'evasion'] },
+  might_elixir: { amount: 20, stats: ['power', 'intelligence'] },
+  might_tonic: { amount: 10, stats: ['power', 'intelligence'] },
+};
+
 const AppFlow = {
   selectedMode: null,     // 'cpu' | 'multi'
   selectedCpuMode: 'normal',
@@ -133,6 +142,7 @@ const AppFlow = {
       this.manageIdleTimer = null;
     }
     if (name !== 'item-shop') this.closePurchaseModal();
+    if (name !== 'training') this.closeTrainingItemModal();
     if (name !== 'fighter-select') document.getElementById('fighter-status-modal')?.classList.add('hidden');
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     document.getElementById('screen-' + name).classList.remove('hidden');
@@ -149,6 +159,7 @@ const AppFlow = {
     }
     if (name === 'mypage') this.renderMyPage();
     if (name === 'item-shop') this.renderItemShop();
+    if (window.AudioManager) AudioManager.setScene(name, this.selectedMode);
   },
 
   _isDebugUser() {
@@ -321,6 +332,7 @@ const AppFlow = {
     });
 
     document.getElementById('btn-cpu').addEventListener('click', () => {
+      this.selectedMode = 'cpu';
       this.showScreen('cpu-mode');
     });
     document.getElementById('btn-mode-1on1').addEventListener('click', () => {
@@ -340,6 +352,7 @@ const AppFlow = {
     document.getElementById('btn-mode-hundred').addEventListener('click', () => alert('100人組手は近日実装予定です'));
     document.getElementById('btn-mode-endless').addEventListener('click', () => alert('エンドレスモードは近日実装予定です'));
     document.getElementById('btn-multi').addEventListener('click', () => {
+      this.selectedMode = 'multi';
       if (window.Multiplayer) Multiplayer.openMenu();
     });
     document.getElementById('btn-training').addEventListener('click', () => this.openMasmonManage());
@@ -459,6 +472,15 @@ const AppFlow = {
       const btn = e.target.closest('[data-training]');
       if (btn) this.performTraining(btn.dataset.training);
     });
+    document.getElementById('btn-use-training-item').addEventListener('click', () => this.openTrainingItemModal());
+    document.getElementById('training-item-close').addEventListener('click', () => this.closeTrainingItemModal());
+    document.getElementById('training-item-modal').addEventListener('click', event => {
+      if (event.target.id === 'training-item-modal') this.closeTrainingItemModal();
+    });
+    document.getElementById('training-item-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-use-item]');
+      if (button) this.useTrainingItem(button.dataset.useItem, button.dataset.stat);
+    });
   },
 
   openMasmonManage() {
@@ -566,6 +588,46 @@ const AppFlow = {
     const changes = result.ok ? Object.entries(result.applied).filter(([, v]) => v).map(([k, v]) => `${labels[k]} ${v > 0 ? '+' : ''}${v}`).join('、') : '';
     this.renderTraining(result.ok ? `${result.training.name}成功！ ${changes}` : result.message);
     this.renderMasmonManage();
+  },
+
+  openTrainingItemModal() {
+    const monster = this._selectedManageMasmon();
+    if (!monster) return;
+    const inventory = UserProfileStore.data.inventory || {};
+    const statLabels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
+    const ownedItems = SHOP_ITEMS.filter(item => STAT_ITEM_EFFECTS[item.id] && (Number(inventory[item.id]) || 0) > 0);
+    document.getElementById('training-item-list').innerHTML = ownedItems.length ? ownedItems.map(item => {
+      const effect = STAT_ITEM_EFFECTS[item.id];
+      return `<article class="training-use-card">
+        <img src="${item.image}" alt="${item.name}">
+        <div><strong>${item.name} ×${Number(inventory[item.id]) || 0}</strong><small>選んだ能力を+${effect.amount}</small>
+          <div class="training-use-actions">${effect.stats.map(stat => `<button data-use-item="${item.id}" data-stat="${stat}">${statLabels[stat]} +${effect.amount}</button>`).join('')}</div>
+        </div>
+      </article>`;
+    }).join('') : '<div class="training-use-empty">使用できるステータスアイテムを所持していません</div>';
+    document.getElementById('training-item-modal').classList.remove('hidden');
+  },
+
+  closeTrainingItemModal() {
+    document.getElementById('training-item-modal')?.classList.add('hidden');
+  },
+
+  useTrainingItem(itemId, statKey) {
+    const monster = this._selectedManageMasmon();
+    const effect = STAT_ITEM_EFFECTS[itemId];
+    if (!monster || !effect || !effect.stats.includes(statKey)) return;
+    if (!UserProfileStore.consumeItem(itemId, 1)) {
+      this.openTrainingItemModal();
+      return;
+    }
+    monster.trainingStats = { ...(monster.trainingStats || {}) };
+    monster.trainingStats[statKey] = Math.max(0, Number(monster.trainingStats[statKey]) || 0) + effect.amount;
+    MasmonStore.update(monster);
+    const item = SHOP_ITEMS.find(entry => entry.id === itemId);
+    const statLabels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
+    this.renderTraining(`${item?.name || 'アイテム'}を使用：${statLabels[statKey]} +${effect.amount}`);
+    this.renderMasmonManage();
+    this.openTrainingItemModal();
   },
 
   bindAuthEvents() {

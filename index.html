@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=39">
+<link rel="stylesheet" href="css/style.css?v=40">
 </head>
 <body>
 
@@ -216,9 +216,18 @@
     <img class="training-background" src="assets/images/training-background.png?v=24" alt="" aria-hidden="true">
     <div class="screen-heading">トレーニング</div>
     <div id="training-summary" class="training-summary"></div>
+    <button id="btn-use-training-item" class="training-item-button">アイテム使用</button>
     <div id="training-list" class="training-list"></div>
     <div id="training-message" class="training-message" aria-live="polite"></div>
     <button class="back-btn" data-back="masmon-manage">戻る</button>
+    <div id="training-item-modal" class="training-item-modal hidden" role="dialog" aria-modal="true" aria-labelledby="training-item-title">
+      <div class="training-item-dialog">
+        <button id="training-item-close" class="training-item-close" aria-label="閉じる">×</button>
+        <h2 id="training-item-title">アイテム使用</h2>
+        <p>上昇させるステータスを選んでください</p>
+        <div id="training-item-list" class="training-item-list"></div>
+      </div>
+    </div>
   </div>
 
   <div id="screen-practice" class="screen hidden">
@@ -316,6 +325,7 @@
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script src="js/config.js?v=2"></script>
+  <script src="js/audio.js?v=1"></script>
   <script src="js/moves.js?v=27"></script>
   <script src="js/fighters/irumine-moves.js?v=31"></script>
   <script src="js/fighters/dullahan-moves.js?v=27"></script>
@@ -326,11 +336,11 @@
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=31"></script>
-  <script src="js/input.js?v=2"></script>
+  <script src="js/growth-system.js?v=32"></script>
+  <script src="js/input.js?v=3"></script>
   <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=34"></script>
-  <script src="js/flow.js?v=38"></script>
+  <script src="js/game.js?v=35"></script>
+  <script src="js/flow.js?v=39"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

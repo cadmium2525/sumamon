@@ -25,6 +25,8 @@ const SIMULATION_STEP_MS = 1000 / 60;
 const MAX_SIMULATION_STEPS = 5;
 let lastLoopTime = 0;
 let simulationAccumulator = 0;
+let lastNetworkProjectileCount = 0;
+let lastNetworkExplosionCount = 0;
 
 const pauseButton = document.getElementById('battle-pause-btn');
 const pauseOverlay = document.getElementById('battle-pause-overlay');
@@ -45,6 +47,7 @@ function updateProjectiles() {
     const spritePath = request.move.projectileSprite;
     const sprite = spritePath ? (window.PreloadedImages?.get(spritePath) || new Image()) : null;
     if (sprite && !sprite.src) sprite.src = spritePath;
+    if (spritePath && spritePath.includes('/arrow.') && window.AudioManager) AudioManager.playSe('arrow');
     projectiles.push({ owner, move: request.move, sprite, config: cfg,
       x: owner.facing === 1 ? owner.x + owner.w : owner.x - cfg.width,
       y: owner.y + owner.h * 0.42, vx: owner.facing * cfg.speed,
@@ -83,6 +86,7 @@ function updateProjectiles() {
         if (Math.hypot(tx - cx, ty - cy) <= radius) target.takeHit(p.owner, p.move);
       }
       p.exploding = 12;
+      if (window.AudioManager) AudioManager.playSe('bomb');
       p.vx = 0;
       p.vy = 0;
       continue;
@@ -352,6 +356,14 @@ function applyNetworkSnapshot(snapshot) {
     fighter.currentMove = resolveNetworkMove(fighter, currentMoveKey);
   });
   if (Array.isArray(snapshot.projectiles)) {
+    const nextExplosionCount = snapshot.projectiles.filter(state => state.exploding > 0).length;
+    if (snapshot.projectiles.length > lastNetworkProjectileCount &&
+        snapshot.projectiles.some(state => String(state.spritePath || '').includes('/arrow.')) && window.AudioManager) {
+      AudioManager.playSe('arrow');
+    }
+    if (nextExplosionCount > lastNetworkExplosionCount && window.AudioManager) AudioManager.playSe('bomb');
+    lastNetworkProjectileCount = snapshot.projectiles.length;
+    lastNetworkExplosionCount = nextExplosionCount;
     projectiles = snapshot.projectiles.map(state => {
       let sprite = null;
       if (state.spritePath) {
@@ -512,6 +524,8 @@ window.startBattle = function startBattle(options) {
 
   window._matchOver = false;
   projectiles = [];
+  lastNetworkProjectileCount = 0;
+  lastNetworkExplosionCount = 0;
   battlePaused = false;
   battleInputLocked = true;
   simulationAccumulator = 0;

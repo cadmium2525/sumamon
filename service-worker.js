@@ -1,10 +1,11 @@
-const CACHE_NAME = 'smamon-app-v43';
+const CACHE_NAME = 'smamon-app-v44';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
   './css/style.css',
   './js/camera.js',
+  './js/audio.js',
   './js/config.js',
   './js/cpu-ai.js',
   './js/debug-mode.js',
@@ -53,7 +54,11 @@ const APP_SHELL = [
   './assets/images/battle/gong3.png',
   './assets/images/battle/gong2.png',
   './assets/images/battle/gong1.png',
-  './assets/images/battle/gong.png'
+  './assets/images/battle/gong.png',
+  './assets/audio/home.mp3',
+  './assets/audio/battlemode.mp3',
+  './assets/audio/arrow.mp3',
+  './assets/audio/bomb.mp3'
 ];
 
 self.addEventListener('install', event => {
