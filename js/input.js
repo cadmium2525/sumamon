@@ -142,7 +142,7 @@ class VirtualPad {
         </div>
         <div class="settings-pane hidden" data-settings-pane="audio">
           <label class="sound-enable-setting"><input id="cfg-sound-enabled" type="checkbox"> サウンド出力を有効にする</label>
-          <small class="sound-ios-note">iPhoneのマナースイッチはPWAから取得できないため、消音時はここをOFFにしてください</small>
+          <small class="sound-ios-note">BGMはiPhoneのマナースイッチに従います。SEも完全に消音する場合はここをOFFにしてください</small>
           <div class="volume-setting" data-volume-kind="bgm">
             <strong>BGM</strong>
             <div class="volume-controls"><button data-volume-step="-1" aria-label="BGM音量を下げる">−</button><input id="cfg-bgm-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1" aria-label="BGM音量を上げる">＋</button><output id="cfg-bgm-volume-value">70</output></div>

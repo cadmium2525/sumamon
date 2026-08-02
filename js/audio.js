@@ -1,5 +1,6 @@
 // ==== BGM / SE 管理 ====
-// iOSではHTMLAudioElement.volumeが効かないため、音量はWeb AudioのGainNodeで制御する。
+// BGMはiOSのマナースイッチに従うよう、Web Audioへ接続せずHTMLAudioElementから直接再生する。
+// SEは短い効果音の即時再生を優先し、Web Audio APIを使用する。
 const AudioManager = {
   SETTINGS_KEY: 'smamon_audio_settings',
   tracks: {
@@ -19,7 +20,6 @@ const AudioManager = {
   bgm: null,
   context: null,
   masterGain: null,
-  bgmGain: null,
   seGain: null,
   effectBuffers: {},
   activeSeSources: new Set(),
@@ -79,12 +79,9 @@ const AudioManager = {
     try {
       this.context = new AudioContextClass();
       this.masterGain = this.context.createGain();
-      this.bgmGain = this.context.createGain();
       this.seGain = this.context.createGain();
-      this.bgmGain.connect(this.masterGain);
       this.seGain.connect(this.masterGain);
       this.masterGain.connect(this.context.destination);
-      this.context.createMediaElementSource(this.bgm).connect(this.bgmGain);
       this.applyVolumes();
     } catch (error) {
       console.warn('音声出力を初期化できませんでした:', error);
@@ -106,14 +103,18 @@ const AudioManager = {
     }));
   },
 
-  async unlock() {
+  unlock() {
     if (this.unlocked) return;
     this.unlocked = true;
-    // 音源は再生せずAudioContextだけを再開する。TAP START時のSE誤再生を防ぐ。
-    if (this.context?.state === 'suspended') {
-      try { await this.context.resume(); } catch (error) { /* 次の操作で再試行 */ }
-    }
+
+    // iOSの自動再生制限対策。ユーザー操作のコールスタック内で同期的にplay()を呼ぶ。
+    // play()のPromise完了を待ってから呼ぶと、Safariに自動再生として拒否されることがある。
     this.resumeDesiredTrack();
+
+    // SE用AudioContextのみ再開する。音源は再生しないためTAP STARTでSEは鳴らない。
+    if (this.context?.state === 'suspended') {
+      this.context.resume().catch(() => {});
+    }
   },
 
   clampVolume(value, fallback = 0) {
@@ -152,7 +153,6 @@ const AudioManager = {
 
   resumeDesiredTrack() {
     if (!this.unlocked || !this.soundEnabled || !this.desiredTrack || document.hidden || !this.bgm) return;
-    if (this.context?.state === 'suspended') this.context.resume().catch(() => {});
     if (this.currentTrack !== this.desiredTrack) this.playBgm(this.desiredTrack);
     const promise = this.bgm.play();
     if (promise && typeof promise.catch === 'function') promise.catch(() => {});
@@ -168,11 +168,10 @@ const AudioManager = {
   applyVolumes() {
     const now = this.context?.currentTime || 0;
     if (this.masterGain) this.masterGain.gain.setValueAtTime(this.soundEnabled ? 1 : 0, now);
-    if (this.bgmGain) {
+    if (this.bgm) {
       const base = this.tracks[this.currentTrack]?.baseVolume || 1;
-      this.bgmGain.gain.setValueAtTime(base * this.bgmVolume / 100, now);
-    } else if (this.bgm) {
-      this.bgm.volume = this.soundEnabled ? this.bgmVolume / 100 : 0;
+      this.bgm.volume = this.soundEnabled ? base * this.bgmVolume / 100 : 0;
+      this.bgm.muted = !this.soundEnabled || this.bgmVolume === 0;
     }
     if (this.seGain) this.seGain.gain.setValueAtTime(this.seVolume / 100, now);
   },
@@ -230,6 +229,16 @@ const AudioManager = {
     this.activeSeSources.clear();
   },
 };
+
+/*
+ * iPhone実機確認手順（Safariタブ／ホーム画面追加後のstandalone PWAの両方で確認）
+ * 1. 設定でサウンドを有効、BGM音量を聞き取れる値にしてアプリを閉じる。
+ * 2. マナースイッチOFFで起動し、TAP STARTを押してホームBGMが鳴ることを確認する。
+ * 3. CPU戦を選び、ホームBGMが停止して対戦準備BGMへ切り替わることを確認する。
+ * 4. アプリを閉じ、マナースイッチONで再起動して同じ操作を行い、BGMが無音になることを確認する。
+ * 5. BGM音量0で無音、100で設定した基礎音量になることも両起動方式で確認する。
+ * 注: iOSにはマナースイッチ状態を取得するAPIがないため、コードでは検知しない。
+ */
 
 AudioManager.init();
 window.AudioManager = AudioManager;
