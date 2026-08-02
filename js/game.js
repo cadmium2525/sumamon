@@ -386,6 +386,23 @@ window.startBattle = function startBattle(options) {
     return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
   }
 
+  function applyCpuLevelStats(stats, def, masmon, cpuLevel) {
+    const level = Math.max(1, Math.min(9, Number(cpuLevel) || 3));
+    const aptitudes = masmon && masmon.aptitudes
+      ? masmon.aptitudes
+      : GROWTH.aptitudesFor(def.key);
+    // AIレベル1は補正なし。1段階ごとにマスモン約3レベル分の成長を加える。
+    // 高レベルCPUは判断力だけでなく、適性に沿った能力値でも育成済みマスモンへ対抗する。
+    const growthLevels = (level - 1) * 3;
+    const adjusted = {};
+    for (const key of GROWTH.STAT_KEYS) {
+      const rank = aptitudes[key] || 'C';
+      const growth = GROWTH.RANK_GROWTH_PER_LEVEL[rank] || GROWTH.RANK_GROWTH_PER_LEVEL.C;
+      adjusted[key] = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round((stats[key] || 1) + growth * growthLevels)));
+    }
+    return adjusted;
+  }
+
   window._matchOver = false;
   projectiles = [];
   battlePaused = false;
@@ -395,7 +412,9 @@ window.startBattle = function startBattle(options) {
   players = [
     new Fighter('p1', resolveStats(p1Def, p1Masmon),
       p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon)),
-    new Fighter('p2', resolveStats(p2Def, p2Masmon),
+    new Fighter('p2', options.mode === 'cpu'
+      ? applyCpuLevelStats(resolveStats(p2Def, p2Masmon), p2Def, p2Masmon, options.cpuLevel)
+      : resolveStats(p2Def, p2Masmon),
       p2Def.color, Stage.spawnPoints[1], buildOptions(p2Def, p2Masmon)),
   ];
   players[0].hudLabel = '1P';
