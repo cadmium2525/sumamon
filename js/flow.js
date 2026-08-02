@@ -19,6 +19,7 @@ const AppFlow = {
   selectedCpuCount: 1,
   selectedManageMasmonId: null,
   manageIdleTimer: null,
+  shopToastTimer: null,
 
   // トークン配置状態（CPU戦用）。値は { fighterKey, masmonId(nullable) } または null
   tokens: { p1: null, cpu1: null },
@@ -128,6 +129,7 @@ const AppFlow = {
       clearInterval(this.manageIdleTimer);
       this.manageIdleTimer = null;
     }
+    if (name !== 'item-shop') this.closePurchaseModal();
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     document.getElementById('screen-' + name).classList.remove('hidden');
     if (window.DebugMotionViewer) DebugMotionViewer.setActive(name === 'debug');
@@ -169,7 +171,7 @@ const AppFlow = {
       : 'assets/images/fighter/irumine/stock.png';
   },
 
-  renderItemShop(message = '') {
+  renderItemShop() {
     const diamonds = Number(UserProfileStore.data.diamonds) || 0;
     document.getElementById('shop-diamonds').textContent = `💎 ${diamonds}`;
     const inventory = UserProfileStore.data.inventory || {};
@@ -186,18 +188,66 @@ const AppFlow = {
         </button>
       </article>
     `).join('');
-    document.getElementById('item-shop-message').textContent = message;
   },
 
-  purchaseShopItem(itemId) {
+  openPurchaseModal(itemId) {
     const item = SHOP_ITEMS.find(entry => entry.id === itemId);
     if (!item || item.comingSoon) return;
-    if (!UserProfileStore.purchaseItem(item.id, item.price)) {
-      this.renderItemShop('ダイヤが足りません');
+    const modal = document.getElementById('shop-purchase-modal');
+    modal.dataset.itemId = item.id;
+    document.getElementById('shop-modal-image').src = item.image;
+    document.getElementById('shop-modal-image').alt = item.name;
+    document.getElementById('shop-modal-title').textContent = item.name;
+    document.getElementById('shop-modal-effect').textContent = item.effect;
+    document.getElementById('shop-quantity').value = '1';
+    this.updatePurchaseModal();
+    modal.classList.remove('hidden');
+  },
+
+  closePurchaseModal() {
+    const modal = document.getElementById('shop-purchase-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  updatePurchaseModal(nextQuantity) {
+    const modal = document.getElementById('shop-purchase-modal');
+    if (!modal) return;
+    const item = SHOP_ITEMS.find(entry => entry.id === modal.dataset.itemId);
+    if (!item) return;
+    const input = document.getElementById('shop-quantity');
+    const quantity = Math.max(1, Math.min(99, Math.floor(Number(nextQuantity ?? input.value) || 1)));
+    input.value = String(quantity);
+    const total = item.price * quantity;
+    document.getElementById('shop-modal-total').textContent = `合計 💎 ${total}`;
+    const confirmButton = document.getElementById('shop-purchase-confirm');
+    const canAfford = (Number(UserProfileStore.data.diamonds) || 0) >= total;
+    confirmButton.disabled = !canAfford;
+    confirmButton.textContent = canAfford ? '購入する' : 'ダイヤが足りません';
+  },
+
+  confirmShopPurchase() {
+    const modal = document.getElementById('shop-purchase-modal');
+    const item = SHOP_ITEMS.find(entry => entry.id === modal.dataset.itemId);
+    if (!item) return;
+    const quantity = Math.max(1, Math.min(99, Math.floor(Number(document.getElementById('shop-quantity').value) || 1)));
+    if (!UserProfileStore.purchaseItem(item.id, item.price, quantity)) {
+      this.updatePurchaseModal(quantity);
       return;
     }
-    this.renderItemShop(`${item.name}を購入しました！`);
+    this.closePurchaseModal();
+    this.renderItemShop();
     this._updateHomeProfile();
+    this.showShopToast(`${item.name}を${quantity}個購入しました！`);
+  },
+
+  showShopToast(message) {
+    const toast = document.getElementById('item-shop-toast');
+    clearTimeout(this.shopToastTimer);
+    toast.textContent = message;
+    toast.classList.remove('hidden', 'show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    this.shopToastTimer = setTimeout(() => toast.classList.add('hidden'), 2600);
   },
 
   buildStageList() {
@@ -286,8 +336,20 @@ const AppFlow = {
     document.getElementById('btn-gacha').addEventListener('click', () => this.showScreen('item-shop'));
     document.getElementById('item-shop-list').addEventListener('click', event => {
       const button = event.target.closest('[data-shop-item]');
-      if (button) this.purchaseShopItem(button.dataset.shopItem);
+      if (button) this.openPurchaseModal(button.dataset.shopItem);
     });
+    document.getElementById('shop-modal-close').addEventListener('click', () => this.closePurchaseModal());
+    document.getElementById('shop-purchase-modal').addEventListener('click', event => {
+      if (event.target.id === 'shop-purchase-modal') this.closePurchaseModal();
+    });
+    document.getElementById('shop-quantity-minus').addEventListener('click', () => {
+      this.updatePurchaseModal(Number(document.getElementById('shop-quantity').value) - 1);
+    });
+    document.getElementById('shop-quantity-plus').addEventListener('click', () => {
+      this.updatePurchaseModal(Number(document.getElementById('shop-quantity').value) + 1);
+    });
+    document.getElementById('shop-quantity').addEventListener('input', () => this.updatePurchaseModal());
+    document.getElementById('shop-purchase-confirm').addEventListener('click', () => this.confirmShopPurchase());
     document.getElementById('btn-home-settings').addEventListener('click', () => {
       vpad.el.settingsPanel.classList.remove('hidden');
       this.renderSettingsProfile();

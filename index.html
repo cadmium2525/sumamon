@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=34">
+<link rel="stylesheet" href="css/style.css?v=35">
 </head>
 <body>
 
@@ -74,7 +74,24 @@
       <div id="shop-diamonds" class="shop-diamonds">💎 0</div>
     </div>
     <div id="item-shop-list" class="item-shop-list"></div>
-    <div id="item-shop-message" class="item-shop-message" aria-live="polite"></div>
+    <div id="item-shop-toast" class="item-shop-toast hidden" aria-live="polite"></div>
+    <div id="shop-purchase-modal" class="shop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="shop-modal-title">
+      <div class="shop-modal-card">
+        <button id="shop-modal-close" class="shop-modal-close" aria-label="閉じる">×</button>
+        <img id="shop-modal-image" alt="">
+        <div class="shop-modal-content">
+          <h2 id="shop-modal-title"></h2>
+          <p id="shop-modal-effect"></p>
+          <div class="shop-quantity-row">
+            <button id="shop-quantity-minus" aria-label="数量を減らす">－</button>
+            <input id="shop-quantity" type="number" inputmode="numeric" min="1" max="99" value="1" aria-label="購入数">
+            <button id="shop-quantity-plus" aria-label="数量を増やす">＋</button>
+          </div>
+          <div id="shop-modal-total" class="shop-modal-total">合計 💎 0</div>
+          <button id="shop-purchase-confirm" class="shop-purchase-confirm">購入する</button>
+        </div>
+      </div>
+    </div>
     <button class="back-btn" data-back="home">戻る</button>
   </div>
 
@@ -205,10 +222,10 @@
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=29"></script>
+  <script src="js/growth-system.js?v=30"></script>
   <script src="js/input.js"></script>
   <script src="js/game.js?v=32"></script>
-  <script src="js/flow.js?v=34"></script>
+  <script src="js/flow.js?v=35"></script>
   <script src="js/pwa.js"></script>
 </body>
 </html>

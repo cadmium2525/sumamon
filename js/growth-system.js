@@ -292,12 +292,13 @@ const UserProfileStore = {
     return this.data.diamonds;
   },
 
-  purchaseItem(itemId, price) {
-    const cost = Math.max(0, Number(price) || 0);
+  purchaseItem(itemId, price, quantity = 1) {
+    const count = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
+    const cost = Math.max(0, Number(price) || 0) * count;
     if ((Number(this.data.diamonds) || 0) < cost) return false;
     this.data.diamonds -= cost;
     if (!this.data.inventory) this.data.inventory = {};
-    this.data.inventory[itemId] = Math.max(0, Number(this.data.inventory[itemId]) || 0) + 1;
+    this.data.inventory[itemId] = Math.max(0, Number(this.data.inventory[itemId]) || 0) + count;
     this.save();
     return true;
   },
