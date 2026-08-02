@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v48';
+const CACHE_NAME = 'smamon-app-v49';
 const APP_SHELL = [
   './',
   './index.html',
@@ -62,7 +62,9 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
+  // GitHub Pages/CDNやSafariのHTTPキャッシュに残った旧JSを新キャッシュへ混入させない。
+  const freshRequests = APP_SHELL.map(url => new Request(url, { cache: 'reload' }));
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(freshRequests)));
 });
 
 self.addEventListener('message', event => {

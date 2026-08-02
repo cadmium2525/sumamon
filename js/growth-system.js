@@ -198,6 +198,8 @@ const MasmonStore = {
 
 // ==== ユーザープロフィール（ニックネーム・ゲーム内通貨） ====
 function normalizeBattleRecords(records = {}) {
+  // 旧プロフィールではbattleRecordsがnullの場合があるため、必ずオブジェクトへ正規化する。
+  records = records && typeof records === 'object' ? records : {};
   const blank = () => ({ matches: 0, wins: 0, losses: 0, kos: 0, falls: 0, selfDestructs: 0, bestRank: 0 });
   const normalize = value => {
     const source = value || {};
