@@ -628,10 +628,16 @@ class Fighter {
 
     // 掴まれている間は相手の近くに固定（自由落下しない）
     if (this.grabbedBy) {
-      this.x = this.grabbedBy.x + this.grabbedBy.facing * 40;
-      this.y = this.grabbedBy.y;
+      const grabber = this.grabbedBy;
+      this.x = grabber.facing === 1
+        ? grabber.x + grabber.w * 0.72
+        : grabber.x - this.w * 0.72;
+      // 体格差があっても足元が台を突き抜けないよう、頭ではなく足元を揃える。
+      this.y = grabber.y + grabber.h - this.h;
       this.vx = 0;
       this.vy = 0;
+      this.onGround = grabber.onGround;
+      this.groundedPlatform = grabber.groundedPlatform;
       return;
     }
 
