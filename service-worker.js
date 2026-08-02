@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v45';
+const CACHE_NAME = 'smamon-app-v46';
 const APP_SHELL = [
   './',
   './index.html',
@@ -63,7 +63,10 @@ const APP_SHELL = [
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
@@ -81,39 +84,16 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // ページ遷移はネットワークを優先し、オフライン時はキャッシュしたホームへ戻す。
+  // 現在のバージョンを維持し、更新許可後の再読み込みで新キャッシュへ切り替える。
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then(response => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy));
-          return response;
-        })
-        .catch(() => caches.match('./index.html'))
+      caches.match('./index.html').then(cached => cached || fetch(request))
     );
     return;
   }
 
-  // CSS・JavaScript・マニフェストはオンライン時に最新版を優先する。
-  if (request.destination === 'style' || request.destination === 'script' || url.pathname.endsWith('.webmanifest')) {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request))
-    );
-    return;
-  }
-
-  // 画像などの静的アセットはキャッシュを優先する。
   event.respondWith(
-    caches.match(request).then(cached => cached || fetch(request).then(response => {
+    caches.match(request, { ignoreSearch: true }).then(cached => cached || fetch(request).then(response => {
       if (response.ok) {
         const copy = response.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
