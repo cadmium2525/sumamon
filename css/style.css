@@ -6,8 +6,15 @@ html, body {
   height: var(--app-height, 100dvh);
   background: #111;
   overflow: hidden;
-  touch-action: none;
   font-family: 'Segoe UI', sans-serif;
+}
+
+/* iOS PWA(standalone)でhtml/bodyにtouch-action:noneを指定すると
+   input要素タップ時にソフトキーボードが開かなくなるため、
+   ページ全体のジェスチャー抑制はbody直下の画面コンテナ側で行う。 */
+body { touch-action: none; }
+input, textarea, select {
+  touch-action: auto;
 }
 
 /* ==== 修行ミニゲーム ==== */
@@ -313,7 +320,7 @@ body.layout-pending .screen { visibility: hidden; }
   background: rgba(255,255,255,0.08);
   color: #fff;
   pointer-events: auto;
-  touch-action: manipulation;
+  touch-action: auto;
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
