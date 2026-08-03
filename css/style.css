@@ -1048,6 +1048,9 @@ body.layout-pending .screen { visibility: hidden; }
 .cpu-mode-card strong, .cpu-mode-card small { display: block; }
 .cpu-mode-card strong { font-size: 20px; }
 .cpu-mode-card small { margin-top: 10px; color: #b9d8ec; }
+.cpu-mode-reward { display: block; margin-top: 11px; padding: 5px 7px; border: 1px solid rgba(102,218,255,.62); border-radius: 10px; color: #aeeaff; background: rgba(0,17,32,.62); font-size: 11px; font-weight: 900; line-height: 1.25; }
+.cpu-mode-reward.reward-premium { border-color: rgba(255,210,82,.76); color: #ffe58a; background: rgba(49,31,0,.62); }
+.cpu-mode-reward.reward-ranking { border-color: rgba(194,170,255,.62); color: #dfd1ff; background: rgba(28,16,51,.62); }
 .endless-mode-column { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .endless-mode-column .cpu-mode-card { width: 100%; }
 .endless-ranking-button { width: 100%; padding: 8px 10px; border: 1px solid #f1ce65; border-radius: 9px; color: #fff1ad; background: rgba(38,27,8,.9); font-weight: 900; }
