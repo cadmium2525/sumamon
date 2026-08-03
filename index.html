@@ -295,10 +295,16 @@
     <section id="practice-game-panel" class="practice-game-panel hidden">
       <canvas id="practice-canvas" width="960" height="540"></canvas>
       <div class="practice-hud"><strong id="practice-game-title"></strong><span id="practice-game-status"></span><time id="practice-game-time"></time></div>
-      <div class="practice-touch-left"><button data-practice-control="left">◀</button><button data-practice-control="right">▶</button></div>
-      <div class="practice-touch-right"><button data-practice-control="jump">JUMP</button><button data-practice-control="attack">A</button><button data-practice-control="shield">SHIELD</button></div>
       <button id="practice-quit" class="practice-quit">中断</button>
     </section>
+    <div id="practice-intro-modal" class="practice-intro-modal hidden" role="dialog" aria-modal="true">
+      <div class="practice-intro-dialog">
+        <h2 id="practice-intro-title"></h2>
+        <p id="practice-intro-text"></p>
+        <ul id="practice-intro-controls" class="practice-intro-controls"></ul>
+        <button id="practice-intro-start">修行を始める</button>
+      </div>
+    </div>
     <div id="practice-result-modal" class="practice-result-modal hidden" role="dialog" aria-modal="true">
       <div class="practice-result-dialog">
         <span id="practice-result-grade"></span>
