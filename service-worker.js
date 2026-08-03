@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v60';
+const CACHE_NAME = 'smamon-app-v61';
 const APP_SHELL = [
   './',
   './index.html',
@@ -21,6 +21,7 @@ const APP_SHELL = [
   './js/moves.js',
   './js/multiplayer.js',
   './js/physics.js',
+  './js/practice.js',
   './js/pwa.js',
   './js/stage.js',
   './assets/images/app-icon.png',

@@ -49,6 +49,7 @@ const AppFlow = {
     this.bindAuthEvents();
     if (window.Multiplayer) Multiplayer.init();
     if (window.DebugMotionViewer) DebugMotionViewer.init();
+    if (window.PracticeGame) PracticeGame.init();
     this.preloadAssets(() => this._afterPreload());
   },
 
@@ -145,6 +146,7 @@ const AppFlow = {
     }
     if (name !== 'item-shop') this.closePurchaseModal();
     if (name !== 'training') this.closeTrainingItemModal();
+    if (name !== 'practice' && window.PracticeGame?.active) PracticeGame.stop();
     if (name !== 'fighter-select') document.getElementById('fighter-status-modal')?.classList.add('hidden');
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     document.getElementById('screen-' + name).classList.remove('hidden');
@@ -429,6 +431,7 @@ const AppFlow = {
     });
     document.getElementById('btn-training').addEventListener('click', () => this.openMasmonManage());
     document.getElementById('btn-manage-training').addEventListener('click', () => this.openTraining());
+    document.getElementById('btn-manage-practice').addEventListener('click', () => this.openPractice());
     document.getElementById('btn-gacha').addEventListener('click', () => this.showScreen('item-shop'));
     document.getElementById('item-shop-list').addEventListener('click', event => {
       const button = event.target.closest('[data-shop-item]');
@@ -637,6 +640,17 @@ const AppFlow = {
     }
     this.renderTraining();
     this.showScreen('training');
+  },
+
+  openPractice() {
+    let monster = this._selectedManageMasmon();
+    if (!monster) {
+      monster = MasmonStore.loadAll()[0];
+      if (!monster) { alert('修行できるマスモンがいません'); return; }
+      this.selectedManageMasmonId = monster.id;
+    }
+    this.showScreen('practice');
+    PracticeGame.openSelection(monster);
   },
 
   _selectedManageMasmon() {

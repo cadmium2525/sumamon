@@ -25,6 +25,9 @@ const DebugMotionViewer = {
       });
     });
     document.getElementById('admin-player-refresh').addEventListener('click', () => this.loadPlayerActivity());
+    document.querySelectorAll('[data-admin-practice]').forEach(button => {
+      button.addEventListener('click', () => window.PracticeGame?.startAdmin(button.dataset.adminPractice));
+    });
     this.buildMotionList();
   },
 

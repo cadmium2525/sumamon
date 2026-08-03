@@ -94,6 +94,21 @@ const GROWTH = {
     return { ok: true, training, applied };
   },
 
+  applyPracticeResult(masmon, mainStat, grade) {
+    const gradeMultiplier = { S: 1, A: 0.85, B: 0.65, C: 0.4, D: 0.2 }[grade] || 0.2;
+    const apply = (stat, base) => {
+      const aptitude = masmon.aptitudes?.[stat] || 'C';
+      const aptitudeMultiplier = this.APTITUDE_MULTIPLIER[aptitude] || 1;
+      const amount = Math.max(1, Math.round(base * gradeMultiplier * aptitudeMultiplier));
+      masmon.trainingStats = { ...(masmon.trainingStats || {}) };
+      const current = Math.max(0, Number(masmon.trainingStats[stat]) || 0);
+      const next = Math.min(this.STAT_MAX, current + amount);
+      masmon.trainingStats[stat] = next;
+      return next - current;
+    };
+    return { [mainStat]: apply(mainStat, 13), life: apply('life', 5) };
+  },
+
   // 対戦結果からEXP量を算出（暫定式）
   computeExpGain(placement, totalFighters, cpuLevel) {
     const base = 60;

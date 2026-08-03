@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=48">
+<link rel="stylesheet" href="css/style.css?v=49">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.60</small>
+    <small class="home-version">Version 0.61</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.61</time><strong>5つの修行を実装</strong><p>修行先ごとに異なるミニゲームと、結果に応じた能力成長を追加しました。</p></article>
           <article><time>Version 0.60</time><strong>連戦の中断・再開</strong><p>100人組手とエンドレスを途中保存し、続きから再開できるようにしました。</p></article>
           <article><time>Version 0.59</time><strong>更新履歴を追加</strong><p>ホームから更新内容と現在のバージョンを確認できるようにしました。</p></article>
           <article><time>Version 0.58</time><strong>ログイン画面を改善</strong><p>入力フォームを2列化し、iPhoneで入力中も見やすくしました。</p></article>
@@ -207,6 +208,7 @@
     <div class="debug-tabs">
       <button class="active" data-admin-tab="motion">モーション確認</button>
       <button data-admin-tab="bgm">BGM確認</button>
+      <button data-admin-tab="practice">修行テスト</button>
       <button data-admin-tab="players">プレイ状況確認</button>
     </div>
     <div class="admin-pane" data-admin-pane="motion">
@@ -224,6 +226,16 @@
       </div>
       <p>管理者モードを閉じると、移動先画面のBGMへ戻ります。</p>
     </div>
+    <div class="admin-pane hidden admin-practice-pane" data-admin-pane="practice">
+      <p>チケット・レベル制限なしでテストプレイします。</p>
+      <div class="admin-practice-buttons">
+        <button data-admin-practice="desert">マンディー砂漠</button>
+        <button data-admin-practice="jungle">パレパレジャングル</button>
+        <button data-admin-practice="coast">トーブル海岸</button>
+        <button data-admin-practice="snow">パパス雪山</button>
+        <button data-admin-practice="volcano">カウレア火山</button>
+      </div>
+    </div>
     <div class="admin-pane hidden admin-player-pane" data-admin-pane="players">
       <div class="admin-player-toolbar"><span id="admin-player-count"></span><button id="admin-player-refresh">更新</button></div>
       <div id="admin-player-list" class="admin-player-list"></div>
@@ -235,7 +247,7 @@
   <div id="screen-masmon-manage" class="screen hidden">
     <img class="masmon-only-background" src="assets/images/masmon-manage-background.png?v=11" alt="マスモン管理">
     <button id="btn-manage-training" class="masmon-only-training" aria-label="トレーニングへ進む"></button>
-    <button class="masmon-only-practice" data-back="practice" aria-label="修行へ進む"></button>
+    <button id="btn-manage-practice" class="masmon-only-practice" aria-label="修行へ進む"></button>
     <button class="masmon-only-skin" data-back="skin" aria-label="スキン変更へ進む"></button>
     <button class="masmon-only-back" data-back="home" aria-label="ホームへ戻る"></button>
     <div id="masmon-current-display" class="masmon-current-display">
@@ -272,10 +284,29 @@
     </div>
   </div>
 
-  <div id="screen-practice" class="screen hidden">
-    <div class="screen-heading">修行</div>
-    <div class="coming-soon-panel">修行は近日実装予定です</div>
-    <button class="back-btn" data-back="masmon-manage">戻る</button>
+  <div id="screen-practice" class="screen hidden practice-screen">
+    <section id="practice-select-panel" class="practice-select-panel">
+      <div class="screen-heading">修行先を選択</div>
+      <div id="practice-monster-summary" class="practice-monster-summary"></div>
+      <div id="practice-course-list" class="practice-course-list"></div>
+      <button class="back-btn" data-back="masmon-manage">戻る</button>
+    </section>
+    <section id="practice-game-panel" class="practice-game-panel hidden">
+      <canvas id="practice-canvas" width="960" height="540"></canvas>
+      <div class="practice-hud"><strong id="practice-game-title"></strong><span id="practice-game-status"></span><time id="practice-game-time"></time></div>
+      <div class="practice-touch-left"><button data-practice-control="left">◀</button><button data-practice-control="right">▶</button></div>
+      <div class="practice-touch-right"><button data-practice-control="jump">JUMP</button><button data-practice-control="attack">A</button><button data-practice-control="shield">SHIELD</button></div>
+      <button id="practice-quit" class="practice-quit">中断</button>
+    </section>
+    <div id="practice-result-modal" class="practice-result-modal hidden" role="dialog" aria-modal="true">
+      <div class="practice-result-dialog">
+        <span id="practice-result-grade"></span>
+        <h2 id="practice-result-title"></h2>
+        <p id="practice-result-score"></p>
+        <strong id="practice-result-growth"></strong>
+        <button id="practice-result-close">修行先へ戻る</button>
+      </div>
+    </div>
   </div>
 
   <div id="screen-skin" class="screen hidden">
@@ -404,15 +435,16 @@
   <script src="js/physics.js?v=31"></script>
   <script src="js/fighter.js?v=36"></script>
   <script src="js/fighters-data.js"></script>
-  <script src="js/debug-mode.js?v=3"></script>
+  <script src="js/debug-mode.js?v=4"></script>
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js?v=2"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=36"></script>
+  <script src="js/growth-system.js?v=37"></script>
+  <script src="js/practice.js?v=1"></script>
   <script src="js/input.js?v=4"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=37"></script>
-  <script src="js/flow.js?v=45"></script>
-  <script src="js/pwa.js?v=5"></script>
+  <script src="js/flow.js?v=46"></script>
+  <script src="js/pwa.js?v=6"></script>
 </body>
 </html>

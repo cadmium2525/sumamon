@@ -24,7 +24,7 @@ window.addEventListener('orientationchange', settleSmamonViewport, { passive: tr
 window.visualViewport?.addEventListener('resize', updateSmamonViewport, { passive: true });
 
 // Service Worker更新通知。
-const APP_VERSION = '60';
+const APP_VERSION = '61';
 const updateModal = document.getElementById('app-update-modal');
 const updateNowButton = document.getElementById('app-update-now');
 const updateLaterButton = document.getElementById('app-update-later');
