@@ -270,6 +270,22 @@ const AppFlow = {
   },
 
   openCpuMode(mode) {
+    if (['hundred', 'endless'].includes(mode)) {
+      const saved = window.SurvivalRunStore?.load(mode, this.currentUser?.uid);
+      if (saved) {
+        this.pendingSurvivalResume = saved;
+        const modeName = mode === 'hundred' ? '100人組手' : 'エンドレスモード';
+        const savedAt = new Date(saved.savedAt || Date.now()).toLocaleString('ja-JP');
+        document.getElementById('survival-resume-title').textContent = `${modeName}を再開しますか？`;
+        document.getElementById('survival-resume-detail').textContent = `撃破 ${saved.survival?.defeated || 0}体／残機 ${saved.fighters?.[0]?.stocks ?? 3}（${savedAt}に保存）`;
+        document.getElementById('survival-resume-modal').classList.remove('hidden');
+        return;
+      }
+    }
+    this._openFreshCpuMode(mode);
+  },
+
+  _openFreshCpuMode(mode) {
     this.selectedMode = 'cpu';
     this.selectedCpuMode = mode;
     this.selectedCpuLevel = mode === 'normal' ? this.selectedCpuLevel : 1;
@@ -379,6 +395,29 @@ const AppFlow = {
     });
     document.getElementById('btn-mode-hundred').addEventListener('click', () => this.openCpuMode('hundred'));
     document.getElementById('btn-mode-endless').addEventListener('click', () => this.openCpuMode('endless'));
+    document.getElementById('survival-resume-continue').addEventListener('click', () => {
+      const saved = this.pendingSurvivalResume;
+      if (!saved) return;
+      document.getElementById('survival-resume-modal').classList.add('hidden');
+      this.pendingSurvivalResume = null;
+      this.selectedMode = 'cpu';
+      this.selectedCpuMode = saved.survival.mode;
+      this.selectedStageKey = saved.options.stageKey;
+      this.lastLaunchOptions = { ...saved.options, resumeState: saved };
+      this.playBattleIntro(this.lastLaunchOptions);
+    });
+    document.getElementById('survival-resume-later').addEventListener('click', () => {
+      this.pendingSurvivalResume = null;
+      document.getElementById('survival-resume-modal').classList.add('hidden');
+    });
+    document.getElementById('survival-resume-restart').addEventListener('click', () => {
+      const saved = this.pendingSurvivalResume;
+      if (!saved) return;
+      window.SurvivalRunStore?.clear(saved.survival.mode, this.currentUser?.uid);
+      this.pendingSurvivalResume = null;
+      document.getElementById('survival-resume-modal').classList.add('hidden');
+      this._openFreshCpuMode(saved.survival.mode);
+    });
     document.getElementById('btn-endless-ranking').addEventListener('click', () => this.openEndlessRanking());
     document.getElementById('endless-ranking-close').addEventListener('click', () => document.getElementById('endless-ranking-modal').classList.add('hidden'));
     document.getElementById('endless-ranking-modal').addEventListener('click', event => {

@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=47">
+<link rel="stylesheet" href="css/style.css?v=48">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.59</small>
+    <small class="home-version">Version 0.60</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.60</time><strong>連戦の中断・再開</strong><p>100人組手とエンドレスを途中保存し、続きから再開できるようにしました。</p></article>
           <article><time>Version 0.59</time><strong>更新履歴を追加</strong><p>ホームから更新内容と現在のバージョンを確認できるようにしました。</p></article>
           <article><time>Version 0.58</time><strong>ログイン画面を改善</strong><p>入力フォームを2列化し、iPhoneで入力中も見やすくしました。</p></article>
           <article><time>Version 0.57</time><strong>マルチ報酬を分かりやすく</strong><p>マルチボタンに「マスモンEXP ×2」バッジを追加しました。</p></article>
@@ -307,6 +308,17 @@
         <div id="endless-ranking-list"></div>
       </div>
     </div>
+    <div id="survival-resume-modal" class="survival-resume-modal hidden" role="dialog" aria-modal="true" aria-labelledby="survival-resume-title">
+      <div class="survival-resume-dialog">
+        <h2 id="survival-resume-title">中断中の挑戦があります</h2>
+        <p id="survival-resume-detail"></p>
+        <div class="survival-resume-actions">
+          <button id="survival-resume-continue">続きから</button>
+          <button id="survival-resume-later">今は戻る</button>
+          <button id="survival-resume-restart">挑戦を終了して最初から</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div id="screen-stage-select" class="screen hidden">
@@ -357,7 +369,7 @@
       <div id="hud"></div>
       <div id="battle-survival-counter" class="battle-survival-counter hidden"></div>
       <button id="battle-pause-btn" aria-label="ポーズ">Ⅱ</button>
-      <div id="battle-pause-overlay" class="hidden">PAUSE</div>
+      <div id="battle-pause-overlay" class="hidden"><strong>PAUSE</strong><button id="battle-suspend-btn" class="hidden">中断してホームへ</button></div>
       <div id="battle-countdown" class="hidden"><img id="battle-countdown-image" alt=""><span id="battle-countdown-text"></span></div>
     </div>
   </div>
@@ -384,7 +396,7 @@
 
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=2"></script>
+  <script src="js/config.js?v=3"></script>
   <script src="js/audio.js?v=4"></script>
   <script src="js/moves.js?v=27"></script>
   <script src="js/fighters/irumine-moves.js?v=31"></script>
@@ -394,13 +406,13 @@
   <script src="js/fighters-data.js"></script>
   <script src="js/debug-mode.js?v=3"></script>
   <script src="js/stage.js?v=31"></script>
-  <script src="js/camera.js"></script>
+  <script src="js/camera.js?v=2"></script>
   <script src="js/cpu-ai.js"></script>
   <script src="js/growth-system.js?v=36"></script>
   <script src="js/input.js?v=4"></script>
   <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=36"></script>
-  <script src="js/flow.js?v=44"></script>
-  <script src="js/pwa.js?v=4"></script>
+  <script src="js/game.js?v=37"></script>
+  <script src="js/flow.js?v=45"></script>
+  <script src="js/pwa.js?v=5"></script>
 </body>
 </html>

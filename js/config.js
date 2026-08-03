@@ -6,7 +6,7 @@ const CONFIG = {
   GRAVITY: 0.25,
   MAX_FALL_SPEED: 6.3,
   GROUND_Y: 750,
-  BLAST_MARGIN: 260, // 画面外どこまで飛んだらKOか
+  BLAST_MARGIN: 420, // 画面外どこまで飛んだらKOか（上下左右を広めに確保）
 
   // 回避ステータス -> 落下速度への影響（ダッシュが速い代わりに落下も速い）
   EVASION_FALL_SCALE: 0.003,

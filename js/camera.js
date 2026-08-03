@@ -55,16 +55,22 @@ const Camera = {
   _clampToWorld() {
     const worldW = (window.Stage && Stage.worldWidth) || CONFIG.CANVAS_W;
     const worldH = (window.Stage && Stage.worldHeight) || CONFIG.CANVAS_H;
+    const minWorldX = -CONFIG.BLAST_MARGIN;
+    const maxWorldX = worldW + CONFIG.BLAST_MARGIN;
+    const minWorldY = -CONFIG.BLAST_MARGIN;
+    const maxWorldY = worldH + CONFIG.BLAST_MARGIN;
+    const cameraWorldW = maxWorldX - minWorldX;
+    const cameraWorldH = maxWorldY - minWorldY;
     const halfViewW = (CONFIG.CANVAS_W / 2) / this.zoom;
     const halfViewH = (CONFIG.CANVAS_H / 2) / this.zoom;
 
-    if (worldW > halfViewW * 2) {
-      this.x = Math.min(Math.max(this.x, halfViewW), worldW - halfViewW);
+    if (cameraWorldW > halfViewW * 2) {
+      this.x = Math.min(Math.max(this.x, minWorldX + halfViewW), maxWorldX - halfViewW);
     } else {
       this.x = worldW / 2;
     }
-    if (worldH > halfViewH * 2) {
-      this.y = Math.min(Math.max(this.y, halfViewH), worldH - halfViewH);
+    if (cameraWorldH > halfViewH * 2) {
+      this.y = Math.min(Math.max(this.y, minWorldY + halfViewH), maxWorldY - halfViewH);
     } else {
       this.y = worldH / 2;
     }

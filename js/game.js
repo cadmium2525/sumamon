@@ -29,7 +29,91 @@ let lastNetworkProjectileCount = 0;
 let lastNetworkExplosionCount = 0;
 let survivalBattle = null;
 let spawnSurvivalCpu = null;
+let currentBattleOptions = null;
+let lastSurvivalCheckpointAt = 0;
 const survivalCounter = document.getElementById('battle-survival-counter');
+const suspendButton = document.getElementById('battle-suspend-btn');
+
+const SURVIVAL_SAVE_VERSION = 1;
+const SURVIVAL_FIGHTER_STATE_KEYS = [
+  'x','y','vx','vy','facing','onGround','damagePercent','stocks','dead','tumbling','tumbleRotation',
+  'downed','shielding','shieldHP','dazedTimer','dodgeTimer','dodgeType','invincible','isMoving','isDashing',
+  'attackTimer','recoveryTimer','hitstun','jumpFrames','jumpCutDone','jumpsUsed','jumpAnimTimer',
+  'idleAnimTimer','idleAnimFrame','animTimer','animFrame','helpless','kos','falls','selfDestructs',
+  'eliminatedAt','dropThroughTimer','ledgeCooldown','ledgeHangFrames','ledgeLocked','onLedge',
+  '_usedUpSpecialAirborne','_airDodgeUsed','survivalHandled','survivalCpuLevel',
+];
+
+function survivalSaveKey(mode, uid) {
+  return `smamon_survival_${uid || 'guest'}_${mode}`;
+}
+
+function currentSurvivalUid() {
+  return window.AppFlow?.currentUser?.uid || 'guest';
+}
+
+const SurvivalRunStore = {
+  load(mode, uid) {
+    try {
+      const data = JSON.parse(localStorage.getItem(survivalSaveKey(mode, uid)) || 'null');
+      return data && data.version === SURVIVAL_SAVE_VERSION && data.survival?.mode === mode ? data : null;
+    } catch (_) { return null; }
+  },
+  clear(mode, uid) {
+    try { localStorage.removeItem(survivalSaveKey(mode, uid)); } catch (_) { /* ignore */ }
+  },
+};
+window.SurvivalRunStore = SurvivalRunStore;
+
+function saveSurvivalCheckpoint(force = false) {
+  if (!survivalBattle || !currentBattleOptions || window._matchOver || (!force && battleInputLocked)) return false;
+  const now = Date.now();
+  if (!force && now - lastSurvivalCheckpointAt < 500) return false;
+  const { resumeState, ...cleanOptions } = currentBattleOptions;
+  const data = {
+    version: SURVIVAL_SAVE_VERSION,
+    savedAt: now,
+    options: cleanOptions,
+    survival: { mode: survivalBattle.mode, defeated: survivalBattle.defeated, finished: survivalBattle.finished },
+    fighters: players.map((fighter, fighterIndex) => ({
+      id: fighter.id,
+      fighterKey: fighter.fighterKey,
+      name: fighter.name,
+      color: fighter.color,
+      stats: { ...fighter.stats },
+      stockIconSrc: fighter.stockIconSrc,
+      knockbackTakenMultiplier: fighter.knockbackTakenMultiplier,
+      currentMoveKey: networkMoveKey(fighter),
+      lastAttackerIndex: players.indexOf(fighter.lastAttacker),
+      ...Object.fromEntries(SURVIVAL_FIGHTER_STATE_KEYS.map(key => [key, fighter[key]])),
+    })),
+    projectiles: projectiles.map(projectile => ({
+      x: projectile.x, y: projectile.y, vx: projectile.vx, vy: projectile.vy,
+      w: projectile.w, h: projectile.h, life: projectile.life, hit: projectile.hit,
+      exploding: projectile.exploding, config: projectile.config,
+      spritePath: projectile.move?.projectileSprite || null,
+      moveKey: moveKeyFor(projectile.owner, projectile.move),
+      ownerIndex: players.indexOf(projectile.owner),
+    })),
+    cpuControllers: cpuControllers.map(controller => ({
+      decisionCooldown: controller.decisionCooldown,
+      currentIntent: { ...controller.currentIntent },
+    })),
+  };
+  try {
+    localStorage.setItem(survivalSaveKey(survivalBattle.mode, currentSurvivalUid()), JSON.stringify(data));
+    lastSurvivalCheckpointAt = now;
+    return true;
+  } catch (error) {
+    console.warn('連戦データを保存できませんでした:', error);
+    return false;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveSurvivalCheckpoint(true);
+});
+window.addEventListener('pagehide', () => saveSurvivalCheckpoint(true));
 
 const pauseButton = document.getElementById('battle-pause-btn');
 const pauseOverlay = document.getElementById('battle-pause-overlay');
@@ -38,6 +122,21 @@ pauseButton.addEventListener('click', () => {
   battlePaused = !battlePaused;
   pauseButton.textContent = battlePaused ? '▶' : 'Ⅱ';
   pauseOverlay.classList.toggle('hidden', !battlePaused);
+});
+suspendButton.addEventListener('click', event => {
+  event.stopPropagation();
+  if (!survivalBattle) return;
+  saveSurvivalCheckpoint(true);
+  battlePaused = true;
+  window._matchOver = true;
+  players = [];
+  cpuControllers = [];
+  projectiles = [];
+  survivalBattle = null;
+  spawnSurvivalCpu = null;
+  survivalCounter?.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
+  AppFlow.showScreen('home');
 });
 
 window.setBattleInputLocked = locked => { battleInputLocked = !!locked; };
@@ -297,6 +396,10 @@ function computeRanking() {
 
 function checkMatchEnd() {
   if (survivalBattle) {
+    if (typeof survivalBattle.finished === 'boolean' && !window._matchOver) {
+      finishSurvivalBattle(survivalBattle.finished);
+      return;
+    }
     const p1 = players[0];
     if (p1.dead && !window._matchOver) {
       finishSurvivalBattle(false);
@@ -348,6 +451,8 @@ function updateSurvivalCounter() {
 
 function finishSurvivalBattle(cleared) {
   if (window._matchOver || !survivalBattle) return;
+  survivalBattle.finished = !!cleared;
+  saveSurvivalCheckpoint(true);
   window._matchOver = true;
   const p1 = players[0];
   const result = {
@@ -357,7 +462,10 @@ function finishSurvivalBattle(cleared) {
     survival: { mode: survivalBattle.mode, defeated: survivalBattle.defeated, cleared },
   };
   setTimeout(() => {
-    try { AppFlow.onMatchEnd(result); } catch (error) { console.error('連戦リザルトへの遷移に失敗しました:', error); }
+    try {
+      SurvivalRunStore.clear(survivalBattle.mode, currentSurvivalUid());
+      AppFlow.onMatchEnd(result);
+    } catch (error) { console.error('連戦リザルトへの遷移に失敗しました:', error); }
   }, 700);
 }
 
@@ -383,10 +491,14 @@ function createNetworkSnapshot() {
 }
 
 function networkMoveKey(fighter) {
-  if (!fighter.currentMove) return null;
+  return moveKeyFor(fighter, fighter && fighter.currentMove);
+}
+
+function moveKeyFor(fighter, targetMove) {
+  if (!fighter || !targetMove) return null;
   for (const [groupKey, group] of Object.entries(fighter.moveSet || {})) {
-    for (const [moveKey, move] of Object.entries(group || {})) {
-      if (move === fighter.currentMove) return `${groupKey}:${moveKey}`;
+    for (const [moveKey, moveDef] of Object.entries(group || {})) {
+      if (moveDef === targetMove) return `${groupKey}:${moveKey}`;
     }
   }
   return null;
@@ -483,6 +595,7 @@ function loop(timestamp) {
           simulationAccumulator -= SIMULATION_STEP_MS;
           steps++;
         }
+        saveSurvivalCheckpoint();
         if (steps === MAX_SIMULATION_STEPS && simulationAccumulator >= SIMULATION_STEP_MS) simulationAccumulator = 0;
       }
     } else {
@@ -509,6 +622,8 @@ function loop(timestamp) {
 // flow.js から呼ばれるバトル開始処理
 // options: { stageKey, p1Key, p2Key }
 window.startBattle = function startBattle(options) {
+  currentBattleOptions = options;
+  lastSurvivalCheckpointAt = 0;
   const stageData = STAGES[options.stageKey] || STAGES[Object.keys(STAGES)[0]];
   Stage.load(stageData.key);
 
@@ -589,6 +704,7 @@ window.startBattle = function startBattle(options) {
   lastLoopTime = performance.now();
   pauseButton.textContent = 'Ⅱ';
   pauseOverlay.classList.add('hidden');
+  suspendButton.classList.add('hidden');
   if (options.mode === 'multi' && Array.isArray(options.multiplayerRoster)) {
     players = options.multiplayerRoster.slice(0, 4).map((entry, index) => {
       const def = FIGHTERS[entry.fighterKey] || FIGHTERS.irumine;
@@ -612,6 +728,7 @@ window.startBattle = function startBattle(options) {
       p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon))];
     const isSurvival = options.mode === 'cpu' && ['hundred', 'endless'].includes(options.cpuMode);
     if (isSurvival) {
+      suspendButton.classList.remove('hidden');
       players[0].stocks = 3;
       survivalBattle = { mode: options.cpuMode, defeated: 0 };
       const candidates = [
@@ -641,6 +758,38 @@ window.startBattle = function startBattle(options) {
         if (!initial) cpuControllers[slot - 1] = new CPUController(fighter, players[0], cpuLevel);
       };
       for (let slot = 1; slot <= options.cpuCount; slot++) spawnSurvivalCpu(slot, true);
+      const resume = options.resumeState;
+      if (resume && resume.version === SURVIVAL_SAVE_VERSION && Array.isArray(resume.fighters)) {
+        survivalBattle.defeated = Math.max(0, Number(resume.survival?.defeated) || 0);
+        survivalBattle.finished = typeof resume.survival?.finished === 'boolean' ? resume.survival.finished : undefined;
+        players = resume.fighters.map((saved, index) => {
+          const def = FIGHTERS[saved.fighterKey] || (index === 0 ? p1Def : FIGHTERS.dullahan) || FIGHTERS.irumine;
+          const fighterOptions = buildOptions(def, null);
+          fighterOptions.name = saved.name || def.displayName;
+          fighterOptions.stockIconSrc = saved.stockIconSrc || def.stockIcon;
+          fighterOptions.knockbackTakenMultiplier = saved.knockbackTakenMultiplier || 1;
+          const fighter = new Fighter(saved.id || (index ? `cpu${index}` : 'p1'),
+            saved.stats || resolveStats(def, null), saved.color || def.color,
+            Stage.spawnPoints[index] || Stage.spawnPoints[0], fighterOptions);
+          Object.assign(fighter, Object.fromEntries(
+            SURVIVAL_FIGHTER_STATE_KEYS.filter(key => saved[key] !== undefined).map(key => [key, saved[key]])));
+          fighter.currentMove = resolveNetworkMove(fighter, saved.currentMoveKey);
+          return fighter;
+        });
+        resume.fighters.forEach((saved, index) => {
+          players[index].lastAttacker = players[saved.lastAttackerIndex] || null;
+        });
+        projectiles = (resume.projectiles || []).map(saved => {
+          const owner = players[saved.ownerIndex] || players[0];
+          const move = resolveNetworkMove(owner, saved.moveKey) || { projectileSprite: saved.spritePath, statKey: 'power', dmgBase: 1, kbBase: 1, angle: 20 };
+          const sprite = saved.spritePath ? (window.PreloadedImages?.get(saved.spritePath) || new Image()) : null;
+          if (sprite && !sprite.src) sprite.src = saved.spritePath;
+          return { ...saved, owner, move, sprite };
+        });
+        players.slice(1).forEach((fighter, index) => {
+          if (fighter.dead && fighter.survivalHandled) setTimeout(() => spawnSurvivalCpu(index + 1), 120);
+        });
+      }
       updateSurvivalCounter();
     } else cpuSelections.forEach((selection, index) => {
       const def = FIGHTERS[selection.fighterKey] || FIGHTERS.dullahan || FIGHTERS.irumine;
@@ -667,6 +816,15 @@ window.startBattle = function startBattle(options) {
     : options.mode === 'cpu'
       ? players.slice(1).map(fighter => new CPUController(fighter, players[0], fighter.survivalCpuLevel || options.cpuLevel || 3))
       : [];
+
+  if (options.resumeState?.cpuControllers) {
+    options.resumeState.cpuControllers.forEach((saved, index) => {
+      const controller = cpuControllers[index];
+      if (!controller || !saved) return;
+      controller.decisionCooldown = Math.max(0, Number(saved.decisionCooldown) || 0);
+      controller.currentIntent = { ...controller._blankInput(), ...(saved.currentIntent || {}) };
+    });
+  }
 
   if (!loopStarted) {
     loopStarted = true;
