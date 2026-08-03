@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=45">
+<link rel="stylesheet" href="css/style.css?v=46">
 </head>
 <body class="layout-pending">
 
@@ -62,7 +62,7 @@
       <button class="menu-btn" id="btn-gacha">アイテム販売所</button>
     </div>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <button id="btn-debug" class="debug-entry hidden">DEBUG</button>
+    <button id="btn-debug" class="debug-entry hidden">管理者</button>
   </div>
 
   <!-- マイページ -->
@@ -187,13 +187,31 @@
   </div>
 
   <div id="screen-debug" class="screen hidden debug-screen">
-    <div class="screen-heading">デバッグモード</div>
-    <div class="debug-tabs"><button class="active">モーション確認</button><button disabled>BGM（今後追加）</button></div>
-    <div class="debug-controls">
-      <label>fighter<select id="debug-fighter-select"></select></label>
-      <label>モーション<select id="debug-motion-select"></select></label>
+    <div class="screen-heading">管理者モード</div>
+    <div class="debug-tabs">
+      <button class="active" data-admin-tab="motion">モーション確認</button>
+      <button data-admin-tab="bgm">BGM確認</button>
+      <button data-admin-tab="players">プレイ状況確認</button>
     </div>
-    <canvas id="debug-motion-canvas" width="420" height="300"></canvas>
+    <div class="admin-pane" data-admin-pane="motion">
+      <div class="debug-controls">
+        <label>fighter<select id="debug-fighter-select"></select></label>
+        <label>モーション<select id="debug-motion-select"></select></label>
+      </div>
+      <canvas id="debug-motion-canvas" width="420" height="300"></canvas>
+    </div>
+    <div class="admin-pane hidden" data-admin-pane="bgm">
+      <div class="admin-bgm-controls">
+        <button data-admin-bgm="home">ホームBGMを再生</button>
+        <button data-admin-bgm="battleMode">バトルモードBGMを再生</button>
+        <button data-admin-bgm="stop">停止</button>
+      </div>
+      <p>管理者モードを閉じると、移動先画面のBGMへ戻ります。</p>
+    </div>
+    <div class="admin-pane hidden admin-player-pane" data-admin-pane="players">
+      <div class="admin-player-toolbar"><span id="admin-player-count"></span><button id="admin-player-refresh">更新</button></div>
+      <div id="admin-player-list" class="admin-player-list"></div>
+    </div>
     <button class="back-btn" data-back="home">戻る</button>
   </div>
 
@@ -359,15 +377,15 @@
   <script src="js/physics.js?v=31"></script>
   <script src="js/fighter.js?v=36"></script>
   <script src="js/fighters-data.js"></script>
-  <script src="js/debug-mode.js?v=2"></script>
+  <script src="js/debug-mode.js?v=3"></script>
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=35"></script>
+  <script src="js/growth-system.js?v=36"></script>
   <script src="js/input.js?v=4"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=36"></script>
-  <script src="js/flow.js?v=42"></script>
+  <script src="js/flow.js?v=43"></script>
   <script src="js/pwa.js?v=2"></script>
 </body>
 </html>

@@ -78,6 +78,7 @@ const AppFlow = {
         MasmonStore.loadFromFirestore(user.uid),
         UserProfileStore.load(user.uid, user.username),
       ]);
+      PlayerActivityStore.start(user);
       this.buildFighterList(); // マスモン読み込み完了後に一覧を再構築
       this.showScreen('start');
     } else {
@@ -135,7 +136,7 @@ const AppFlow = {
 
   showScreen(name) {
     if (name === 'debug' && !this._isDebugUser()) {
-      console.warn('デバッグモードへのアクセスが拒否されました');
+      console.warn('管理者モードへのアクセスが拒否されました');
       name = 'home';
     }
     if (name !== 'masmon-manage' && this.manageIdleTimer) {
@@ -161,6 +162,7 @@ const AppFlow = {
     if (name === 'mypage') this.renderMyPage();
     if (name === 'item-shop') this.renderItemShop();
     if (window.AudioManager) AudioManager.setScene(name, this.selectedMode);
+    if (window.PlayerActivityStore) PlayerActivityStore.setScreen(name, this.selectedCpuMode || this.selectedMode);
   },
 
   _isDebugUser() {
@@ -857,14 +859,16 @@ const AppFlow = {
     if (selectedIcon) UserProfileStore.setIcon(selectedIcon.dataset.mypageIcon);
     this._updateHomeProfile();
     this.renderMyPage();
+    PlayerActivityStore.update();
     document.getElementById('mypage-message').textContent = 'プロフィールを保存しました';
   },
 
   logoutFromMyPage() {
     if (!this.currentUser || !confirm('ログアウトしますか？')) return;
-    window.FirebaseAuth.logOut().then(() => {
+    PlayerActivityStore.update({ status: 'ログアウト', screen: 'offline' }).finally(() => window.FirebaseAuth.logOut()).then(() => {
       localStorage.removeItem('smamon_saved_login');
       this.currentUser = null;
+      PlayerActivityStore.stop();
       MasmonStore.clearCache();
       UserProfileStore.clear();
       this.showScreen('auth');

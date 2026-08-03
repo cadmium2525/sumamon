@@ -1,4 +1,4 @@
-// cadmium用デバッグ画面。今後BGMなどの確認機能もこの画面へ追加する。
+// cadmium専用の管理者画面。
 const DebugMotionViewer = {
   rafId: null,
   startedAt: 0,
@@ -13,7 +13,70 @@ const DebugMotionViewer = {
       .map(f => `<option value="${f.key}">${f.displayName}</option>`).join('');
     this.fighterSelect.addEventListener('change', () => this.buildMotionList());
     this.motionSelect.addEventListener('change', () => this.restart());
+    document.querySelectorAll('[data-admin-tab]').forEach(button => {
+      button.addEventListener('click', () => this.switchTab(button.dataset.adminTab));
+    });
+    document.querySelectorAll('[data-admin-bgm]').forEach(button => {
+      button.addEventListener('click', () => {
+        if (!window.AudioManager) return;
+        const track = button.dataset.adminBgm;
+        if (track === 'stop') AudioManager.stopBgm();
+        else AudioManager.playBgm(track);
+      });
+    });
+    document.getElementById('admin-player-refresh').addEventListener('click', () => this.loadPlayerActivity());
     this.buildMotionList();
+  },
+
+  switchTab(tabName) {
+    document.querySelectorAll('[data-admin-tab]').forEach(button => button.classList.toggle('active', button.dataset.adminTab === tabName));
+    document.querySelectorAll('[data-admin-pane]').forEach(pane => pane.classList.toggle('hidden', pane.dataset.adminPane !== tabName));
+    if (tabName === 'motion') this.restart();
+    else {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    if (tabName === 'players') this.loadPlayerActivity();
+  },
+
+  async loadPlayerActivity() {
+    const list = document.getElementById('admin-player-list');
+    const count = document.getElementById('admin-player-count');
+    list.innerHTML = '<div class="admin-player-empty">読み込み中…</div>';
+    const records = await PlayerActivityStore.loadAll();
+    count.textContent = `${records.length}プレイヤー`;
+    if (!records.length) {
+      list.innerHTML = '<div class="admin-player-empty">プレイ状況データがありません</div>';
+      return;
+    }
+    const now = Date.now();
+    const screenLabels = {
+      start: 'スタート', home: 'ホーム', mypage: 'マイページ', 'cpu-mode': 'CPUモード選択',
+      'stage-select': 'ステージ選択', 'fighter-select': 'モンスター選択', 'cpu-level': 'CPUレベル選択',
+      battle: 'バトル中', result: 'リザルト', training: 'トレーニング', 'masmon-manage': 'マスモン管理',
+      'multi-menu': 'マルチメニュー', 'multi-lobby': 'マルチロビー', 'item-shop': 'アイテム販売所', debug: '管理者モード',
+    };
+    list.innerHTML = records.map(record => {
+      const seen = Number(record.lastSeenAt) || 0;
+      const online = now - seen < 125000;
+      const icon = record.iconKey === 'dullahan' ? FIGHTERS.dullahan.stockIcon : FIGHTERS.irumine.stockIcon;
+      return `<article class="admin-player-row">
+        <img src="${icon}" alt=""><span><strong>${this.escape(record.nickname || record.username || '名称未設定')}</strong><small>@${this.escape(record.username || 'unknown')}</small></span>
+        <span><b class="${online ? 'online' : 'offline'}">${online ? 'オンライン' : 'オフライン'}</b><small>${this.escape(screenLabels[record.screen] || record.screen || '不明')}${record.mode ? ` / ${this.escape(record.mode)}` : ''}</small></span>
+        <span><small>最終ログイン</small><time>${this.formatDate(record.lastLoginAt)}</time><small>最終アクセス ${this.formatDate(seen)}</small></span>
+      </article>`;
+    }).join('');
+  },
+
+  escape(value) {
+    const div = document.createElement('div');
+    div.textContent = String(value || '');
+    return div.innerHTML;
+  },
+
+  formatDate(value) {
+    const time = Number(value) || 0;
+    return time ? new Date(time).toLocaleString('ja-JP') : '記録なし';
   },
 
   _motionsFor(fighter) {
@@ -70,6 +133,7 @@ const DebugMotionViewer = {
       this.rafId = null;
       return;
     }
+    this.switchTab('motion');
     this.restart();
   },
 

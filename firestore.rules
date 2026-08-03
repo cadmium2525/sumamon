@@ -14,5 +14,15 @@ service cloud.firestore {
         && request.resource.data.uid == userId;
       allow delete: if false;
     }
+
+    // 各ユーザーは自分のプレイ状況だけを更新でき、一覧を読めるのはcadmium管理者のみ。
+    match /playerActivity/{userId} {
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId;
+      allow read: if request.auth != null
+        && request.auth.token.email == 'cadmium@smamon.local';
+      allow delete: if false;
+    }
   }
 }

@@ -402,3 +402,58 @@ const UserProfileStore = {
     return true;
   },
 };
+
+// 管理者モード用のプレイ状況。パスワードや認証トークンは保存しない。
+const PlayerActivityStore = {
+  currentUser: null,
+  heartbeatTimer: null,
+  lastScreen: 'start',
+
+  start(user) {
+    this.currentUser = user;
+    this.update({ lastLoginAt: Date.now(), status: 'ログイン', screen: 'start' });
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = setInterval(() => this.update({ screen: this.lastScreen }), 60000);
+  },
+
+  stop() {
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
+    this.currentUser = null;
+  },
+
+  setScreen(screen, mode) {
+    this.lastScreen = screen;
+    if (!this.currentUser) return;
+    this.update({ screen, mode: mode || '', status: screen === 'battle' ? 'バトル中' : 'オンライン' });
+  },
+
+  update(extra = {}) {
+    if (!this.currentUser || !window.FirebaseDB) return Promise.resolve();
+    const { db, doc, setDoc } = window.FirebaseDB;
+    const profile = UserProfileStore.data || {};
+    return setDoc(doc(db, 'playerActivity', this.currentUser.uid), {
+      uid: this.currentUser.uid,
+      username: this.currentUser.username || '',
+      nickname: profile.nickname || this.currentUser.username || '',
+      iconKey: profile.iconKey || 'irumine',
+      lastSeenAt: Date.now(),
+      ...extra,
+    }, { merge: true }).catch(error => console.error('プレイ状況の更新に失敗しました:', error));
+  },
+
+  async loadAll() {
+    if (!window.FirebaseDB) return [];
+    const { db, collection, getDocs } = window.FirebaseDB;
+    try {
+      const snapshot = await getDocs(collection(db, 'playerActivity'));
+      return snapshot.docs.map(item => item.data()).sort((a, b) =>
+        (Number(b.lastSeenAt) || 0) - (Number(a.lastSeenAt) || 0));
+    } catch (error) {
+      console.error('プレイ状況の読み込みに失敗しました:', error);
+      return [];
+    }
+  },
+};
+
+window.PlayerActivityStore = PlayerActivityStore;
