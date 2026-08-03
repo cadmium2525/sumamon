@@ -238,29 +238,59 @@ body.layout-pending .screen { visibility: hidden; }
 }
 
 .auth-box {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: min(80vw, 320px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto;
+  gap: 10px 12px;
+  width: min(92vw, 650px);
+  max-height: calc(var(--app-height, 100dvh) - 60px);
+  overflow-y: auto;
+  padding: 4px;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 .auth-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 12px 14px;
-  font-size: 15px;
+  font-size: 16px;
   border-radius: 8px;
   border: 2px solid rgba(255,255,255,0.35);
   background: rgba(255,255,255,0.08);
   color: #fff;
 }
+.auth-input:focus { border-color: #72d9ff; outline: none; box-shadow: 0 0 0 3px rgba(80,195,255,.18); }
+#auth-username { grid-column: 1; grid-row: 1; }
+#auth-password { grid-column: 1; grid-row: 2; }
+#btn-auth-login { grid-column: 2; grid-row: 1; }
+#btn-auth-signup { grid-column: 2; grid-row: 2; }
 .auth-input::placeholder { color: rgba(255,255,255,0.45); }
-.auth-remember { display: flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; }
+.auth-remember { grid-column: 1; grid-row: 3; display: flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; }
 .auth-remember input { width: 16px; height: 16px; }
-.auth-storage-note { margin-top: -7px; font-size: 10px; color: #ffd08a; opacity: .8; }
+.auth-storage-note { grid-column: 2; grid-row: 3; align-self: center; font-size: 10px; color: #ffd08a; opacity: .8; }
 .auth-error {
+  grid-column: 1 / -1;
+  grid-row: 4;
   color: #ff6b6b;
   font-size: 13px;
   line-height: 1.4;
 }
 .auth-signup-btn { background: rgba(94,200,255,0.15); }
+
+/* キーボード表示中はタイトルを退避し、入力中の欄と操作ボタンを優先する。 */
+#screen-auth:focus-within { justify-content: flex-start; padding-top: max(6px, env(safe-area-inset-top)); box-sizing: border-box; }
+#screen-auth:focus-within .logo-title { display: none; }
+#screen-auth:focus-within .auth-box { max-height: calc(var(--app-height, 100dvh) - 12px); }
+
+@media (orientation: landscape) and (max-height: 280px) {
+  #screen-auth .logo-title { display: none; }
+  #screen-auth { justify-content: flex-start; padding-top: max(5px, env(safe-area-inset-top)); box-sizing: border-box; }
+  #screen-auth .auth-box { gap: 6px 10px; max-height: calc(var(--app-height, 100dvh) - 10px); }
+  #screen-auth .auth-input, #screen-auth .menu-btn { min-height: 38px; padding: 7px 10px; }
+  #screen-auth .auth-remember { font-size: 10px; }
+  #screen-auth .auth-storage-note { font-size: 9px; }
+}
 .home-profile-card {
   position: absolute;
   top: 12px;
