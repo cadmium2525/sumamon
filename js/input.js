@@ -123,6 +123,7 @@ class VirtualPad {
       </div>
     `;
     this.container.appendChild(root);
+    this.rootEl = root;
 
     // 設定パネルはバトル画面に限らずどの画面からも開けるよう document.body 直下に配置
     const settingsRoot = document.createElement('div');
@@ -337,5 +338,12 @@ class VirtualPad {
 
   getState() {
     return this.state;
+  }
+
+  // バトル画面以外（修行ミニゲームなど）でも同じ仮想パッドを使い回すための再配置用メソッド
+  moveTo(container) {
+    if (!container || !this.rootEl || this.rootEl.parentElement === container) return;
+    container.appendChild(this.rootEl);
+    this.container = container;
   }
 }

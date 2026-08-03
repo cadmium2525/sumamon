@@ -94,8 +94,8 @@ const GROWTH = {
     return { ok: true, training, applied };
   },
 
-  applyPracticeResult(masmon, mainStat, grade) {
-    const gradeMultiplier = { S: 1, A: 0.85, B: 0.65, C: 0.4, D: 0.2 }[grade] || 0.2;
+  applyPracticeResult(masmon, mainStat, grade, mainBase = 13, lifeBase = 5) {
+    const gradeMultiplier = { S: 1, A: 0.85, B: 0.65, C: 0.4, D: 0.2, E: 0.15 }[grade] || 0.15;
     const apply = (stat, base) => {
       const aptitude = masmon.aptitudes?.[stat] || 'C';
       const aptitudeMultiplier = this.APTITUDE_MULTIPLIER[aptitude] || 1;
@@ -106,7 +106,7 @@ const GROWTH = {
       masmon.trainingStats[stat] = next;
       return next - current;
     };
-    return { [mainStat]: apply(mainStat, 13), life: apply('life', 5) };
+    return { [mainStat]: apply(mainStat, mainBase), life: apply('life', lifeBase) };
   },
 
   // 対戦結果からEXP量を算出（暫定式）

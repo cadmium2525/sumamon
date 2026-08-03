@@ -6,6 +6,9 @@ const ctx = canvas.getContext('2d');
 const hud = document.getElementById('hud');
 const input = new InputManager();
 const vpad = new VirtualPad(document.getElementById('game-container'));
+// 修行ミニゲームなど他画面からも同じ仮想パッド／キーボード入力を再利用できるようにする
+window.SharedInput = input;
+window.SharedVPad = vpad;
 
 const blastBounds = {
   left: -CONFIG.BLAST_MARGIN,
