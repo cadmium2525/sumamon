@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=49">
+<link rel="stylesheet" href="css/style.css?v=50">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.61</small>
+    <small class="home-version">Version 0.62</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.62</time><strong>iPhoneのログイン入力を修正</strong><p>ログイン画面で入力欄をタップしても文字入力できない場合がある問題を修正しました。</p></article>
           <article><time>Version 0.61</time><strong>5つの修行を実装</strong><p>修行先ごとに異なるミニゲームと、結果に応じた能力成長を追加しました。</p></article>
           <article><time>Version 0.60</time><strong>連戦の中断・再開</strong><p>100人組手とエンドレスを途中保存し、続きから再開できるようにしました。</p></article>
           <article><time>Version 0.59</time><strong>更新履歴を追加</strong><p>ホームから更新内容と現在のバージョンを確認できるようにしました。</p></article>
@@ -444,7 +445,7 @@
   <script src="js/input.js?v=4"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=37"></script>
-  <script src="js/flow.js?v=46"></script>
+    <script src="js/flow.js?v=47"></script>
   <script src="js/pwa.js?v=6"></script>
 </body>
 </html>

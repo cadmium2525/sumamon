@@ -751,6 +751,14 @@ const AppFlow = {
     const signupBtn = document.getElementById('btn-auth-signup');
     const savedLoginKey = 'smamon_saved_login';
 
+    // iOS PWAではスクロール可能な親要素内のinputが、一度目のタップで
+    // フォーカスされないことがある。ユーザー操作内で明示的に補完する。
+    [usernameEl, passwordEl].forEach(input => {
+      input.addEventListener('touchend', () => {
+        if (document.activeElement !== input) input.focus({ preventScroll: true });
+      }, { passive: true });
+    });
+
     try {
       const saved = JSON.parse(localStorage.getItem(savedLoginKey));
       if (saved && typeof saved.username === 'string' && typeof saved.password === 'string') {
