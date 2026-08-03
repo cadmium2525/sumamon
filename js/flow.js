@@ -410,6 +410,15 @@ const AppFlow = {
     document.getElementById('btn-home-settings').addEventListener('click', () => {
       vpad.el.settingsPanel.classList.remove('hidden');
     });
+    document.getElementById('btn-home-history').addEventListener('click', () => {
+      document.getElementById('home-history-modal').classList.remove('hidden');
+    });
+    document.getElementById('home-history-close').addEventListener('click', () => {
+      document.getElementById('home-history-modal').classList.add('hidden');
+    });
+    document.getElementById('home-history-modal').addEventListener('click', event => {
+      if (event.target.id === 'home-history-modal') event.currentTarget.classList.add('hidden');
+    });
     document.getElementById('btn-debug').addEventListener('click', () => {
       if (this._isDebugUser()) this.showScreen('debug');
     });

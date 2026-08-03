@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=46">
+<link rel="stylesheet" href="css/style.css?v=47">
 </head>
 <body class="layout-pending">
 
@@ -61,8 +61,23 @@
       <button class="menu-btn" id="btn-training">マスモン管理</button>
       <button class="menu-btn" id="btn-gacha">アイテム販売所</button>
     </div>
+    <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
+    <small class="home-version">Version 0.59</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
+    <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
+      <div class="home-history-dialog">
+        <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
+        <h2 id="home-history-title">📜 更新履歴</h2>
+        <div class="home-history-list">
+          <article><time>Version 0.59</time><strong>更新履歴を追加</strong><p>ホームから更新内容と現在のバージョンを確認できるようにしました。</p></article>
+          <article><time>Version 0.58</time><strong>ログイン画面を改善</strong><p>入力フォームを2列化し、iPhoneで入力中も見やすくしました。</p></article>
+          <article><time>Version 0.57</time><strong>マルチ報酬を分かりやすく</strong><p>マルチボタンに「マスモンEXP ×2」バッジを追加しました。</p></article>
+          <article><time>Version 0.56</time><strong>CPUモード報酬を表示</strong><p>各モードで獲得できるダイヤや修行券を表示しました。</p></article>
+          <article><time>Version 0.55</time><strong>PWA更新通知を改善</strong><p>更新データを安定して検知し、通知できるようにしました。</p></article>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- マイページ -->
@@ -385,7 +400,7 @@
   <script src="js/input.js?v=4"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=36"></script>
-  <script src="js/flow.js?v=43"></script>
-  <script src="js/pwa.js?v=3"></script>
+  <script src="js/flow.js?v=44"></script>
+  <script src="js/pwa.js?v=4"></script>
 </body>
 </html>
