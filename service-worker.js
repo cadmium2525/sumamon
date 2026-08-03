@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v54';
+const CACHE_NAME = 'smamon-app-v55';
 const APP_SHELL = [
   './',
   './index.html',
@@ -61,10 +61,29 @@ const APP_SHELL = [
   './assets/audio/bomb.mp3'
 ];
 
+async function cacheFreshAppShell() {
+  const cache = await caches.open(CACHE_NAME);
+  const results = await Promise.allSettled(APP_SHELL.map(async url => {
+    const request = new Request(url, { cache: 'reload' });
+    const response = await fetch(request);
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    await cache.put(request, response);
+  }));
+
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      console.warn('キャッシュできなかったファイル:', APP_SHELL[index], result.reason);
+    }
+  });
+
+  // 中核画面だけは取得できない場合に不完全な更新を有効化しない。
+  if (!await cache.match('./index.html')) {
+    throw new Error('index.htmlをキャッシュできませんでした');
+  }
+}
+
 self.addEventListener('install', event => {
-  // GitHub Pages/CDNやSafariのHTTPキャッシュに残った旧JSを新キャッシュへ混入させない。
-  const freshRequests = APP_SHELL.map(url => new Request(url, { cache: 'reload' }));
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(freshRequests)));
+  event.waitUntil(cacheFreshAppShell());
 });
 
 self.addEventListener('message', event => {
@@ -72,12 +91,15 @@ self.addEventListener('message', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.filter(key => key.startsWith('smamon-app-') && key !== CACHE_NAME).map(key => caches.delete(key))
-    ))
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter(key => key.startsWith('smamon-app-') && key !== CACHE_NAME)
+        .map(key => caches.delete(key))
+    );
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', event => {
@@ -86,11 +108,14 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // 現在のバージョンを維持し、更新許可後の再読み込みで新キャッシュへ切り替える。
+  // バージョン情報はキャッシュせず、常に公開中の最新版を取得する。
+  if (url.pathname.endsWith('/version.json')) {
+    event.respondWith(fetch(new Request(request, { cache: 'no-store' })));
+    return;
+  }
+
   if (request.mode === 'navigate') {
-    event.respondWith(
-      caches.match('./index.html').then(cached => cached || fetch(request))
-    );
+    event.respondWith(caches.match('./index.html').then(cached => cached || fetch(request)));
     return;
   }
 
