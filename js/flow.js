@@ -643,14 +643,7 @@ const AppFlow = {
   },
 
   openPractice() {
-    let monster = this._selectedManageMasmon();
-    if (!monster) {
-      monster = MasmonStore.loadAll()[0];
-      if (!monster) { alert('修行できるマスモンがいません'); return; }
-      this.selectedManageMasmonId = monster.id;
-    }
-    this.showScreen('practice');
-    PracticeGame.openSelection(monster);
+    alert('修行は近日実装予定です。今しばらくお待ちください。');
   },
 
   _selectedManageMasmon() {
