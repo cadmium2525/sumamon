@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v63';
+const CACHE_NAME = 'smamon-app-v64';
 const APP_SHELL = [
   './',
   './index.html',
@@ -77,9 +77,15 @@ async function cacheFreshAppShell() {
     }
   });
 
-  // 中核画面だけは取得できない場合に不完全な更新を有効化しない。
-  if (!await cache.match('./index.html')) {
-    throw new Error('index.htmlをキャッシュできませんでした');
+  // 中核ファイル（HTML/CSS/JS）は1つでも取得できなければ不完全な更新を有効化しない。
+  // (画像・音声などのアセットは失敗しても致命的ではないため対象外)
+  const criticalAssets = APP_SHELL.filter(url => /\.(html|css|js)$/.test(url) || url === './');
+  const missing = [];
+  for (const url of criticalAssets) {
+    if (!await cache.match(url)) missing.push(url);
+  }
+  if (missing.length) {
+    throw new Error(`中核ファイルをキャッシュできませんでした: ${missing.join(', ')}`);
   }
 }
 
@@ -116,12 +122,12 @@ self.addEventListener('fetch', event => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(caches.match('./index.html').then(cached => cached || fetch(request)));
+    event.respondWith(caches.match('./index.html').then(cached => cached || fetch(new Request(request, { cache: 'reload' }))));
     return;
   }
 
   event.respondWith(
-    caches.match(request, { ignoreSearch: true }).then(cached => cached || fetch(request).then(response => {
+    caches.match(request, { ignoreSearch: true }).then(cached => cached || fetch(new Request(request, { cache: 'reload' })).then(response => {
       if (response.ok) {
         const copy = response.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
