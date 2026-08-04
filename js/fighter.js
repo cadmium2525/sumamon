@@ -442,7 +442,7 @@ class Fighter {
           this.startAttack(MOVES.ground[dir]);
         }
       } else if (wasOnGround) {
-        this.startAttack(MOVES.ground.neutral);
+        this.startAttack((this.moveSet.ground && this.moveSet.ground.neutral) || MOVES.ground.neutral);
       } else {
         let move;
         if (dir === 'up') move = MOVES.air.up;
