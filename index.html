@@ -1,460 +1,349 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-<meta name="theme-color" content="#071a2e">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="スマモン">
-<title>スマモン (SmaMon)</title>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="assets/images/app-icon.png">
-<link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=51">
-</head>
-<body class="layout-pending">
+// ==== 入力管理 ====
+// キーボード（ローカル動作確認用）と、モバイル向け仮想パッド(P1のみ)を提供する。
+// どちらも同じ形のinputState { left,right,up,down,jump,attack,special,shield,grab,stickX }
+// を返すため、Fighter側は入力ソースを区別しない。
+// stickX: -1(左いっぱい)〜1(右いっぱい)の連続値。歩き/ダッシュ/ステップの判定に使用。
+// キーボードはON/OFFしか無いため常に±1（フル入力）扱いになるが、
+// 歩行テスト用の修飾キー（P1:右Alt / P2:左Alt）を押しながらだと倒し込み量を弱めた扱いにする。
 
-  <!-- 1. ローディング画面 -->
-  <div id="screen-loading" class="screen">
-    <div class="logo-title">スマモン</div>
-    <div class="loading-bar-track"><div id="loading-bar-fill" class="loading-bar-fill"></div></div>
-    <div class="loading-label">Loading...</div>
-  </div>
+class InputManager {
+  constructor() {
+    this.keys = {};
+    window.addEventListener('keydown', e => { this.keys[e.code] = true; });
+    window.addEventListener('keyup', e => { this.keys[e.code] = false; });
+  }
 
-  <!-- 2. ログイン / 新規登録画面 -->
-  <div id="screen-auth" class="screen hidden">
-    <div class="logo-title small">スマモン</div>
-    <div class="auth-box">
-      <input type="text" id="auth-username" class="auth-input" placeholder="ユーザー名（半角英数字と_）" maxlength="20" autocomplete="username">
-      <input type="password" id="auth-password" class="auth-input" placeholder="パスワード（6文字以上）" maxlength="50" autocomplete="current-password">
-      <label class="auth-remember"><input type="checkbox" id="auth-remember"> ログイン情報をこの端末に保存</label>
-      <div class="auth-storage-note">共用端末では保存しないでください</div>
-      <div id="auth-error" class="auth-error hidden"></div>
-      <button id="btn-auth-login" class="menu-btn">ログイン</button>
-      <button id="btn-auth-signup" class="menu-btn auth-signup-btn">はじめて遊ぶ（新規登録）</button>
-    </div>
-  </div>
+  // P1: 矢印キー(移動/方向) + Space(ジャンプ) + Enter(A) + 右Shift(B) + 右Ctrl(シールド) + \(掴み)
+  // 右Alt: 歩行テスト用修飾キー（倒し込み量を弱める）
+  getPlayer1Input() {
+    const left = !!this.keys['ArrowLeft'];
+    const right = !!this.keys['ArrowRight'];
+    const walkMod = !!this.keys['AltRight'];
+    let stickX = 0;
+    if (left) stickX = -1;
+    if (right) stickX = 1;
+    if (walkMod) stickX *= 0.4;
+    return {
+      left, right,
+      up: !!this.keys['ArrowUp'],
+      down: !!this.keys['ArrowDown'],
+      jump: !!this.keys['Space'],
+      attack: !!this.keys['Enter'],
+      special: !!this.keys['ShiftRight'],
+      shield: !!this.keys['ControlRight'],
+      grab: !!this.keys['Backslash'],
+      stickX,
+    };
+  }
 
-  <!-- 3. スタート画面 -->
-  <div id="screen-start" class="screen hidden">
-    <div class="logo-title">スマモン</div>
-    <div class="tap-start">TAP START</div>
-  </div>
+  // P2: WASD(移動/方向) + Q(ジャンプ) + F(A) + G(B) + H(シールド) + R(掴み)
+  // 左Alt: 歩行テスト用修飾キー
+  getPlayer2Input() {
+    const left = !!this.keys['KeyA'];
+    const right = !!this.keys['KeyD'];
+    const walkMod = !!this.keys['AltLeft'];
+    let stickX = 0;
+    if (left) stickX = -1;
+    if (right) stickX = 1;
+    if (walkMod) stickX *= 0.4;
+    return {
+      left, right,
+      up: !!this.keys['KeyW'],
+      down: !!this.keys['KeyS'],
+      jump: !!this.keys['KeyQ'],
+      attack: !!this.keys['KeyF'],
+      special: !!this.keys['KeyG'],
+      shield: !!this.keys['KeyH'],
+      grab: !!this.keys['KeyR'],
+      stickX,
+    };
+  }
+}
 
-  <!-- 4. ホーム画面 -->
-  <div id="screen-home" class="screen hidden">
-    <button id="home-profile-card" class="home-profile-card" title="マイページを開く">
-      <img id="home-profile-icon" src="assets/images/fighter/irumine/stock.png" alt="プロフィールアイコン">
-      <span class="home-profile-info">
-        <span class="home-profile-name"><b id="home-nickname">ブリーダー</b></span>
-        <span class="home-breeder-line"><b id="home-breeder-level">ブリーダー Lv.1</b><small id="home-breeder-exp-text">0 / 100 EXP</small></span>
-        <span class="home-breeder-exp"><i id="home-breeder-exp-fill"></i></span>
-        <span class="home-profile-currency"><b id="home-diamonds">💎 0</b><b id="home-practice-tickets">修行券 0</b></span>
-      </span>
-    </button>
-    <img class="home-logo" src="assets/images/logo.png" alt="大乱闘スマッシュモンスターズ">
-    <div class="menu-list">
-      <button class="menu-btn" id="btn-cpu">CPU戦</button>
-      <button class="menu-btn" id="btn-multi">マルチ<span class="multi-exp-badge">マスモンEXP ×2</span></button>
-      <button class="menu-btn" id="btn-training">マスモン管理</button>
-      <button class="menu-btn" id="btn-gacha">アイテム販売所</button>
-    </div>
-    <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
-    <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.65</small>
-    <button id="btn-debug" class="debug-entry hidden">管理者</button>
-    <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
-      <div class="home-history-dialog">
-        <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
-        <h2 id="home-history-title">📜 更新履歴</h2>
-        <div class="home-history-list">
-          <article><time>Version 0.65</time><strong>イルミネの弱A技を強化</strong><p>専用モーションのスプライトを追加しました。</p></article>
-          <article><time>Version 0.64</time><strong>キャッシュ不整合を修正</strong><p>更新後に古い表示のまま残ってしまうことがある問題を修正しました。</p></article>
-          <article><time>Version 0.63</time><strong>マンディー砂漠を刷新</strong><p>横スクロールの障害物走とモノリスのギミックを追加しました。</p></article>
-          <article><time>Version 0.62</time><strong>iPhoneのログイン入力を修正</strong><p>ログイン画面で入力欄をタップしても文字入力できない場合がある問題を修正しました。</p></article>
-          <article><time>Version 0.61</time><strong>5つの修行を実装</strong><p>修行先ごとに異なるミニゲームと、結果に応じた能力成長を追加しました。</p></article>
-          <article><time>Version 0.60</time><strong>連戦の中断・再開</strong><p>100人組手とエンドレスを途中保存し、続きから再開できるようにしました。</p></article>
-          <article><time>Version 0.59</time><strong>更新履歴を追加</strong><p>ホームから更新内容と現在のバージョンを確認できるようにしました。</p></article>
-          <article><time>Version 0.58</time><strong>ログイン画面を改善</strong><p>入力フォームを2列化し、iPhoneで入力中も見やすくしました。</p></article>
-          <article><time>Version 0.57</time><strong>マルチ報酬を分かりやすく</strong><p>マルチボタンに「マスモンEXP ×2」バッジを追加しました。</p></article>
-          <article><time>Version 0.56</time><strong>CPUモード報酬を表示</strong><p>各モードで獲得できるダイヤや修行券を表示しました。</p></article>
-          <article><time>Version 0.55</time><strong>PWA更新通知を改善</strong><p>更新データを安定して検知し、通知できるようにしました。</p></article>
+// 入力を論理和／優先マージ（キーボード + 仮想パッド 併用可）
+function mergeInputs(a, b) {
+  return {
+    left: a.left || b.left,
+    right: a.right || b.right,
+    up: a.up || b.up,
+    down: a.down || b.down,
+    jump: a.jump || b.jump,
+    attack: a.attack || b.attack,
+    special: a.special || b.special,
+    shield: a.shield || b.shield,
+    grab: a.grab || b.grab,
+    stickX: Math.abs(b.stickX) > Math.abs(a.stickX) ? b.stickX : a.stickX,
+  };
+}
+
+const PAD_CONFIG_KEY = 'smamon_pad_config';
+
+function loadPadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PAD_CONFIG_KEY));
+    if (saved) return { ...CONFIG.DEFAULT_PAD_CONFIG, ...saved };
+  } catch (e) { /* ignore */ }
+  return { ...CONFIG.DEFAULT_PAD_CONFIG };
+}
+
+function savePadConfig(cfg) {
+  try { localStorage.setItem(PAD_CONFIG_KEY, JSON.stringify(cfg)); } catch (e) { /* ignore */ }
+}
+
+// Fighter.jsなど他ファイルから参照する共有設定（ボタン表示 + タップジャンプON/OFF）
+window.GameSettings = loadPadConfig();
+
+// ==== 仮想パッド（タッチ操作: 左スティック + 右ボタン群） ====
+class VirtualPad {
+  constructor(containerEl) {
+    this.state = { left: false, right: false, up: false, down: false, jump: false, attack: false, special: false, shield: false, grab: false, stickX: 0, stickY: 0 };
+    this.padConfig = window.GameSettings;
+    this.container = containerEl;
+    this.stickCenter = { x: 0, y: 0 };
+    this.stickActiveTouchId = null;
+    this._buildDOM();
+    this._bindEvents();
+  }
+
+  _buildDOM() {
+    const root = document.createElement('div');
+    root.id = 'vpad-root';
+    root.innerHTML = `
+      <div id="vpad-left" class="vpad-zone">
+        <div id="joystick-base">
+          <div id="joystick-thumb"></div>
         </div>
       </div>
-    </div>
-  </div>
+      <div id="vpad-right" class="vpad-zone">
+        <button id="btn-shield" class="vbtn small">Shield</button>
+        <button id="btn-jump" class="vbtn small">Jump</button>
+        <button id="btn-grab" class="vbtn small">Grab</button>
+        <button id="btn-b" class="vbtn medium">B</button>
+        <button id="btn-a" class="vbtn large">A</button>
+      </div>
+    `;
+    this.container.appendChild(root);
+    this.rootEl = root;
 
-  <!-- マイページ -->
-  <div id="screen-mypage" class="screen hidden mypage-screen">
-    <div class="mypage-shell">
-      <header class="mypage-header">
-        <div>
-          <div class="screen-heading">マイページ</div>
-          <small id="mypage-username">ユーザー名</small>
+    // 設定パネルはバトル画面に限らずどの画面からも開けるよう document.body 直下に配置
+    const settingsRoot = document.createElement('div');
+    settingsRoot.id = 'vpad-settings-root';
+    settingsRoot.innerHTML = `
+      <button id="vpad-settings-toggle" title="操作設定">⚙</button>
+      <div id="vpad-settings-panel" class="hidden">
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-settings-tab="battle">バトル設定</button>
+          <button class="settings-tab" data-settings-tab="audio">音量調節</button>
         </div>
-        <div class="mypage-wallet"><b id="mypage-diamonds">💎 0</b><b id="mypage-practice-tickets">修行券 0</b></div>
-      </header>
-
-      <nav class="mypage-tabs" aria-label="マイページメニュー">
-        <button class="mypage-tab active" data-mypage-tab="profile">プロフィール</button>
-        <button class="mypage-tab" data-mypage-tab="items">所持アイテム</button>
-        <button class="mypage-tab" data-mypage-tab="records">戦績</button>
-      </nav>
-
-      <div class="mypage-main mypage-pane" data-mypage-pane="profile">
-        <section class="mypage-breeder-card">
-          <img id="mypage-current-icon" src="assets/images/fighter/irumine/stock.png" alt="プロフィールアイコン">
-          <div class="mypage-breeder-info">
-            <strong id="mypage-current-name">ブリーダー</strong>
-            <span id="mypage-breeder-level">ブリーダー Lv.1</span>
-            <div class="mypage-exp-track"><i id="mypage-exp-fill"></i></div>
-            <small id="mypage-exp-text">0 / 100 EXP</small>
+        <div class="settings-pane" data-settings-pane="battle">
+          <label><input type="checkbox" id="cfg-jump"> ジャンプボタンを表示</label>
+          <label><input type="checkbox" id="cfg-tapjump"> スティック上入力でジャンプ</label>
+          <label><input type="checkbox" id="cfg-shield"> シールドボタンを表示</label>
+          <label><input type="checkbox" id="cfg-b"> Bボタンを表示</label>
+        </div>
+        <div class="settings-pane hidden" data-settings-pane="audio">
+          <label class="sound-enable-setting"><input id="cfg-sound-enabled" type="checkbox"> サウンド出力を有効にする</label>
+          <small class="sound-ios-note">iPhoneではBGM・SEともマナースイッチに従います。アプリ側でも消音する場合はここをOFFにしてください</small>
+          <div class="volume-setting" data-volume-kind="bgm">
+            <strong>BGM</strong>
+            <div class="volume-controls"><button data-volume-step="-1" aria-label="BGM音量を下げる">−</button><input id="cfg-bgm-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1" aria-label="BGM音量を上げる">＋</button><output id="cfg-bgm-volume-value">70</output></div>
           </div>
-        </section>
-
-        <section class="mypage-edit-card">
-          <h2>プロフィール編集</h2>
-          <label class="mypage-field">ニックネーム
-            <input type="text" id="mypage-nickname" maxlength="16" placeholder="ニックネーム">
-          </label>
-          <div class="mypage-icon-label">アイコン</div>
-          <div class="mypage-icon-options">
-            <button class="mypage-icon-option" data-mypage-icon="irumine" aria-label="イルミネを選択"><img src="assets/images/fighter/irumine/stock.png" alt="イルミネ"></button>
-            <button class="mypage-icon-option" data-mypage-icon="dullahan" aria-label="デュラハンを選択"><img src="assets/images/fighter/dullahan/stock.png" alt="デュラハン"></button>
+          <div class="volume-setting" data-volume-kind="se">
+            <strong>SE</strong>
+            <div class="volume-controls"><button data-volume-step="-1" aria-label="SE音量を下げる">−</button><input id="cfg-se-volume" type="range" min="0" max="100" step="1"><button data-volume-step="1" aria-label="SE音量を上げる">＋</button><output id="cfg-se-volume-value">70</output></div>
           </div>
-          <div class="mypage-actions">
-            <button id="mypage-save" class="mypage-save">保存</button>
-            <button id="mypage-logout" class="mypage-logout">ログアウト</button>
-          </div>
-          <div id="mypage-message" class="mypage-message" aria-live="polite"></div>
-        </section>
-      </div>
-      <section class="mypage-pane mypage-list-pane hidden" data-mypage-pane="items">
-        <div id="mypage-item-list" class="mypage-item-list"></div>
-      </section>
-      <section class="mypage-pane mypage-list-pane hidden" data-mypage-pane="records">
-        <div id="mypage-record-list" class="mypage-record-list"></div>
-      </section>
-    </div>
-    <button class="back-btn" data-back="home">戻る</button>
-  </div>
-
-  <div id="screen-item-shop" class="screen hidden scrollable-screen item-shop-screen">
-    <div class="item-shop-header">
-      <div>
-        <div class="screen-heading">アイテム販売所</div>
-        <small>育成に役立つアイテムをダイヤで購入できます</small>
-      </div>
-      <div id="shop-diamonds" class="shop-diamonds">💎 0</div>
-    </div>
-    <div id="item-shop-list" class="item-shop-list"></div>
-    <div id="item-shop-toast" class="item-shop-toast hidden" aria-live="polite"></div>
-    <div id="shop-purchase-modal" class="shop-modal hidden" role="dialog" aria-modal="true" aria-labelledby="shop-modal-title">
-      <div class="shop-modal-card">
-        <button id="shop-modal-close" class="shop-modal-close" aria-label="閉じる">×</button>
-        <img id="shop-modal-image" alt="">
-        <div class="shop-modal-content">
-          <h2 id="shop-modal-title"></h2>
-          <p id="shop-modal-effect"></p>
-          <div class="shop-quantity-row">
-            <button id="shop-quantity-minus" aria-label="数量を減らす">－</button>
-            <input id="shop-quantity" type="number" inputmode="numeric" min="1" max="99" value="1" aria-label="購入数">
-            <button id="shop-quantity-plus" aria-label="数量を増やす">＋</button>
-          </div>
-          <div id="shop-modal-total" class="shop-modal-total">合計 💎 0</div>
-          <button id="shop-purchase-confirm" class="shop-purchase-confirm">購入する</button>
         </div>
+        <button id="vpad-settings-close">閉じる</button>
       </div>
-    </div>
-    <button class="back-btn" data-back="home">戻る</button>
-  </div>
+    `;
+    document.body.appendChild(settingsRoot);
 
-  <div id="screen-multi-menu" class="screen hidden multi-screen">
-    <div class="screen-heading">マルチプレイ</div>
-    <div class="multi-tabs">
-      <button class="multi-tab active" data-multi-tab="host">部屋を作る</button>
-      <button class="multi-tab" data-multi-tab="guest">部屋を探す</button>
-    </div>
-    <div class="multi-pane" data-multi-pane="host">
-      <div class="multi-config-row">
-        <label>対戦人数
-          <select id="multi-host-size"><option value="2">2人</option><option value="3">3人</option><option value="4" selected>4人</option></select>
-        </label>
-        <label>地形<select id="multi-host-stage"></select></label>
-      </div>
-      <h3>使用するマスモン</h3>
-      <div id="multi-host-masmons" class="multi-masmon-list"></div>
-      <button id="multi-create-room" class="multi-primary-btn">この設定で部屋を作る</button>
-    </div>
-    <div class="multi-pane hidden" data-multi-pane="guest">
-      <h3>使用するマスモン</h3>
-      <div id="multi-guest-masmons" class="multi-masmon-list"></div>
-      <button id="multi-find-rooms" class="multi-primary-btn">部屋を検索する</button>
-      <div id="multi-room-list" class="multi-room-list"></div>
-    </div>
-    <div id="multi-menu-message" class="multi-message" aria-live="polite"></div>
-    <button class="back-btn" data-back="home">戻る</button>
-  </div>
+    this.el = {
+      stickBase: root.querySelector('#joystick-base'),
+      stickThumb: root.querySelector('#joystick-thumb'),
+      btnJump: root.querySelector('#btn-jump'),
+      btnGrab: root.querySelector('#btn-grab'),
+      btnShield: root.querySelector('#btn-shield'),
+      btnB: root.querySelector('#btn-b'),
+      btnA: root.querySelector('#btn-a'),
+      settingsToggle: settingsRoot.querySelector('#vpad-settings-toggle'),
+      settingsPanel: settingsRoot.querySelector('#vpad-settings-panel'),
+      cfgJump: settingsRoot.querySelector('#cfg-jump'),
+      cfgTapJump: settingsRoot.querySelector('#cfg-tapjump'),
+      cfgShield: settingsRoot.querySelector('#cfg-shield'),
+      cfgB: settingsRoot.querySelector('#cfg-b'),
+      cfgSoundEnabled: settingsRoot.querySelector('#cfg-sound-enabled'),
+      cfgBgmVolume: settingsRoot.querySelector('#cfg-bgm-volume'),
+      cfgBgmVolumeValue: settingsRoot.querySelector('#cfg-bgm-volume-value'),
+      cfgSeVolume: settingsRoot.querySelector('#cfg-se-volume'),
+      cfgSeVolumeValue: settingsRoot.querySelector('#cfg-se-volume-value'),
+      settingsClose: settingsRoot.querySelector('#vpad-settings-close'),
+    };
+    this._applyPadConfigToDOM();
+    this._applyAudioSettingsToDOM();
+  }
 
-  <div id="screen-multi-lobby" class="screen hidden multi-screen multi-lobby-screen">
-    <div class="screen-heading">対戦ロビー</div>
-    <div id="multi-lobby-room" class="multi-lobby-room"></div>
-    <div id="multi-lobby-members" class="multi-lobby-members"></div>
-    <div class="multi-lobby-note">空き枠には、参加者のマスモンを使うCPU Lv.9が入ります</div>
-    <button id="multi-start-battle" class="multi-primary-btn hidden">対戦開始</button>
-    <button id="multi-leave-room" class="back-btn">退出</button>
-  </div>
+  _applyPadConfigToDOM() {
+    this.el.btnJump.style.display = this.padConfig.showJumpButton ? '' : 'none';
+    this.el.btnShield.style.display = this.padConfig.showShieldButton ? '' : 'none';
+    this.el.btnB.style.display = this.padConfig.showBButton ? '' : 'none';
+    this.el.cfgJump.checked = this.padConfig.showJumpButton;
+    this.el.cfgTapJump.checked = this.padConfig.tapJumpEnabled;
+    this.el.cfgShield.checked = this.padConfig.showShieldButton;
+    this.el.cfgB.checked = this.padConfig.showBButton;
+  }
 
-  <div id="screen-debug" class="screen hidden debug-screen">
-    <div class="screen-heading">管理者モード</div>
-    <div class="debug-tabs">
-      <button class="active" data-admin-tab="motion">モーション確認</button>
-      <button data-admin-tab="bgm">BGM確認</button>
-      <button data-admin-tab="practice">修行テスト</button>
-      <button data-admin-tab="players">プレイ状況確認</button>
-    </div>
-    <div class="admin-pane" data-admin-pane="motion">
-      <div class="debug-controls">
-        <label>fighter<select id="debug-fighter-select"></select></label>
-        <label>モーション<select id="debug-motion-select"></select></label>
-      </div>
-      <canvas id="debug-motion-canvas" width="420" height="300"></canvas>
-    </div>
-    <div class="admin-pane hidden" data-admin-pane="bgm">
-      <div class="admin-bgm-controls">
-        <button data-admin-bgm="home">ホームBGMを再生</button>
-        <button data-admin-bgm="battleMode">バトルモードBGMを再生</button>
-        <button data-admin-bgm="stop">停止</button>
-      </div>
-      <p>管理者モードを閉じると、移動先画面のBGMへ戻ります。</p>
-    </div>
-    <div class="admin-pane hidden admin-practice-pane" data-admin-pane="practice">
-      <p>チケット・レベル制限なしでテストプレイします。</p>
-      <div class="admin-practice-buttons">
-        <button data-admin-practice="desert">マンディー砂漠</button>
-        <button data-admin-practice="jungle">パレパレジャングル</button>
-        <button data-admin-practice="coast">トーブル海岸</button>
-        <button data-admin-practice="snow">パパス雪山</button>
-        <button data-admin-practice="volcano">カウレア火山</button>
-      </div>
-    </div>
-    <div class="admin-pane hidden admin-player-pane" data-admin-pane="players">
-      <div class="admin-player-toolbar"><span id="admin-player-count"></span><button id="admin-player-refresh">更新</button></div>
-      <div id="admin-player-list" class="admin-player-list"></div>
-    </div>
-    <button class="back-btn" data-back="home">戻る</button>
-  </div>
+  _applyAudioSettingsToDOM() {
+    if (!window.AudioManager) return;
+    this.el.cfgBgmVolume.value = AudioManager.bgmVolume;
+    this.el.cfgBgmVolumeValue.textContent = AudioManager.bgmVolume;
+    this.el.cfgSeVolume.value = AudioManager.seVolume;
+    this.el.cfgSeVolumeValue.textContent = AudioManager.seVolume;
+    this.el.cfgSoundEnabled.checked = AudioManager.soundEnabled;
+  }
 
-  <!-- 4.5 マスモン管理 -->
-  <div id="screen-masmon-manage" class="screen hidden">
-    <img class="masmon-only-background" src="assets/images/masmon-manage-background.png?v=11" alt="マスモン管理">
-    <button id="btn-manage-training" class="masmon-only-training" aria-label="トレーニングへ進む"></button>
-    <button id="btn-manage-practice" class="masmon-only-practice" aria-label="修行へ進む"></button>
-    <button class="masmon-only-skin" data-back="skin" aria-label="スキン変更へ進む"></button>
-    <button class="masmon-only-back" data-back="home" aria-label="ホームへ戻る"></button>
-    <div id="masmon-current-display" class="masmon-current-display">
-      <img id="masmon-current-image" alt="選択中のマスモン">
-      <div id="masmon-current-name"></div>
-    </div>
-    <div id="masmon-roster" class="masmon-roster"></div>
-  </div>
+  _bindEvents() {
+    // --- 設定パネル ---
+    this.el.settingsToggle.addEventListener('click', () => {
+      this.el.settingsPanel.classList.toggle('hidden');
+    });
+    this.el.settingsClose.addEventListener('click', () => {
+      this.el.settingsPanel.classList.add('hidden');
+    });
+    this.el.settingsPanel.querySelectorAll('.settings-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        this.el.settingsPanel.querySelectorAll('.settings-tab').forEach(item => item.classList.toggle('active', item === tab));
+        this.el.settingsPanel.querySelectorAll('.settings-pane').forEach(pane => pane.classList.toggle('hidden', pane.dataset.settingsPane !== tab.dataset.settingsTab));
+      });
+    });
+    const onCfgChange = () => {
+      this.padConfig.showJumpButton = this.el.cfgJump.checked;
+      this.padConfig.tapJumpEnabled = this.el.cfgTapJump.checked;
+      this.padConfig.showShieldButton = this.el.cfgShield.checked;
+      this.padConfig.showBButton = this.el.cfgB.checked;
+      savePadConfig(this.padConfig);
+      this._applyPadConfigToDOM();
+    };
+    this.el.cfgJump.addEventListener('change', onCfgChange);
+    this.el.cfgTapJump.addEventListener('change', onCfgChange);
+    this.el.cfgShield.addEventListener('change', onCfgChange);
+    this.el.cfgB.addEventListener('change', onCfgChange);
+    this.el.cfgSoundEnabled.addEventListener('change', () => {
+      AudioManager.setSoundEnabled(this.el.cfgSoundEnabled.checked);
+    });
+    const updateVolume = kind => {
+      const slider = kind === 'bgm' ? this.el.cfgBgmVolume : this.el.cfgSeVolume;
+      const output = kind === 'bgm' ? this.el.cfgBgmVolumeValue : this.el.cfgSeVolumeValue;
+      const value = kind === 'bgm' ? AudioManager.setBgmVolume(slider.value) : AudioManager.setSeVolume(slider.value);
+      slider.value = value;
+      output.textContent = value;
+    };
+    this.el.cfgBgmVolume.addEventListener('input', () => updateVolume('bgm'));
+    this.el.cfgSeVolume.addEventListener('input', () => updateVolume('se'));
+    this.el.settingsPanel.querySelectorAll('[data-volume-step]').forEach(button => {
+      button.addEventListener('click', () => {
+        const kind = button.closest('[data-volume-kind]').dataset.volumeKind;
+        const slider = kind === 'bgm' ? this.el.cfgBgmVolume : this.el.cfgSeVolume;
+        slider.value = Number(slider.value) + Number(button.dataset.volumeStep);
+        updateVolume(kind);
+      });
+    });
 
-  <!-- 4.6 トレーニング -->
-  <div id="screen-training" class="screen hidden scrollable-screen">
-    <img class="training-background" src="assets/images/training-background.png?v=24" alt="" aria-hidden="true">
-    <div class="screen-heading">トレーニング</div>
-    <div id="training-summary" class="training-summary"></div>
-    <button id="btn-use-training-item" class="training-item-button">アイテム使用</button>
-    <div id="training-list" class="training-list"></div>
-    <div id="training-message" class="training-message" aria-live="polite"></div>
-    <button class="back-btn" data-back="masmon-manage">戻る</button>
-    <div id="training-item-modal" class="training-item-modal hidden" role="dialog" aria-modal="true" aria-labelledby="training-item-title">
-      <div class="training-item-dialog">
-        <button id="training-item-close" class="training-item-close" aria-label="閉じる">×</button>
-        <h2 id="training-item-title">アイテム使用</h2>
-        <p>上昇させるステータスを選んでください</p>
-        <div id="training-item-list" class="training-item-list"></div>
-      </div>
-    </div>
-    <div id="training-item-toast" class="training-item-toast hidden" aria-live="polite">
-      <div class="training-item-toast-glow"></div>
-      <img id="training-item-toast-image" alt="">
-      <div>
-        <strong id="training-item-toast-title"></strong>
-        <p id="training-item-toast-message"></p>
-      </div>
-    </div>
-  </div>
+    // --- ボタン (押しっぱなし判定にtouch/mouse両対応) ---
+    const bind = (el, key) => {
+      const press = ev => { ev.preventDefault(); this.state[key] = true; };
+      const release = ev => { ev.preventDefault(); this.state[key] = false; };
+      el.addEventListener('touchstart', press, { passive: false });
+      el.addEventListener('touchend', release, { passive: false });
+      el.addEventListener('touchcancel', release, { passive: false });
+      el.addEventListener('mousedown', press);
+      el.addEventListener('mouseup', release);
+      el.addEventListener('mouseleave', release);
+    };
+    bind(this.el.btnJump, 'jump');
+    bind(this.el.btnGrab, 'grab');
+    bind(this.el.btnShield, 'shield');
+    bind(this.el.btnB, 'special');
+    bind(this.el.btnA, 'attack');
 
-  <div id="screen-practice" class="screen hidden practice-screen">
-    <section id="practice-select-panel" class="practice-select-panel">
-      <div class="screen-heading">修行先を選択</div>
-      <div id="practice-monster-summary" class="practice-monster-summary"></div>
-      <div id="practice-course-list" class="practice-course-list"></div>
-      <button class="back-btn" data-back="masmon-manage">戻る</button>
-    </section>
-    <section id="practice-game-panel" class="practice-game-panel hidden">
-      <canvas id="practice-canvas" width="960" height="540"></canvas>
-      <div class="practice-hud"><strong id="practice-game-title"></strong><span id="practice-game-status"></span><time id="practice-game-time"></time></div>
-      <button id="practice-quit" class="practice-quit">中断</button>
-    </section>
-    <div id="practice-intro-modal" class="practice-intro-modal hidden" role="dialog" aria-modal="true">
-      <div class="practice-intro-dialog">
-        <h2 id="practice-intro-title"></h2>
-        <p id="practice-intro-text"></p>
-        <ul id="practice-intro-controls" class="practice-intro-controls"></ul>
-        <button id="practice-intro-start">修行を始める</button>
-      </div>
-    </div>
-    <div id="practice-result-modal" class="practice-result-modal hidden" role="dialog" aria-modal="true">
-      <div class="practice-result-dialog">
-        <span id="practice-result-grade"></span>
-        <h2 id="practice-result-title"></h2>
-        <p id="practice-result-score"></p>
-        <strong id="practice-result-growth"></strong>
-        <button id="practice-result-close">修行先へ戻る</button>
-      </div>
-    </div>
-  </div>
+    // --- 左スティック ---
+    const base = this.el.stickBase;
+    const thumb = this.el.stickThumb;
+    const maxRadius = 40;
+    const deadzone = 12;
 
-  <div id="screen-skin" class="screen hidden">
-    <div class="screen-heading">スキン変更</div>
-    <div class="coming-soon-panel">スキン変更は近日実装予定です</div>
-    <button class="back-btn" data-back="masmon-manage">戻る</button>
-  </div>
+    const updateStick = (clientX, clientY) => {
+      const rect = base.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+      const rawDist = Math.hypot(dx, dy);
+      const dist = Math.min(rawDist, maxRadius);
+      const angle = Math.atan2(dy, dx);
+      const tx = Math.cos(angle) * dist;
+      const ty = Math.sin(angle) * dist;
+      thumb.style.transform = `translate(${tx}px, ${ty}px)`;
 
-  <!-- 5. 地形選択 -->
-  <div id="screen-cpu-mode" class="screen hidden">
-    <div class="screen-heading">CPU戦 モード選択</div>
-    <div class="cpu-count-picker"><span>同時出現CPU人数</span>
-      <button class="cpu-count-btn active" data-cpu-count="1">1人</button>
-      <button class="cpu-count-btn" data-cpu-count="2">2人</button>
-      <button class="cpu-count-btn" data-cpu-count="3">3人</button>
-    </div>
-    <div class="cpu-mode-list">
-      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small><span class="cpu-mode-reward">報酬　💎50・ブリーダーEXP 50</span></button>
-      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>100体撃破でクリアバッジ獲得</small><span class="cpu-mode-reward reward-premium">クリア報酬　💎500・修行券 5枚</span></button>
-      <div class="endless-mode-column">
-        <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>限界まで撃破数に挑戦</small><span class="cpu-mode-reward reward-ranking">報酬なし・ランキングに記録</span></button>
-        <button id="btn-endless-ranking" class="endless-ranking-button">🏆 エンドレスランキング</button>
-      </div>
-    </div>
-    <button class="back-btn" data-back="home">戻る</button>
-    <div id="endless-ranking-modal" class="endless-ranking-modal hidden" role="dialog" aria-modal="true" aria-labelledby="endless-ranking-title">
-      <div class="endless-ranking-dialog">
-        <button id="endless-ranking-close" aria-label="閉じる">×</button>
-        <h2 id="endless-ranking-title">エンドレスランキング</h2>
-        <div id="endless-ranking-list"></div>
-      </div>
-    </div>
-    <div id="survival-resume-modal" class="survival-resume-modal hidden" role="dialog" aria-modal="true" aria-labelledby="survival-resume-title">
-      <div class="survival-resume-dialog">
-        <h2 id="survival-resume-title">中断中の挑戦があります</h2>
-        <p id="survival-resume-detail"></p>
-        <div class="survival-resume-actions">
-          <button id="survival-resume-continue">続きから</button>
-          <button id="survival-resume-later">今は戻る</button>
-          <button id="survival-resume-restart">挑戦を終了して最初から</button>
-        </div>
-      </div>
-    </div>
-  </div>
+      // 連続値（歩き/ダッシュ/ステップの判定に使用）
+      this.state.stickX = tx / maxRadius;
+      this.state.stickY = ty / maxRadius;
 
-  <div id="screen-stage-select" class="screen hidden">
-    <div class="stage-select-heading"><img src="assets/images/app-icon.png" alt=""><span>ステージセレクト</span></div>
-    <div id="stage-list" class="card-list"></div>
-    <div class="stage-select-guide">ステージを選択してください</div>
-    <button class="back-btn" data-back="cpu-mode">戻る</button>
-  </div>
+      this.state.left = false; this.state.right = false; this.state.up = false; this.state.down = false;
+      if (dist > deadzone) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          if (dx < 0) this.state.left = true; else this.state.right = true;
+        } else {
+          if (dy < 0) this.state.up = true; else this.state.down = true;
+        }
+      }
+    };
 
-  <!-- 6. ファイター選択（CPU戦は1P/CPUのおはじきをファイターへ配置する） -->
-  <div id="screen-fighter-select" class="screen hidden">
-    <div class="screen-heading" id="fighter-select-heading">ファイター選択</div>
-    <div class="fighter-longpress-guide">モンスターアイコンを長押しするとステータスを確認できます</div>
-    <div id="token-bar" class="token-bar hidden"></div>
-    <div id="fighter-list" class="card-list"></div>
-    <button id="btn-fight-start" class="fight-start-btn hidden">FIGHT!</button>
-    <button class="back-btn" data-back="stage-select">戻る</button>
-    <div id="fighter-status-modal" class="fighter-status-modal hidden" role="dialog" aria-modal="true" aria-labelledby="fighter-status-name">
-      <div class="fighter-status-card">
-        <button id="fighter-status-close" class="fighter-status-close" aria-label="閉じる">×</button>
-        <img id="fighter-status-image" alt="">
-        <div class="fighter-status-content">
-          <h2 id="fighter-status-name"></h2>
-          <div id="fighter-status-level"></div>
-          <div id="fighter-status-grid" class="fighter-status-grid"></div>
-        </div>
-      </div>
-    </div>
-  </div>
+    const resetStick = () => {
+      thumb.style.transform = 'translate(0px, 0px)';
+      this.state.left = false; this.state.right = false; this.state.up = false; this.state.down = false;
+      this.state.stickX = 0; this.state.stickY = 0;
+      this.stickActiveTouchId = null;
+    };
 
-  <!-- 6.5 CPUレベル選択（CPU戦のみ） -->
-  <div id="screen-cpu-level" class="screen hidden">
-    <div class="screen-heading">CPUレベルを選択</div>
-    <div id="cpu-level-list" class="level-grid"></div>
-    <button class="back-btn" data-back="fighter-select">戻る</button>
-  </div>
+    base.addEventListener('touchstart', ev => {
+      ev.preventDefault();
+      const t = ev.changedTouches[0];
+      this.stickActiveTouchId = t.identifier;
+      updateStick(t.clientX, t.clientY);
+    }, { passive: false });
 
-  <!-- 6.6 バトル開幕演出（Loading→FIGHT!） -->
-  <div id="screen-battle-intro" class="screen hidden">
-    <div id="battle-intro-loading" class="loading-label">Loading...</div>
-    <div id="battle-intro-fight" class="fight-callout hidden">FIGHT !</div>
-  </div>
+    base.addEventListener('touchmove', ev => {
+      ev.preventDefault();
+      for (const t of ev.changedTouches) {
+        if (t.identifier === this.stickActiveTouchId) updateStick(t.clientX, t.clientY);
+      }
+    }, { passive: false });
 
-  <!-- 7. バトル画面 -->
-  <div id="screen-battle" class="screen hidden">
-    <div id="game-container">
-      <canvas id="gameCanvas" width="1400" height="1000"></canvas>
-      <div id="hud"></div>
-      <div id="battle-survival-counter" class="battle-survival-counter hidden"></div>
-      <button id="battle-pause-btn" aria-label="ポーズ">Ⅱ</button>
-      <div id="battle-pause-overlay" class="hidden"><strong>PAUSE</strong><button id="battle-suspend-btn" class="hidden">中断してホームへ</button></div>
-      <div id="battle-countdown" class="hidden"><img id="battle-countdown-image" alt=""><span id="battle-countdown-text"></span></div>
-    </div>
-  </div>
+    const endHandler = ev => {
+      ev.preventDefault();
+      for (const t of ev.changedTouches) {
+        if (t.identifier === this.stickActiveTouchId) resetStick();
+      }
+    };
+    base.addEventListener('touchend', endHandler, { passive: false });
+    base.addEventListener('touchcancel', endHandler, { passive: false });
 
-  <!-- 8. リザルト画面 -->
-  <div id="screen-result" class="screen hidden scrollable-screen result-screen">
-    <div class="screen-heading">RESULT</div>
-    <div class="result-main">
-      <div id="result-podium" class="result-podium"></div>
-      <div id="result-masmon-panel" class="result-masmon-panel hidden"></div>
-    </div>
-    <button id="btn-result-continue" class="menu-btn result-continue-btn">ホームへ戻る</button>
-  </div>
+    // マウスでもテスト可能に（デスクトップ確認用）
+    let mouseDown = false;
+    base.addEventListener('mousedown', ev => { mouseDown = true; updateStick(ev.clientX, ev.clientY); });
+    window.addEventListener('mousemove', ev => { if (mouseDown) updateStick(ev.clientX, ev.clientY); });
+    window.addEventListener('mouseup', () => { if (mouseDown) { mouseDown = false; resetStick(); } });
+  }
 
-  <div id="app-update-modal" class="app-update-modal hidden" role="dialog" aria-modal="true" aria-labelledby="app-update-title">
-    <div class="app-update-dialog">
-      <h2 id="app-update-title">更新データがあります</h2>
-      <p>更新しますか？</p>
-      <div><button id="app-update-now">更新</button><button id="app-update-later">今はしない</button></div>
-    </div>
-  </div>
+  getState() {
+    return this.state;
+  }
 
-  <div id="orientation-overlay">横向きにしてください</div>
-
-  <script type="module" src="js/firebase-init.js?v=2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=3"></script>
-  <script src="js/audio.js?v=4"></script>
-  <script src="js/moves.js?v=27"></script>
-  <script src="js/fighters/irumine-moves.js?v=32"></script>
-  <script src="js/fighters/dullahan-moves.js?v=27"></script>
-  <script src="js/physics.js?v=31"></script>
-  <script src="js/fighter.js?v=37"></script>
-  <script src="js/fighters-data.js"></script>
-  <script src="js/debug-mode.js?v=4"></script>
-  <script src="js/stage.js?v=31"></script>
-  <script src="js/camera.js?v=2"></script>
-  <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=38"></script>
-  <script src="js/practice.js?v=2"></script>
-  <script src="js/input.js?v=5"></script>
-  <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=38"></script>
-    <script src="js/flow.js?v=47"></script>
-  <script src="js/pwa.js?v=7"></script>
-</body>
-</html>
+  // バトル画面以外（修行ミニゲームなど）でも同じ仮想パッドを使い回すための再配置用メソッド
+  moveTo(container) {
+    if (!container || !this.rootEl || this.rootEl.parentElement === container) return;
+    container.appendChild(this.rootEl);
+    this.container = container;
+  }
+}

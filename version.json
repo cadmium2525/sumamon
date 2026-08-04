@@ -1,3 +1,28 @@
-{
-  "version": "65"
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // エンドレスランキングはログインユーザー全員が閲覧可能。
+    // 書き込みは自分のUIDと同じドキュメントだけに限定する。
+    match /endlessRankings/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId;
+      allow delete: if false;
+    }
+
+    // 各ユーザーは自分のプレイ状況だけを更新でき、一覧を読めるのはcadmium管理者のみ。
+    match /playerActivity/{userId} {
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.uid == userId;
+      allow read: if request.auth != null
+        && request.auth.token.email == 'cadmium@smamon.local';
+      allow delete: if false;
+    }
+  }
 }
