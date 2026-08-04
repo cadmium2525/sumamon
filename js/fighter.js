@@ -1063,9 +1063,9 @@ class Fighter {
       }
     }
 
-    // 攻撃ヒットボックス（デバッグ表示）
+    // 攻撃ヒットボックス（専用モーションが無い技のみのデバッグ表示）
     const hb = this.getHitbox();
-    if (hb) {
+    if (hb && !useMoveFrame) {
       ctx.fillStyle = 'rgba(255,255,0,0.6)';
       ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
     }
