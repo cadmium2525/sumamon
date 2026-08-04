@@ -111,6 +111,13 @@ const DebugMotionViewer = {
         frames: move.animation.frames, duration: move.animation.frameDuration || 6,
         box: move.animation.contentBox, loop: true });
     }
+    const groundMoves = window.FIGHTER_MOVESETS?.[fighter.key]?.ground || {};
+    for (const [key, move] of Object.entries(groundMoves)) {
+      if (!move.animation) continue;
+      motions.push({ key: `ground-${key}`, label: `${move.name}（通常技）`, type: 'frames',
+        frames: move.animation.frames, duration: move.animation.frameDuration || 6,
+        box: move.animation.contentBox, loop: true });
+    }
     return motions;
   },
 

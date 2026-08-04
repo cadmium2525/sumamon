@@ -1,6 +1,22 @@
 // イルミネ専用技。画像が用意されたら projectileSprite のパスへ置くだけで弓矢表示に差し替えられる。
 window.FIGHTER_MOVESETS = window.FIGHTER_MOVESETS || {};
 window.FIGHTER_MOVESETS.irumine = {
+  ground: {
+    // 弱A技：既存のバランス値(MOVES.ground.neutral)はそのまま、見た目だけ専用スプライトに差し替え
+    neutral: {
+      ...MOVES.ground.neutral,
+      animation: {
+        frames: [
+          'assets/images/fighter/irumine/neutral_attack/frame_001.png',
+          'assets/images/fighter/irumine/neutral_attack/frame_002.png',
+          'assets/images/fighter/irumine/neutral_attack/frame_003.png',
+          'assets/images/fighter/irumine/neutral_attack/frame_004.png',
+        ],
+        frameDuration: 2,
+        contentBox: { left: 22, top: 3, right: 372, bottom: 264 },
+      },
+    },
+  },
   special: {
     neutral: {
       name: 'ルミナスアロー', dmgBase: 8, kbBase: 4.5, angle: 32,

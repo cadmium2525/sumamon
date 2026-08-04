@@ -24,6 +24,10 @@ class Fighter {
         state.images = animation.frames.map(src => {
           const image = new Image();
           image.onload = () => { state.loaded++; };
+          image.onerror = () => {
+            state.loaded++; // 読み込み失敗も「決着した」扱いにし、他のコマが無期限にブロックされないようにする
+            console.warn('[Fighter] モーション画像の読み込みに失敗しました:', src);
+          };
           image.src = src;
           return image;
         });
@@ -851,6 +855,7 @@ class Fighter {
     const cx = this.x + this.w / 2;
     const scale = this.h / (box.bottom - box.top);
     const drawOne = img => {
+      if (!img || !img.complete || img.naturalWidth === 0) return;
       const drawW = img.width * scale;
       const drawH = img.height * scale;
       const contentCenterX = ((box.left + box.right) / 2) * scale;
