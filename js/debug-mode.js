@@ -25,9 +25,42 @@ const DebugMotionViewer = {
       });
     });
     document.getElementById('admin-player-refresh').addEventListener('click', () => this.loadPlayerActivity());
+
+    // 修行テスト：どのfighterで試すか選べるようにする
+    const practiceFighterSelect = document.getElementById('debug-practice-fighter-select');
+    practiceFighterSelect.innerHTML = Object.values(FIGHTERS)
+      .map(f => `<option value="${f.key}">${f.displayName}</option>`).join('');
     document.querySelectorAll('[data-admin-practice]').forEach(button => {
-      button.addEventListener('click', () => window.PracticeGame?.startAdmin(button.dataset.adminPractice));
+      button.addEventListener('click', () => window.PracticeGame?.startAdmin(button.dataset.adminPractice, practiceFighterSelect.value));
     });
+
+    // バトルテスト：実際のCPU戦を直接開始してモーション・技を本番同様に確認する
+    const p1Select = document.getElementById('debug-battle-p1-select');
+    const p2Select = document.getElementById('debug-battle-p2-select');
+    const levelSelect = document.getElementById('debug-battle-level-select');
+    const fighterOptions = Object.values(FIGHTERS).map(f => `<option value="${f.key}">${f.displayName}</option>`).join('');
+    p1Select.innerHTML = fighterOptions;
+    p2Select.innerHTML = fighterOptions;
+    if (Object.keys(FIGHTERS).length > 1) p2Select.selectedIndex = 1;
+    levelSelect.innerHTML = Array.from({ length: 9 }, (_, i) => i + 1)
+      .map(lvl => `<option value="${lvl}" ${lvl === 5 ? 'selected' : ''}>Lv.${lvl}</option>`).join('');
+    document.getElementById('debug-battle-start').addEventListener('click', () => {
+      if (!window.AppFlow) return;
+      window.AppFlow.lastLaunchOptions = {
+        stageKey: Object.keys(STAGES)[0],
+        p1Key: p1Select.value,
+        p2Key: p2Select.value,
+        p1MasmonId: null,
+        p2MasmonId: null,
+        cpuCount: 1,
+        cpuFighters: [{ fighterKey: p2Select.value, masmonId: null }],
+        mode: 'cpu',
+        cpuMode: 'normal',
+        cpuLevel: Number(levelSelect.value) || 5,
+      };
+      window.AppFlow.playBattleIntro(window.AppFlow.lastLaunchOptions);
+    });
+
     this.buildMotionList();
   },
 

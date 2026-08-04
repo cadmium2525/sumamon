@@ -99,9 +99,11 @@ const PracticeGame = {
     }).join('');
   },
 
-  startAdmin(courseKey) {
-    const monster = window.AppFlow?._selectedManageMasmon?.() || MasmonStore.loadAll()[0] || {
-      id: null, name: 'テストイルミネ', level: 10, baseFighterKey: 'irumine', aptitudes: GROWTH.aptitudesFor('irumine'), trainingStats: {},
+  startAdmin(courseKey, fighterKey) {
+    const key = fighterKey || 'irumine';
+    const monster = MasmonStore.loadAll().find(m => m.baseFighterKey === key) || {
+      id: null, name: `テスト${FIGHTERS[key]?.displayName || key}`, level: 10, baseFighterKey: key,
+      aptitudes: GROWTH.aptitudesFor(key), trainingStats: {},
     };
     AppFlow.showScreen('practice');
     this.start(courseKey, monster, true);
@@ -199,7 +201,7 @@ const PracticeGame = {
         { x: 2470, y: 485, w: 730, h: 55 },
       ];
       this.pits = [{ x: 300, w: 120 }, { x: 1300, w: 120 }, { x: 2350, w: 120 }];
-      this.checkpoints = [{ x: 70, y: 410 }, { x: 340, y: 410 }, { x: 1340, y: 410 }, { x: 2490, y: 410 }];
+      this.checkpoints = [{ x: 70, y: 410 }, { x: 1200, y: 410 }, { x: 2250, y: 410 }, { x: 2490, y: 410 }];
       this.lastCheckpoint = this.checkpoints[0];
       let uid = 0;
       [[650, 'brick'], [1650, 'stone'], [2650, 'onyx']].forEach(([x, wallType]) => {

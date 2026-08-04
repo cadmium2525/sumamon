@@ -63,13 +63,15 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.69</small>
+    <small class="home-version">Version 0.71</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.71</time><strong>管理者モードを拡張</strong><p>修行テストでfighterを選べるようにし、実戦でモーション・技を確認できるバトルテストを追加しました。</p></article>
+          <article><time>Version 0.70</time><strong>マンディー砂漠の落とし穴を修正</strong><p>落とし穴の真上でリスポーンし復帰不能になる問題を修正しました。</p></article>
           <article><time>Version 0.69</time><strong>キャッシュ不整合を再修正</strong><p>まれに古いキャッシュが再度参照されてしまう根本原因を修正しました。</p></article>
           <article><time>Version 0.68</time><strong>弱Aのヒットボックス表示を修正</strong><p>専用モーションがある技では黄色いデバッグ表示を出さないようにしました。</p></article>
           <article><time>Version 0.67</time><strong>管理者モードのモーション確認を拡張</strong><p>通常技（弱Aなど）のモーションもモーションビューアで確認できるようにしました。</p></article>
@@ -217,6 +219,7 @@
       <button class="active" data-admin-tab="motion">モーション確認</button>
       <button data-admin-tab="bgm">BGM確認</button>
       <button data-admin-tab="practice">修行テスト</button>
+      <button data-admin-tab="battle">バトルテスト</button>
       <button data-admin-tab="players">プレイ状況確認</button>
     </div>
     <div class="admin-pane" data-admin-pane="motion">
@@ -236,6 +239,9 @@
     </div>
     <div class="admin-pane hidden admin-practice-pane" data-admin-pane="practice">
       <p>チケット・レベル制限なしでテストプレイします。</p>
+      <div class="debug-controls">
+        <label>テストするfighter<select id="debug-practice-fighter-select"></select></label>
+      </div>
       <div class="admin-practice-buttons">
         <button data-admin-practice="desert">マンディー砂漠</button>
         <button data-admin-practice="jungle">パレパレジャングル</button>
@@ -243,6 +249,15 @@
         <button data-admin-practice="snow">パパス雪山</button>
         <button data-admin-practice="volcano">カウレア火山</button>
       </div>
+    </div>
+    <div class="admin-pane hidden admin-battle-pane" data-admin-pane="battle">
+      <p>実際のCPU戦を直接開始し、モーションや技の当たり判定を本番同様に確認します。</p>
+      <div class="debug-controls">
+        <label>使用キャラ(P1)<select id="debug-battle-p1-select"></select></label>
+        <label>CPU対戦相手<select id="debug-battle-p2-select"></select></label>
+        <label>CPUレベル<select id="debug-battle-level-select"></select></label>
+      </div>
+      <button id="debug-battle-start" class="menu-btn">テスト対戦を開始</button>
     </div>
     <div class="admin-pane hidden admin-player-pane" data-admin-pane="players">
       <div class="admin-player-toolbar"><span id="admin-player-count"></span><button id="admin-player-refresh">更新</button></div>
@@ -449,16 +464,16 @@
   <script src="js/physics.js?v=31"></script>
   <script src="js/fighter.js?v=39"></script>
   <script src="js/fighters-data.js"></script>
-  <script src="js/debug-mode.js?v=5"></script>
+  <script src="js/debug-mode.js?v=6"></script>
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js?v=2"></script>
   <script src="js/cpu-ai.js"></script>
   <script src="js/growth-system.js?v=38"></script>
-  <script src="js/practice.js?v=2"></script>
+  <script src="js/practice.js?v=4"></script>
   <script src="js/input.js?v=5"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=38"></script>
     <script src="js/flow.js?v=48"></script>
-  <script src="js/pwa.js?v=8"></script>
+  <script src="js/pwa.js?v=9"></script>
 </body>
 </html>
