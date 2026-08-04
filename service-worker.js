@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v68';
+const CACHE_NAME = 'smamon-app-v69';
 const APP_SHELL = [
   './',
   './index.html',
@@ -104,9 +104,11 @@ self.addEventListener('message', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
+    // このPWAはorigin内にキャッシュを1つしか使わない設計のため、
+    // 現行バージョン以外のキャッシュ（命名規則が古い過去のものも含む）はすべて削除する。
     await Promise.all(
       keys
-        .filter(key => key.startsWith('smamon-app-') && key !== CACHE_NAME)
+        .filter(key => key !== CACHE_NAME)
         .map(key => caches.delete(key))
     );
     await self.clients.claim();
@@ -126,17 +128,23 @@ self.addEventListener('fetch', event => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(caches.match('./index.html').then(cached => cached || fetch(new Request(request, { cache: 'reload' }))));
+    event.respondWith(
+      caches.open(CACHE_NAME)
+        .then(cache => cache.match('./index.html'))
+        .then(cached => cached || fetch(new Request(request, { cache: 'reload' })))
+    );
     return;
   }
 
   event.respondWith(
-    caches.match(request, { ignoreSearch: true }).then(cached => cached || fetch(new Request(request, { cache: 'reload' })).then(response => {
-      if (response.ok) {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-      }
-      return response;
-    }))
+    caches.open(CACHE_NAME)
+      .then(cache => cache.match(request, { ignoreSearch: true }))
+      .then(cached => cached || fetch(new Request(request, { cache: 'reload' })).then(response => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+        }
+        return response;
+      }))
   );
 });
