@@ -647,6 +647,7 @@ class Fighter {
     this.currentMove = move;
     this.attackTimer = move.duration;
     this.hasHitThisAttack = false;
+    this._hitWindowIndex = -1;
     this._projectileSpawned = false;
   }
 
@@ -660,7 +661,21 @@ class Fighter {
     if (this.attackTimer <= 0 || !this.currentMove) return null;
     const m = this.currentMove;
     const framesElapsed = m.duration - this.attackTimer;
-    if (framesElapsed < m.active[0] || framesElapsed > m.active[1]) return null;
+    let windowIndex = -1;
+    if (Array.isArray(m.multiHit) && m.multiHit.length) {
+      for (let i = 0; i < m.multiHit.length; i++) {
+        if (framesElapsed >= m.multiHit[i][0] && framesElapsed <= m.multiHit[i][1]) { windowIndex = i; break; }
+      }
+      if (windowIndex === -1) return null;
+    } else {
+      if (framesElapsed < m.active[0] || framesElapsed > m.active[1]) return null;
+      windowIndex = 0;
+    }
+    // 新しい判定ウィンドウに入ったら再ヒット可能にする（多段技: ループ/区間ごとに1回ずつヒットする）
+    if (windowIndex !== this._hitWindowIndex) {
+      this._hitWindowIndex = windowIndex;
+      this.hasHitThisAttack = false;
+    }
     const scale = this.attackScale || 1;
     if (m.projectile) return null;
     const range = m.range * scale;
@@ -750,6 +765,9 @@ class Fighter {
           elapsed >= (this.currentMove.projectile.spawnFrame || this.currentMove.active[0])) {
         this._projectileSpawned = true;
         this._projectileRequest = { move: this.currentMove, config: this.currentMove.projectile };
+      }
+      if (this.currentMove && this.currentMove.travelSpeed && this.onGround) {
+        this.vx = this.facing * this.currentMove.travelSpeed;
       }
       this.attackTimer--;
       if (this.attackTimer <= 0 && this.currentMove) {
