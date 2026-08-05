@@ -694,6 +694,18 @@ window.startBattle = function startBattle(options) {
     return adjusted;
   }
 
+  // 管理者モードのバトルテスト用：算出済みステータスを手入力値で上書きする。
+  // options.statOverrides = { p1: {life,power,...}, cpu: {...} }（未指定のキーは通常計算のまま）
+  function applyStatOverrides(stats, override) {
+    if (!override) return stats;
+    const result = { ...stats };
+    for (const key of GROWTH.STAT_KEYS) {
+      const value = Number(override[key]);
+      if (Number.isFinite(value)) result[key] = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round(value)));
+    }
+    return result;
+  }
+
   window._matchOver = false;
   survivalBattle = null;
   spawnSurvivalCpu = null;
@@ -727,7 +739,7 @@ window.startBattle = function startBattle(options) {
       return fighter;
     });
   } else {
-    players = [new Fighter('p1', resolveStats(p1Def, p1Masmon),
+    players = [new Fighter('p1', applyStatOverrides(resolveStats(p1Def, p1Masmon), options.statOverrides?.p1),
       p1Def.color, Stage.spawnPoints[0], buildOptions(p1Def, p1Masmon))];
     const isSurvival = options.mode === 'cpu' && ['hundred', 'endless'].includes(options.cpuMode);
     if (isSurvival) {
@@ -800,8 +812,11 @@ window.startBattle = function startBattle(options) {
         ? MasmonStore.loadAll().find(m => m.id === selection.masmonId)
         : null;
       const baseStats = resolveStats(def, masmon);
+      const leveledStats = options.mode === 'cpu'
+        ? applyCpuLevelStats(baseStats, def, masmon, options.cpuLevel)
+        : baseStats;
       players.push(new Fighter(`cpu${index + 1}`,
-        options.mode === 'cpu' ? applyCpuLevelStats(baseStats, def, masmon, options.cpuLevel) : baseStats,
+        applyStatOverrides(leveledStats, options.statOverrides?.cpu),
         def.color, Stage.spawnPoints[index + 1] || Stage.spawnPoints[0], buildOptions(def, masmon)));
     });
     players[0].hudLabel = '1P';

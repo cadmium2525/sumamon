@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=51">
+<link rel="stylesheet" href="css/style.css?v=52">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.76</small>
+    <small class="home-version">Version 0.77</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.77</time><strong>バトルテストでステータスを自由に調整可能に</strong><p>管理者モードのバトルテストで、自分とCPUの6種のステータスをそれぞれ入力して対戦できるようにしました。キャラやCPUレベルを変更すると、その組み合わせの既定値が自動で入ります。</p></article>
           <article><time>Version 0.76</time><strong>対戦中BGMとイルミネのNBモーションを追加</strong><p>対戦中に専用BGM「Pain the Universe」が流れるようになりました。また、イルミネのNB「ルミナスアロー」に専用モーションを追加し、矢が放たれるタイミングと発射モーションを一致させました。</p></article>
           <article><time>Version 0.75</time><strong>バスターソードのモーション実装と5段ヒット化</strong><p>専用モーション画像を反映し、3段ヒットから5段ヒットに変更しました。1〜4段目はダメージ控えめのガード不能な怯ませ判定、5段目の最終ヒットで相手を大きくふっ飛ばします。</p></article>
           <article><time>Version 0.74</time><strong>バスターソードの表示と多段ヒット判定を修正</strong><p>モーション画像が読み込めない場合にキャラクターが透明になってしまう問題を修正しました。また、バスターソードの途中ヒットはガード不能の怯ませ判定になり、最終ヒットのみ相手をふっ飛ばすようにしました。</p></article>
@@ -261,6 +262,14 @@
         <label>使用キャラ(P1)<select id="debug-battle-p1-select"></select></label>
         <label>CPU対戦相手<select id="debug-battle-p2-select"></select></label>
         <label>CPUレベル<select id="debug-battle-level-select"></select></label>
+      </div>
+      <div class="admin-stat-editor">
+        <div class="admin-stat-head">
+          <strong>ステータス調整</strong>
+          <button id="debug-battle-stat-reset" type="button">既定値に戻す</button>
+        </div>
+        <p class="admin-stat-note">キャラ／CPUレベルを変更すると、その組み合わせの既定値が自動で入ります。入力した値がそのまま対戦に使われます。</p>
+        <div id="debug-battle-stat-grid" class="admin-stat-grid"></div>
       </div>
       <button id="debug-battle-start" class="menu-btn">テスト対戦を開始</button>
     </div>
@@ -462,14 +471,14 @@
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script src="js/config.js?v=3"></script>
-  <script src="js/audio.js?v=4"></script>
+  <script src="js/audio.js?v=5"></script>
   <script src="js/moves.js?v=27"></script>
-  <script src="js/fighters/irumine-moves.js?v=33"></script>
+  <script src="js/fighters/irumine-moves.js?v=34"></script>
   <script src="js/fighters/dullahan-moves.js?v=27"></script>
   <script src="js/physics.js?v=31"></script>
-  <script src="js/fighter.js?v=40"></script>
+  <script src="js/fighter.js?v=41"></script>
   <script src="js/fighters-data.js"></script>
-  <script src="js/debug-mode.js?v=6"></script>
+  <script src="js/debug-mode.js?v=7"></script>
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js?v=2"></script>
   <script src="js/cpu-ai.js"></script>
@@ -477,7 +486,7 @@
   <script src="js/practice.js?v=5"></script>
   <script src="js/input.js?v=5"></script>
   <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=38"></script>
+  <script src="js/game.js?v=39"></script>
     <script src="js/flow.js?v=48"></script>
   <script src="js/pwa.js?v=11"></script>
 </body>

@@ -44,9 +44,18 @@ const DebugMotionViewer = {
     if (Object.keys(FIGHTERS).length > 1) p2Select.selectedIndex = 1;
     levelSelect.innerHTML = Array.from({ length: 9 }, (_, i) => i + 1)
       .map(lvl => `<option value="${lvl}" ${lvl === 5 ? 'selected' : ''}>Lv.${lvl}</option>`).join('');
+    // ステータス調整：P1・CPUそれぞれの能力値を自由に書き換えて対戦できるようにする
+    this.battleSelects = { p1: p1Select, p2: p2Select, level: levelSelect };
+    this.buildStatEditor();
+    [p1Select, p2Select, levelSelect].forEach(select => {
+      select.addEventListener('change', () => this.fillDefaultStats());
+    });
+    document.getElementById('debug-battle-stat-reset').addEventListener('click', () => this.fillDefaultStats());
+
     document.getElementById('debug-battle-start').addEventListener('click', () => {
       if (!window.AppFlow) return;
       window.AppFlow.lastLaunchOptions = {
+        statOverrides: this.readStatOverrides(),
         stageKey: Object.keys(STAGES)[0],
         p1Key: p1Select.value,
         p2Key: p2Select.value,
@@ -62,6 +71,64 @@ const DebugMotionViewer = {
     });
 
     this.buildMotionList();
+  },
+
+  STAT_LABELS: {
+    life: 'ライフ', power: 'ちから', intelligence: 'かしこさ',
+    accuracy: '命中', evasion: '回避', defense: '丈夫さ',
+  },
+
+  buildStatEditor() {
+    const grid = document.getElementById('debug-battle-stat-grid');
+    grid.innerHTML = `<span class="admin-stat-corner"></span><span class="admin-stat-col">P1</span><span class="admin-stat-col">CPU</span>` +
+      GROWTH.STAT_KEYS.map(key => `
+        <label for="debug-stat-p1-${key}">${this.STAT_LABELS[key]}</label>
+        <input id="debug-stat-p1-${key}" type="number" min="1" max="${GROWTH.STAT_MAX}" data-stat-side="p1" data-stat-key="${key}">
+        <input id="debug-stat-cpu-${key}" type="number" min="1" max="${GROWTH.STAT_MAX}" data-stat-side="cpu" data-stat-key="${key}">
+      `).join('');
+    this.fillDefaultStats();
+  },
+
+  // game.js の resolveStats() / applyCpuLevelStats() と同じ計算で既定値を求める
+  _baseStatsFor(fighterKey) {
+    const def = FIGHTERS[fighterKey] || Object.values(FIGHTERS)[0];
+    return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
+  },
+
+  _cpuStatsFor(fighterKey, cpuLevel) {
+    const def = FIGHTERS[fighterKey] || Object.values(FIGHTERS)[0];
+    const stats = this._baseStatsFor(fighterKey);
+    const aptitudes = GROWTH.aptitudesFor(def.key);
+    const growthLevels = (Math.max(1, Math.min(9, Number(cpuLevel) || 3)) - 1) * 3;
+    const adjusted = {};
+    for (const key of GROWTH.STAT_KEYS) {
+      const growth = GROWTH.RANK_GROWTH_PER_LEVEL[aptitudes[key] || 'C'] || GROWTH.RANK_GROWTH_PER_LEVEL.C;
+      adjusted[key] = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round((stats[key] || 1) + growth * growthLevels)));
+    }
+    return adjusted;
+  },
+
+  fillDefaultStats() {
+    if (!this.battleSelects) return;
+    const p1Stats = this._baseStatsFor(this.battleSelects.p1.value);
+    const cpuStats = this._cpuStatsFor(this.battleSelects.p2.value, this.battleSelects.level.value);
+    for (const key of GROWTH.STAT_KEYS) {
+      const p1Input = document.getElementById(`debug-stat-p1-${key}`);
+      const cpuInput = document.getElementById(`debug-stat-cpu-${key}`);
+      if (p1Input) p1Input.value = p1Stats[key];
+      if (cpuInput) cpuInput.value = cpuStats[key];
+    }
+  },
+
+  readStatOverrides() {
+    const overrides = { p1: {}, cpu: {} };
+    document.querySelectorAll('#debug-battle-stat-grid input[data-stat-key]').forEach(input => {
+      const value = Number(input.value);
+      if (!Number.isFinite(value) || input.value === '') return;
+      overrides[input.dataset.statSide][input.dataset.statKey] =
+        Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round(value)));
+    });
+    return overrides;
   },
 
   switchTab(tabName) {
