@@ -606,7 +606,7 @@ const AppFlow = {
           <b class="stat-value">${value}</b>
           <i class="stat-bar"><em style="width:${(ratio * 100).toFixed(1)}%;background:${meta.color}"></em></i>
         </span>
-        <span class="stat-apt rank-${rank}" title="適性 ${rank}">${rank}</span>
+        <span class="stat-apt rank-${rank}" data-rank="${rank}" title="適性 ${rank}">${rank}</span>
       </div>`;
     }).join('');
     return `<div class="stat-panel${compact ? ' compact' : ''}">${rows}</div>`;

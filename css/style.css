@@ -1693,7 +1693,7 @@ body.layout-pending .screen { visibility: hidden; }
 .ticket-count img { width: 34px; height: 22px; object-fit: contain; }
 /* ==== ステータス表示（マスモン管理・トレーニング共通） ==== */
 .stat-panel { display: grid; gap: 6px; margin-top: 8px; text-align: left; }
-.stat-row { display: grid; grid-template-columns: minmax(56px, auto) 26px 1fr 22px; align-items: end; column-gap: 7px; }
+.stat-row { display: grid; grid-template-columns: minmax(56px, auto) 26px 1fr 24px; align-items: end; column-gap: 7px; }
 .stat-name { color: #fff; font-size: clamp(11px, 1.5vw, 14px); font-weight: 800; line-height: 1.25; white-space: nowrap; }
 .stat-name em { display: block; color: #9edcff; font-size: 9px; font-style: normal; font-weight: 600; }
 .stat-icon { display: flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 7px; box-shadow: inset 0 -2px 0 rgba(0,0,0,.28); font-size: 14px; font-style: normal; line-height: 1; }
@@ -1701,20 +1701,48 @@ body.layout-pending .screen { visibility: hidden; }
 .stat-value { display: block; color: #fff; font-size: clamp(15px, 2.6vw, 26px); font-weight: 900; line-height: 1.05; text-align: right; text-shadow: 0 2px 3px rgba(0,0,0,.75); }
 .stat-bar { position: absolute; right: 0; bottom: 0; left: 0; display: block; height: 6px; border-radius: 4px; background: rgba(255,255,255,.16); overflow: hidden; }
 .stat-bar em { display: block; height: 100%; border-radius: 4px; }
-.stat-apt { align-self: center; width: 22px; height: 22px; border-radius: 50%; color: #12202c; font-size: 12px; font-weight: 900; line-height: 22px; text-align: center; }
-.stat-apt.rank-A { background: #ffd45e; }
-.stat-apt.rank-B { background: #b9e4ff; }
-.stat-apt.rank-C { background: #e6ebf0; }
-.stat-apt.rank-D { background: #9aa7b3; }
-.stat-apt.rank-E { background: #6c7883; color: #e9eef3; }
+/* 適性ランク：太い縁取り＋上下グラデーションの立体的なアルファベット表示（参考画像準拠）。
+   本体で縁取りを描き、::afterで同じ文字のグラデーション面を重ねる。
+   （-webkit-text-strokeは文字の内側にも太るため、paint-orderに頼らずこの2枚重ねで実現する） */
+.stat-apt {
+  position: relative;
+  align-self: center;
+  width: 24px;
+  -webkit-text-stroke: 3px var(--rank-edge);
+  -webkit-text-fill-color: var(--rank-edge);
+  font-size: 21px;
+  font-style: italic;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  filter: drop-shadow(0 1.5px 0.5px rgba(0,0,0,.4));
+}
+.stat-apt::after {
+  content: attr(data-rank);
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 0;
+  -webkit-text-stroke: 0;
+  background: linear-gradient(180deg, #fff 14%, #fff 26%, var(--rank-light) 46%, var(--rank-deep) 78%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.stat-apt.rank-A { --rank-light: #ff9078; --rank-deep: #ee2a12; --rank-edge: #8d2213; }
+.stat-apt.rank-B { --rank-light: #db8dff; --rank-deep: #9d2ae2; --rank-edge: #5c1e8c; }
+.stat-apt.rank-C { --rank-light: #95ec74; --rank-deep: #31ba1d; --rank-edge: #1d6b15; }
+.stat-apt.rank-D { --rank-light: #7eecdd; --rank-deep: #10bca6; --rank-edge: #0d6c61; }
+.stat-apt.rank-E { --rank-light: #98caff; --rank-deep: #2c81e2; --rank-edge: #184b86; }
+/* コンパクト版（マスモン管理画面）：6行が枠内に収まるよう各要素を小さくする */
 .stat-panel.compact { gap: 2px; }
-.stat-panel.compact .stat-row { grid-template-columns: minmax(46px, auto) 20px 1fr 18px; column-gap: 5px; }
+.stat-panel.compact .stat-row { grid-template-columns: minmax(46px, auto) 20px 1fr 20px; column-gap: 5px; }
 .stat-panel.compact .stat-name { font-size: clamp(9px, 1.15vw, 12px); }
 .stat-panel.compact .stat-icon { width: 20px; height: 20px; border-radius: 5px; font-size: 11px; }
 .stat-panel.compact .stat-track { padding-bottom: 5px; }
 .stat-panel.compact .stat-value { font-size: clamp(11px, 1.75vw, 18px); }
 .stat-panel.compact .stat-bar { height: 4px; }
-.stat-panel.compact .stat-apt { width: 18px; height: 18px; font-size: 10px; line-height: 18px; }
+.stat-panel.compact .stat-apt { width: 20px; font-size: 16px; line-height: 1.05; -webkit-text-stroke-width: 2.4px; }
 .stat-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px 2px 3px; border: 1px solid var(--chip-color); border-radius: 999px; color: #fff; background: color-mix(in srgb, var(--chip-color) 26%, rgba(6,12,20,.9)); font-size: 10px; font-weight: 800; white-space: nowrap; }
 .stat-chip i { display: flex; width: 15px; height: 15px; align-items: center; justify-content: center; border-radius: 4px; background: var(--chip-color); font-size: 9px; font-style: normal; }
 .stat-chip.minus { border-style: dashed; opacity: .7; filter: grayscale(.3); }
