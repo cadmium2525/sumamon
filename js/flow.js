@@ -588,18 +588,16 @@ const AppFlow = {
     defense: { label: '丈夫さ', icon: '🛡', color: '#3a5ad4', effect: '吹っ飛びにくさ' },
   },
 
-  // バーは「そのレベルで適性Aだった場合の値」を満タンとした到達度を表す。
-  // カンスト値(999)基準にすると低レベル帯でほぼ空になり、能力の得手不得手が読み取れないため。
-  _statBarRatio(key, value, level) {
-    const full = (defaultStats()[key] || 1) + GROWTH.RANK_GROWTH_PER_LEVEL.A * (Math.max(1, level || 1) - 1);
-    return Math.max(0.03, Math.min(1, value / full));
+  // バーはカンスト値(STAT_MAX = 999)を満タンとした到達度を表す。
+  _statBarRatio(key, value) {
+    return Math.max(0.01, Math.min(1, value / GROWTH.STAT_MAX));
   },
 
-  _statPanelHtml(stats, aptitudes, { compact = false, level = 1 } = {}) {
+  _statPanelHtml(stats, aptitudes, { compact = false } = {}) {
     const rows = GROWTH.STAT_KEYS.map(key => {
       const meta = this.STAT_META[key];
       const value = Number(stats[key]) || 0;
-      const ratio = this._statBarRatio(key, value, level);
+      const ratio = this._statBarRatio(key, value);
       const rank = (aptitudes && aptitudes[key]) || 'C';
       return `<div class="stat-row">
         <span class="stat-name">${meta.label}${compact ? '' : `<em>${meta.effect}</em>`}</span>
@@ -656,7 +654,7 @@ const AppFlow = {
       if (statPanel) {
         const stats = GROWTH.computeStatsAtLevel(
           { ...defaultStats(), trainingStats: selected.trainingStats }, selected.aptitudes, selected.level);
-        statPanel.innerHTML = this._statPanelHtml(stats, selected.aptitudes, { compact: true, level: selected.level });
+        statPanel.innerHTML = this._statPanelHtml(stats, selected.aptitudes, { compact: true });
       }
     } else if (statPanel) statPanel.innerHTML = '';
   },
@@ -707,7 +705,7 @@ const AppFlow = {
     if (!m) return;
     const stats = GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: m.trainingStats }, m.aptitudes, m.level);
     document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.png" alt="">${m.trainingTickets || 0}枚</span>
-      ${this._statPanelHtml(stats, m.aptitudes, { level: m.level })}`;
+      ${this._statPanelHtml(stats, m.aptitudes)}`;
     document.getElementById('training-list').innerHTML = Object.entries(GROWTH.TRAINING_MENU).map(([key, t]) => {
       // 上昇量の大きい順に並べ、ステータス表示と同じアイコン・色のチップで内容を示す
       const chips = Object.entries(t.changes).sort((a, b) => b[1] - a[1])

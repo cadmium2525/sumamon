@@ -1687,7 +1687,8 @@ body.layout-pending .screen { visibility: hidden; }
 .selected-masmon-name { margin-bottom: 8px; font-weight: 700; }
 .masmon-actions { display: flex; gap: 8px; }
 .masmon-actions button, .training-card { padding: 10px 14px; border: 1px solid rgba(255,255,255,.55); border-radius: 8px; color: #fff; background: rgba(8,16,28,.82); text-shadow: 0 1px 3px #000; }
-.training-summary { width: min(94vw, 650px); padding: 10px 14px; border: 1px solid rgba(255,255,255,.22); background: rgba(7,14,24,.74); border-radius: 10px; text-align: center; text-shadow: 0 1px 3px #000; }
+.training-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); width: min(96vw, 1000px); gap: 10px; align-items: start; }
+.training-summary { position: sticky; top: 0; width: auto; padding: 10px 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(7,14,24,.74); border-radius: 10px; text-align: center; text-shadow: 0 1px 3px #000; }
 .ticket-count { display: inline-flex; align-items: center; gap: 5px; margin-left: 16px; color: #ffd54a; }
 .ticket-count img { width: 34px; height: 22px; object-fit: contain; }
 /* ==== ステータス表示（マスモン管理・トレーニング共通） ==== */
@@ -1719,7 +1720,7 @@ body.layout-pending .screen { visibility: hidden; }
 .stat-chip.minus { border-style: dashed; opacity: .7; filter: grayscale(.3); }
 .training-effects { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .training-item-button { position: fixed; z-index: 20; top: max(10px, env(safe-area-inset-top)); left: max(105px, calc(env(safe-area-inset-left) + 105px)); padding: 7px 14px; border: 1px solid #e6c96b; border-radius: 8px; color: #fff1b5; background: rgba(42,29,11,.94); font-weight: 800; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
-.training-list { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 8px; width: min(94vw, 650px); margin-top: 12px; }
+.training-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; width: auto; margin-top: 0; align-content: start; }
 .training-card { text-align: left; }
 .training-card strong, .training-card small { display: block; }
 .training-card small { margin-top: 3px; opacity: .75; }
@@ -1812,7 +1813,7 @@ body.layout-pending .screen { visibility: hidden; }
   .result-main .result-masmon-panel { width: 44%; max-width: 350px; }
   .result-entry { max-width: 25%; }
   .result-entry-record { width: 100%; font-size: 8px; }
-  .training-list { grid-template-columns: repeat(5, minmax(115px, 1fr)); width: min(96vw, 900px); }
+  .training-list { grid-template-columns: repeat(2, minmax(0, 1fr)); width: auto; }
   .training-card { padding: 7px 9px; }
   .scrollable-screen .screen-heading { margin-bottom: 8px; }
 }
