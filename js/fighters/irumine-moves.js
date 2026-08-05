@@ -33,6 +33,10 @@ window.FIGHTER_MOVESETS.irumine = {
       statKey: 'intelligence', endlag: 14,
       travelSpeed: 1.6, // 相手の方向へ少しずつ前進しながら回転する
       multiHit: [[30, 39], [60, 69], [90, 99]], // 003→004→005の各ループでちょうど1回ずつヒット
+      // 1・2段目は怯ませ（ガード不能・ほぼその場に拘束）、3段目＝最終段のみ吹っ飛ばす
+      linkKbScale: 0.12,
+      linkHitstun: 34, // 次の段(30F後)まで確実に硬直させ、途中でガードに移行できないようにする
+      finalHit: { kbBase: 6.5, angle: 38 },
       animation: {
         frames: [
           'assets/images/fighter/irumine/side_special/frame_001.png',

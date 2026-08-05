@@ -20,12 +20,13 @@ class Fighter {
       for (const move of Object.values(moveGroup || {})) {
         const animation = move && move.animation;
         if (!animation || !animation.frames || !animation.frames.length) continue;
-        const state = { images: [], loaded: 0, config: animation };
+        const state = { images: [], loaded: 0, failed: 0, config: animation };
         state.images = animation.frames.map(src => {
           const image = new Image();
           image.onload = () => { state.loaded++; };
           image.onerror = () => {
             state.loaded++; // 読み込み失敗も「決着した」扱いにし、他のコマが無期限にブロックされないようにする
+            state.failed++; // 1枚でも失敗したらこの技のアニメは使わず、待機コマにフォールバック（透明化を防ぐ）
             console.warn('[Fighter] モーション画像の読み込みに失敗しました:', src);
           };
           image.src = src;
@@ -648,6 +649,7 @@ class Fighter {
     this.attackTimer = move.duration;
     this.hasHitThisAttack = false;
     this._hitWindowIndex = -1;
+    this._isLinkHit = false;
     this._projectileSpawned = false;
   }
 
@@ -676,6 +678,9 @@ class Fighter {
       this._hitWindowIndex = windowIndex;
       this.hasHitThisAttack = false;
     }
+    // 多段技の途中段かどうか（最終段のみ吹っ飛び、それ以外は怯ませ判定）
+    const hitCount = (Array.isArray(m.multiHit) && m.multiHit.length) ? m.multiHit.length : 1;
+    this._isLinkHit = windowIndex < hitCount - 1;
     const scale = this.attackScale || 1;
     if (m.projectile) return null;
     const range = m.range * scale;
@@ -701,6 +706,22 @@ class Fighter {
     const critical = Math.random() < criticalChance;
     if (critical) dmg *= 1.2;
     let kbBase = move.kbBase;
+    let angleDeg = move.angle;
+
+    // 多段技の途中ヒット：ふっ飛ばさずその場で怯ませ、ガードも許さない。
+    // 最終段だけが通常どおりの吹っ飛び判定になる。
+    const linkHit = Array.isArray(move.multiHit) && move.multiHit.length > 1
+      && attacker.currentMove === move && attacker._isLinkHit === true;
+
+    if (linkHit) {
+      // 途中段はガード不能：シールドを強制解除してそのまま怯み判定を通す
+      this.shielding = false;
+      kbBase *= (move.linkKbScale != null ? move.linkKbScale : 0.15);
+    } else if (move.finalHit) {
+      // 最終段の吹っ飛び性能を個別に指定できる
+      if (move.finalHit.kbBase != null) kbBase = move.finalHit.kbBase;
+      if (move.finalHit.angle != null) angleDeg = move.finalHit.angle;
+    }
 
     if (this.shielding) {
       // シールドブロック：ダメージ/吹っ飛びを大幅軽減する代わりにシールドが削れる
@@ -712,8 +733,23 @@ class Fighter {
 
     this.damagePercent += dmg;
     const kb = Physics.computeKnockback(kbBase, this.damagePercent, attacker.stats[move.statKey], this.stats.defense) * this.knockbackTakenMultiplier;
-    const angleRad = (move.angle * Math.PI) / 180;
+    const angleRad = (angleDeg * Math.PI) / 180;
     const dir = move.backHit ? -attacker.facing : attacker.facing;
+
+    if (linkHit) {
+      // 怯み：ほぼその場に留めて次の段まで硬直させる（浮かせない／転倒させない）
+      this.vx = dir * kb * 0.35;
+      this.vy = 0;
+      this.tumbling = false;
+      this.downed = false;
+      this.lastAttacker = attacker;
+      this.lastHitAt = Date.now();
+      this.hitstun = Math.max(this.hitstun, move.linkHitstun || 34);
+      this.attackTimer = 0;
+      this.currentMove = null;
+      this.recoveryTimer = 0;
+      return;
+    }
 
     this.vx = dir * kb * Math.cos(angleRad);
     this.vy = -kb * Math.sin(angleRad);
@@ -923,7 +959,7 @@ class Fighter {
       ? this.moveAnimations.get(this.currentMove)
       : null;
     const useMoveFrame = !!(moveAnimation && moveAnimation.config.contentBox &&
-      moveAnimation.loaded >= moveAnimation.images.length);
+      moveAnimation.loaded >= moveAnimation.images.length && moveAnimation.failed === 0);
     const moveElapsed = this.currentMove ? this.currentMove.duration - this.attackTimer : 0;
     const moveFrameIndex = useMoveFrame
       ? Math.min(moveAnimation.images.length - 1, Math.floor(moveElapsed / (moveAnimation.config.frameDuration || 6)))
