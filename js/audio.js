@@ -6,6 +6,8 @@ const AudioManager = {
   tracks: {
     home: { src: 'assets/audio/home.mp3', baseVolume: 1 / 3 },
     battleMode: { src: 'assets/audio/battlemode.mp3', baseVolume: 2 / 5 },
+    // 実際の対戦中に流れる曲（ファイル名に空白を含むため、URLは%20でエンコードした形で統一する）
+    battle: { src: 'assets/audio/Pain%20the%20Universe.mp3', baseVolume: 2 / 5 },
   },
   effects: {
     arrow: { src: 'assets/audio/arrow.mp3', baseVolume: 0.75 },
@@ -144,6 +146,8 @@ const AudioManager = {
     const multiScenes = ['multi-menu', 'multi-lobby', 'battle-intro', 'battle'];
     if (mode === 'cpu' && cpuScenes.includes(sceneName)) nextTrack = 'battleMode';
     if (mode === 'multi' && multiScenes.includes(sceneName)) nextTrack = 'battleMode';
+    // 対戦中は専用BGMへ切り替える（準備画面までは battleMode のまま）
+    if (sceneName === 'battle') nextTrack = 'battle';
     this.playBgm(nextTrack);
   },
 

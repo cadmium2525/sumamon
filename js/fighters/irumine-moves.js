@@ -24,6 +24,22 @@ window.FIGHTER_MOVESETS.irumine = {
       statKey: 'intelligence', endlag: 16,
       projectile: { speed: 12, width: 108, height: 30, lifetime: 95, spawnFrame: 9 },
       projectileSprite: 'assets/images/fighter/irumine/projectiles/arrow.png',
+      animation: {
+        // 001(構え)→002(つがえ)→003(引き絞り)→004(発射)→005(弦戻り)→006(構え解除)
+        // frameDuration:3 とすることで 004(発射コマ) の開始が elapsed=9 となり、
+        // projectile.spawnFrame:9（矢が実際に飛び出すフレーム）とぴったり一致する。
+        frames: [
+          'assets/images/fighter/irumine/neutral_special/frame_001.png',
+          'assets/images/fighter/irumine/neutral_special/frame_002.png',
+          'assets/images/fighter/irumine/neutral_special/frame_003.png',
+          'assets/images/fighter/irumine/neutral_special/frame_004.png',
+          'assets/images/fighter/irumine/neutral_special/frame_005.png',
+          'assets/images/fighter/irumine/neutral_special/frame_006.png',
+        ],
+        frameDuration: 3,
+        // 344x256の実画像を解析：本体は上端y14〜足元y232、横中心x162（弓・矢・影は除外）
+        contentBox: { left: 0, top: 14, right: 324, bottom: 232 },
+      },
     },
     side: {
       // バスターソード：回転しながら相手を巻き込み連続ヒットする5段技(約2.1秒)。
