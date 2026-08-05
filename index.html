@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=52">
+<link rel="stylesheet" href="css/style.css?v=53">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.77</small>
+    <small class="home-version">Version 0.78</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.78</time><strong>ステータス表示を刷新</strong><p>マスモン管理画面で選択中のマスモンのステータスを表示するようにしました。アイコン・カラーバー・適性を並べた新しい表示で、トレーニング画面も同じ形式に統一。トレーニング内容もどの能力がどれだけ変化するかをアイコン付きで表示します。</p></article>
           <article><time>Version 0.77</time><strong>バトルテストでステータスを自由に調整可能に</strong><p>管理者モードのバトルテストで、自分とCPUの6種のステータスをそれぞれ入力して対戦できるようにしました。キャラやCPUレベルを変更すると、その組み合わせの既定値が自動で入ります。</p></article>
           <article><time>Version 0.76</time><strong>対戦中BGMとイルミネのNBモーションを追加</strong><p>対戦中に専用BGM「Pain the Universe」が流れるようになりました。また、イルミネのNB「ルミナスアロー」に専用モーションを追加し、矢が放たれるタイミングと発射モーションを一致させました。</p></article>
           <article><time>Version 0.75</time><strong>バスターソードのモーション実装と5段ヒット化</strong><p>専用モーション画像を反映し、3段ヒットから5段ヒットに変更しました。1〜4段目はダメージ控えめのガード不能な怯ませ判定、5段目の最終ヒットで相手を大きくふっ飛ばします。</p></article>
@@ -291,6 +292,7 @@
       <img id="masmon-current-image" alt="選択中のマスモン">
       <div id="masmon-current-name"></div>
     </div>
+    <div id="masmon-stat-panel" class="masmon-stat-panel"></div>
     <div id="masmon-roster" class="masmon-roster"></div>
   </div>
 
@@ -487,7 +489,7 @@
   <script src="js/input.js?v=5"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=39"></script>
-    <script src="js/flow.js?v=48"></script>
+    <script src="js/flow.js?v=49"></script>
   <script src="js/pwa.js?v=11"></script>
 </body>
 </html>

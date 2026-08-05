@@ -1455,11 +1455,11 @@ body.layout-pending .screen { visibility: hidden; }
 .masmon-current-display {
   position: absolute;
   z-index: 2;
-  top: 10%;
-  left: 38%;
+  top: 3%;
+  left: 35%;
   display: flex;
-  width: 34%;
-  height: 72%;
+  width: 32%;
+  height: 49%;
   align-items: center;
   justify-content: flex-end;
   flex-direction: column;
@@ -1484,6 +1484,21 @@ body.layout-pending .screen { visibility: hidden; }
   text-align: center;
   text-shadow: 0 2px 3px #000;
 }
+.masmon-stat-panel {
+  position: absolute;
+  z-index: 3;
+  right: 25%;
+  bottom: 2.5%;
+  left: 30.5%;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 6px 11px;
+  border: 1px solid rgba(226,188,90,.7);
+  border-radius: 10px;
+  background: rgba(10,9,10,.8);
+  touch-action: pan-y;
+}
+.masmon-stat-panel .stat-panel { margin-top: 0; }
 .masmon-roster {
   position: absolute;
   z-index: 3;
@@ -1675,12 +1690,34 @@ body.layout-pending .screen { visibility: hidden; }
 .training-summary { width: min(94vw, 650px); padding: 10px 14px; border: 1px solid rgba(255,255,255,.22); background: rgba(7,14,24,.74); border-radius: 10px; text-align: center; text-shadow: 0 1px 3px #000; }
 .ticket-count { display: inline-flex; align-items: center; gap: 5px; margin-left: 16px; color: #ffd54a; }
 .ticket-count img { width: 34px; height: 22px; object-fit: contain; }
-.stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
-.stat-grid span { font-size: 11px; }
-.stat-grid b, .stat-grid small { display: block; }
-.stat-grid b { font-size: 16px; }
-.stat-grid small { opacity: .7; }
-.stat-grid em { display: block; margin-top: 3px; color: #9edcff; font-size: 10px; font-style: normal; white-space: nowrap; }
+/* ==== ステータス表示（マスモン管理・トレーニング共通） ==== */
+.stat-panel { display: grid; gap: 6px; margin-top: 8px; text-align: left; }
+.stat-row { display: grid; grid-template-columns: minmax(56px, auto) 26px 1fr 22px; align-items: end; column-gap: 7px; }
+.stat-name { color: #fff; font-size: clamp(11px, 1.5vw, 14px); font-weight: 800; line-height: 1.25; white-space: nowrap; }
+.stat-name em { display: block; color: #9edcff; font-size: 9px; font-style: normal; font-weight: 600; }
+.stat-icon { display: flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: 7px; box-shadow: inset 0 -2px 0 rgba(0,0,0,.28); font-size: 14px; font-style: normal; line-height: 1; }
+.stat-track { position: relative; display: block; min-width: 0; padding-bottom: 8px; }
+.stat-value { display: block; color: #fff; font-size: clamp(15px, 2.6vw, 26px); font-weight: 900; line-height: 1.05; text-align: right; text-shadow: 0 2px 3px rgba(0,0,0,.75); }
+.stat-bar { position: absolute; right: 0; bottom: 0; left: 0; display: block; height: 6px; border-radius: 4px; background: rgba(255,255,255,.16); overflow: hidden; }
+.stat-bar em { display: block; height: 100%; border-radius: 4px; }
+.stat-apt { align-self: center; width: 22px; height: 22px; border-radius: 50%; color: #12202c; font-size: 12px; font-weight: 900; line-height: 22px; text-align: center; }
+.stat-apt.rank-A { background: #ffd45e; }
+.stat-apt.rank-B { background: #b9e4ff; }
+.stat-apt.rank-C { background: #e6ebf0; }
+.stat-apt.rank-D { background: #9aa7b3; }
+.stat-apt.rank-E { background: #6c7883; color: #e9eef3; }
+.stat-panel.compact { gap: 2px; }
+.stat-panel.compact .stat-row { grid-template-columns: minmax(46px, auto) 20px 1fr 18px; column-gap: 5px; }
+.stat-panel.compact .stat-name { font-size: clamp(9px, 1.15vw, 12px); }
+.stat-panel.compact .stat-icon { width: 20px; height: 20px; border-radius: 5px; font-size: 11px; }
+.stat-panel.compact .stat-track { padding-bottom: 5px; }
+.stat-panel.compact .stat-value { font-size: clamp(11px, 1.75vw, 18px); }
+.stat-panel.compact .stat-bar { height: 4px; }
+.stat-panel.compact .stat-apt { width: 18px; height: 18px; font-size: 10px; line-height: 18px; }
+.stat-chip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px 2px 3px; border: 1px solid var(--chip-color); border-radius: 999px; color: #fff; background: color-mix(in srgb, var(--chip-color) 26%, rgba(6,12,20,.9)); font-size: 10px; font-weight: 800; white-space: nowrap; }
+.stat-chip i { display: flex; width: 15px; height: 15px; align-items: center; justify-content: center; border-radius: 4px; background: var(--chip-color); font-size: 9px; font-style: normal; }
+.stat-chip.minus { border-style: dashed; opacity: .7; filter: grayscale(.3); }
+.training-effects { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .training-item-button { position: fixed; z-index: 20; top: max(10px, env(safe-area-inset-top)); left: max(105px, calc(env(safe-area-inset-left) + 105px)); padding: 7px 14px; border: 1px solid #e6c96b; border-radius: 8px; color: #fff1b5; background: rgba(42,29,11,.94); font-weight: 800; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
 .training-list { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 8px; width: min(94vw, 650px); margin-top: 12px; }
 .training-card { text-align: left; }

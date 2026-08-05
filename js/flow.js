@@ -577,12 +577,59 @@ const AppFlow = {
     this.renderMasmonManage();
   },
 
+  // ステータス表示の共通定義（ラベル／アイコン／バー色／ゲーム内での効果）。
+  // マスモン管理・トレーニングの両画面で同じ見た目になるよう、ここ1か所にまとめる。
+  STAT_META: {
+    life: { label: 'ライフ', icon: '💗', color: '#f2c115', effect: '生存力' },
+    power: { label: 'ちから', icon: '🥊', color: '#ef4a3f', effect: '打撃技の威力' },
+    intelligence: { label: 'かしこさ', icon: '📗', color: '#3fbf5f', effect: '必殺技の威力' },
+    accuracy: { label: '命中', icon: '🎯', color: '#f45fb0', effect: 'クリティカル率' },
+    evasion: { label: '回避', icon: '👢', color: '#38a8e8', effect: '移動速度' },
+    defense: { label: '丈夫さ', icon: '🛡', color: '#3a5ad4', effect: '吹っ飛びにくさ' },
+  },
+
+  // バーは「そのレベルで適性Aだった場合の値」を満タンとした到達度を表す。
+  // カンスト値(999)基準にすると低レベル帯でほぼ空になり、能力の得手不得手が読み取れないため。
+  _statBarRatio(key, value, level) {
+    const full = (defaultStats()[key] || 1) + GROWTH.RANK_GROWTH_PER_LEVEL.A * (Math.max(1, level || 1) - 1);
+    return Math.max(0.03, Math.min(1, value / full));
+  },
+
+  _statPanelHtml(stats, aptitudes, { compact = false, level = 1 } = {}) {
+    const rows = GROWTH.STAT_KEYS.map(key => {
+      const meta = this.STAT_META[key];
+      const value = Number(stats[key]) || 0;
+      const ratio = this._statBarRatio(key, value, level);
+      const rank = (aptitudes && aptitudes[key]) || 'C';
+      return `<div class="stat-row">
+        <span class="stat-name">${meta.label}${compact ? '' : `<em>${meta.effect}</em>`}</span>
+        <i class="stat-icon" style="background:${meta.color}">${meta.icon}</i>
+        <span class="stat-track">
+          <b class="stat-value">${value}</b>
+          <i class="stat-bar"><em style="width:${(ratio * 100).toFixed(1)}%;background:${meta.color}"></em></i>
+        </span>
+        <span class="stat-apt rank-${rank}" title="適性 ${rank}">${rank}</span>
+      </div>`;
+    }).join('');
+    return `<div class="stat-panel${compact ? ' compact' : ''}">${rows}</div>`;
+  },
+
+  // トレーニングの上昇/下降ステータスを、ステータス表示と同じ色・アイコンで示す
+  _statChipHtml(statKey, delta) {
+    const meta = this.STAT_META[statKey];
+    if (!meta) return '';
+    return `<span class="stat-chip${delta < 0 ? ' minus' : ''}" style="--chip-color:${meta.color}">
+      <i>${meta.icon}</i>${meta.label} ${delta > 0 ? '+' : ''}${delta}</span>`;
+  },
+
   renderMasmonManage() {
     const list = MasmonStore.loadAll();
     const roster = document.getElementById('masmon-roster');
     const image = document.getElementById('masmon-current-image');
     const name = document.getElementById('masmon-current-name');
+    const statPanel = document.getElementById('masmon-stat-panel');
     if (!list.length) {
+      if (statPanel) statPanel.innerHTML = '';
       image.removeAttribute('src');
       image.style.display = 'none';
       name.textContent = '所持マスモンがいません';
@@ -606,7 +653,12 @@ const AppFlow = {
       const base = FIGHTERS[selected.baseFighterKey] || {};
       this._startManageIdleAnimation(base, image);
       name.textContent = `${selected.name}　Lv.${selected.level}`;
-    }
+      if (statPanel) {
+        const stats = GROWTH.computeStatsAtLevel(
+          { ...defaultStats(), trainingStats: selected.trainingStats }, selected.aptitudes, selected.level);
+        statPanel.innerHTML = this._statPanelHtml(stats, selected.aptitudes, { compact: true, level: selected.level });
+      }
+    } else if (statPanel) statPanel.innerHTML = '';
   },
 
   _startManageIdleAnimation(base, image) {
@@ -653,17 +705,14 @@ const AppFlow = {
   renderTraining(message = '') {
     const m = this._selectedManageMasmon();
     if (!m) return;
-    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
     const stats = GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: m.trainingStats }, m.aptitudes, m.level);
-    const effects = {
-      life: '生存力', power: '打撃技の威力', intelligence: '必殺技の威力',
-      accuracy: 'クリティカル率', evasion: '移動速度', defense: '吹っ飛びにくさ',
-    };
     document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.png" alt="">${m.trainingTickets || 0}枚</span>
-      <div class="stat-grid">${GROWTH.STAT_KEYS.map(k => `<span>${labels[k]} <b>${stats[k]}</b><small>適性 ${m.aptitudes[k]}</small><em>${effects[k]}</em></span>`).join('')}</div>`;
+      ${this._statPanelHtml(stats, m.aptitudes, { level: m.level })}`;
     document.getElementById('training-list').innerHTML = Object.entries(GROWTH.TRAINING_MENU).map(([key, t]) => {
-      const detail = Object.entries(t.changes).map(([stat, value]) => `${labels[stat]}${value === 5 ? 'が大増加' : value > 0 ? 'が増加' : 'が減少'}`).join('／');
-      return `<button class="training-card" data-training="${key}" ${(m.trainingTickets || 0) < 1 ? 'disabled' : ''}><strong>${t.name}</strong><small>${detail}</small></button>`;
+      // 上昇量の大きい順に並べ、ステータス表示と同じアイコン・色のチップで内容を示す
+      const chips = Object.entries(t.changes).sort((a, b) => b[1] - a[1])
+        .map(([stat, value]) => this._statChipHtml(stat, value)).join('');
+      return `<button class="training-card" data-training="${key}" ${(m.trainingTickets || 0) < 1 ? 'disabled' : ''}><strong>${t.name}</strong><span class="training-effects">${chips}</span></button>`;
     }).join('');
     document.getElementById('training-message').textContent = message;
   },
