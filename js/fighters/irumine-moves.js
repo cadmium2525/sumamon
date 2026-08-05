@@ -26,17 +26,18 @@ window.FIGHTER_MOVESETS.irumine = {
       projectileSprite: 'assets/images/fighter/irumine/projectiles/arrow.png',
     },
     side: {
-      // バスターソード：回転しながら相手を巻き込み連続ヒットする多段技(約2秒)。
-      // frame_001(振りかぶり)→002(初撃)→[003→004→005]×3ループ(1ループ=1ヒット)→002(締め)で終了。
-      name: 'バスターソード', dmgBase: 3.5, kbBase: 2, angle: 20,
-      duration: 120, active: [30, 39], range: 74, h: 54, yOff: 2,
+      // バスターソード：回転しながら相手を巻き込み連続ヒットする5段技(約2.1秒)。
+      // frame_001(振りかぶり)→002(初撃)→[003→004→005]×5ループ(1ループ=1ヒット)→002(締め)で終了。
+      // 1〜4段目はガード不能の怯ませ判定(ダメージ小)、5段目=最終段のみ吹っ飛ばす。
+      name: 'バスターソード', dmgBase: 1.8, kbBase: 2, angle: 20,
+      duration: 126, active: [16, 25], range: 74, h: 54, yOff: 2,
       statKey: 'intelligence', endlag: 14,
       travelSpeed: 1.6, // 相手の方向へ少しずつ前進しながら回転する
-      multiHit: [[30, 39], [60, 69], [90, 99]], // 003→004→005の各ループでちょうど1回ずつヒット
-      // 1・2段目は怯ませ（ガード不能・ほぼその場に拘束）、3段目＝最終段のみ吹っ飛ばす
+      // 各ループ(003→004→005 = 21F)の中央に1回ずつヒット判定を置く
+      multiHit: [[16, 25], [37, 46], [58, 67], [79, 88], [100, 109]],
       linkKbScale: 0.12,
-      linkHitstun: 34, // 次の段(30F後)まで確実に硬直させ、途中でガードに移行できないようにする
-      finalHit: { kbBase: 6.5, angle: 38 },
+      linkHitstun: 26, // 次の段(最長21F後)まで確実に硬直させ、途中でガードに移行できないようにする
+      finalHit: { dmgBase: 6.5, kbBase: 6.5, angle: 38 },
       animation: {
         frames: [
           'assets/images/fighter/irumine/side_special/frame_001.png',
@@ -50,10 +51,17 @@ window.FIGHTER_MOVESETS.irumine = {
           'assets/images/fighter/irumine/side_special/frame_003.png',
           'assets/images/fighter/irumine/side_special/frame_004.png',
           'assets/images/fighter/irumine/side_special/frame_005.png',
+          'assets/images/fighter/irumine/side_special/frame_003.png',
+          'assets/images/fighter/irumine/side_special/frame_004.png',
+          'assets/images/fighter/irumine/side_special/frame_005.png',
+          'assets/images/fighter/irumine/side_special/frame_003.png',
+          'assets/images/fighter/irumine/side_special/frame_004.png',
+          'assets/images/fighter/irumine/side_special/frame_005.png',
           'assets/images/fighter/irumine/side_special/frame_002.png',
         ],
-        frameDuration: 10,
-        contentBox: { left: 43, top: 10, right: 543, bottom: 325 },
+        frameDuration: 7,
+        // 553x372の実画像を解析した本体bbox（frame_001の直立時の本体高さ243pxを基準／剣・軌跡は除外）
+        contentBox: { left: 81, top: 81, right: 391, bottom: 324 },
       },
     },
     down: {

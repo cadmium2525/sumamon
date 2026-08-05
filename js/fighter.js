@@ -699,7 +699,14 @@ class Fighter {
   takeHit(attacker, move) {
     if (this.invincible > 0 || this.dead) return;
 
-    let dmg = Physics.computeDamage(move.dmgBase, attacker.stats[move.statKey], this.stats.life);
+    // 多段技の途中ヒット：ふっ飛ばさずその場で怯ませ、ガードも許さない。
+    // 最終段だけが通常どおりの吹っ飛び判定になる。
+    const linkHit = Array.isArray(move.multiHit) && move.multiHit.length > 1
+      && attacker.currentMove === move && attacker._isLinkHit === true;
+
+    const dmgBase = (!linkHit && move.finalHit && move.finalHit.dmgBase != null)
+      ? move.finalHit.dmgBase : move.dmgBase;
+    let dmg = Physics.computeDamage(dmgBase, attacker.stats[move.statKey], this.stats.life);
     const accuracyGrowth = Math.max(0, (attacker.stats.accuracy || 10) - 10);
     const criticalChance = Math.min(CONFIG.CRITICAL_CHANCE_MAX,
       CONFIG.CRITICAL_CHANCE_BASE + accuracyGrowth * CONFIG.ACCURACY_CRITICAL_SCALE);
@@ -707,11 +714,6 @@ class Fighter {
     if (critical) dmg *= 1.2;
     let kbBase = move.kbBase;
     let angleDeg = move.angle;
-
-    // 多段技の途中ヒット：ふっ飛ばさずその場で怯ませ、ガードも許さない。
-    // 最終段だけが通常どおりの吹っ飛び判定になる。
-    const linkHit = Array.isArray(move.multiHit) && move.multiHit.length > 1
-      && attacker.currentMove === move && attacker._isLinkHit === true;
 
     if (linkHit) {
       // 途中段はガード不能：シールドを強制解除してそのまま怯み判定を通す
