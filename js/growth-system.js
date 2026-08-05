@@ -75,6 +75,15 @@ const GROWTH = {
     return { leveledUp: levelsGained > 0, levelsGained, ticketsGained: levelsGained, fromLevel, toLevel: masmon.level };
   },
 
+  // トレーニング／修行での上昇量は適性ランクの倍率で変わる（上昇のみ。減少は適性に関わらず固定）。
+  // 実処理とUIの予告表示で必ず同じ値になるよう、計算はこの1か所に集約する。
+  // 例: ちから適性Aのマスモンが重り引き(基本+13)を行うと 13 × 1.5 = +20
+  trainingChangeFor(aptitudeRank, baseChange) {
+    if (baseChange <= 0) return baseChange;
+    const multiplier = this.APTITUDE_MULTIPLIER[aptitudeRank || 'C'] || 1;
+    return Math.max(1, Math.round(baseChange * multiplier));
+  },
+
   train(masmon, trainingKey) {
     const training = this.TRAINING_MENU[trainingKey];
     if (!training) return { ok: false, message: 'トレーニングが見つかりません' };
@@ -82,8 +91,7 @@ const GROWTH = {
     masmon.trainingStats = masmon.trainingStats || {};
     const applied = {};
     for (const [key, baseChange] of Object.entries(training.changes)) {
-      const multiplier = baseChange > 0 ? this.APTITUDE_MULTIPLIER[masmon.aptitudes[key] || 'C'] : 1;
-      const change = baseChange > 0 ? Math.max(1, Math.round(baseChange * multiplier)) : baseChange;
+      const change = this.trainingChangeFor(masmon.aptitudes[key], baseChange);
       const current = masmon.trainingStats[key] || 0;
       const minBonus = -(defaultStats()[key] - 1);
       const next = Math.max(minBonus, Math.min(this.STAT_MAX, current + change));

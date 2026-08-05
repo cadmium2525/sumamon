@@ -122,10 +122,12 @@ const PracticeGame = {
     document.getElementById('practice-monster-summary').innerHTML = `<img src="${def.idleImage}" alt=""><span><strong>${this.escape(monster.name)} Lv.${monster.level}</strong><small>修行チケット ${UserProfileStore.data.practiceTickets || 0}枚</small></span>`;
     const tickets = Number(UserProfileStore.data.practiceTickets) || 0;
     document.getElementById('practice-course-list').innerHTML = Object.entries(PRACTICE_COURSES).map(([key, course]) => {
+      // 伸び方は対象ステータスの適性で変わるため、コース選択時に確認できるようにする
+      const rank = (monster.aptitudes && monster.aptitudes[course.stat]) || 'C';
       const locked = course.level && monster.level < course.level;
       const disabled = locked || tickets < 1;
       return `<button class="practice-course-card" data-practice-course="${key}" style="--course-color:${course.color}" ${disabled ? 'disabled' : ''}>
-        <strong>${course.name}</strong><span>${course.statLabel} ↑↑<br>ライフ ↑</span><small>${course.description}</small>
+        <strong>${course.name}</strong><span>${course.statLabel} ↑↑<span class="practice-course-apt">適性<i class="stat-apt rank-${rank}" data-rank="${rank}">${rank}</i></span><br>ライフ ↑</span><small>${course.description}</small>
         <em>${locked ? `Lv.${course.level}で解禁` : tickets < 1 ? '修行券が必要' : '修行券 1枚'}</em>
       </button>`;
     }).join('');

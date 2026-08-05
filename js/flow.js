@@ -707,8 +707,11 @@ const AppFlow = {
     document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.png" alt="">${m.trainingTickets || 0}枚</span>
       ${this._statPanelHtml(stats, m.aptitudes)}`;
     document.getElementById('training-list').innerHTML = Object.entries(GROWTH.TRAINING_MENU).map(([key, t]) => {
-      // 上昇量の大きい順に並べ、ステータス表示と同じアイコン・色のチップで内容を示す
-      const chips = Object.entries(t.changes).sort((a, b) => b[1] - a[1])
+      // このマスモンの適性を反映した「実際に上がる量」を表示する（基本値のままだと
+      // どのマスモンでも同じ数字になり、適性が効いていないように見えてしまうため）。
+      const chips = Object.entries(t.changes)
+        .map(([stat, base]) => [stat, GROWTH.trainingChangeFor(m.aptitudes[stat], base)])
+        .sort((a, b) => b[1] - a[1])
         .map(([stat, value]) => this._statChipHtml(stat, value)).join('');
       return `<button class="training-card" data-training="${key}" ${(m.trainingTickets || 0) < 1 ? 'disabled' : ''}><strong>${t.name}</strong><span class="training-effects">${chips}</span></button>`;
     }).join('');

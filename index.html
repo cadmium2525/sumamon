@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=55">
+<link rel="stylesheet" href="css/style.css?v=56">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.80</small>
+    <small class="home-version">Version 0.81</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.81</time><strong>トレーニングの上昇値を適性入りで表示</strong><p>トレーニングの上昇値が、選択中のマスモンの適性を反映した実際の値で表示されるようになりました。例えばちから適性Aなら重り引きでちからが+20、適性Dなら猛勉強でかしこさが+10といった具合に伸び方が変わります。修行のコース選択でも、対象ステータスの適性を確認できるようにしました。</p></article>
           <article><time>Version 0.80</time><strong>適性の表示を変更</strong><p>適性ランクを、太い縁取りと立体的なグラデーションを付けたアルファベット表示に変更しました。A=赤／B=紫／C=緑／D=青緑／E=青とランクごとに色分けしています。</p></article>
           <article><time>Version 0.79</time><strong>トレーニング画面を2カラムに変更</strong><p>ステータス表示を画面左半分、トレーニング内容を右半分に並べ、圧迫感をなくしました。ステータスバーは最大値999を満タンとする表示に変更しています。</p></article>
           <article><time>Version 0.78</time><strong>ステータス表示を刷新</strong><p>マスモン管理画面で選択中のマスモンのステータスを表示するようにしました。アイコン・カラーバー・適性を並べた新しい表示で、トレーニング画面も同じ形式に統一。トレーニング内容もどの能力がどれだけ変化するかをアイコン付きで表示します。</p></article>
@@ -488,12 +489,12 @@
   <script src="js/stage.js?v=31"></script>
   <script src="js/camera.js?v=2"></script>
   <script src="js/cpu-ai.js"></script>
-  <script src="js/growth-system.js?v=38"></script>
-  <script src="js/practice.js?v=5"></script>
+  <script src="js/growth-system.js?v=39"></script>
+  <script src="js/practice.js?v=6"></script>
   <script src="js/input.js?v=5"></script>
   <script src="js/multiplayer.js?v=2"></script>
   <script src="js/game.js?v=39"></script>
-    <script src="js/flow.js?v=51"></script>
+    <script src="js/flow.js?v=52"></script>
   <script src="js/pwa.js?v=11"></script>
 </body>
 </html>

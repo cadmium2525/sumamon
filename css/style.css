@@ -1706,6 +1706,7 @@ body.layout-pending .screen { visibility: hidden; }
    （-webkit-text-strokeは文字の内側にも太るため、paint-orderに頼らずこの2枚重ねで実現する） */
 .stat-apt {
   position: relative;
+  display: inline-block;
   align-self: center;
   width: 24px;
   -webkit-text-stroke: 3px var(--rank-edge);
@@ -1747,6 +1748,8 @@ body.layout-pending .screen { visibility: hidden; }
 .stat-chip i { display: flex; width: 15px; height: 15px; align-items: center; justify-content: center; border-radius: 4px; background: var(--chip-color); font-size: 9px; font-style: normal; }
 .stat-chip.minus { border-style: dashed; opacity: .7; filter: grayscale(.3); }
 .training-effects { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.practice-course-apt { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; font-size: 10px; opacity: .95; }
+.practice-course-apt .stat-apt { width: 18px; font-size: 15px; line-height: 1; -webkit-text-stroke-width: 2.2px; }
 .training-item-button { position: fixed; z-index: 20; top: max(10px, env(safe-area-inset-top)); left: max(105px, calc(env(safe-area-inset-left) + 105px)); padding: 7px 14px; border: 1px solid #e6c96b; border-radius: 8px; color: #fff1b5; background: rgba(42,29,11,.94); font-weight: 800; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
 .training-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; width: auto; margin-top: 0; align-content: start; }
 .training-card { text-align: left; }
