@@ -7,9 +7,10 @@ const PRACTICE_COURSES = {
 };
 
 // 「マンディー砂漠」専用: モノリス（壁）の弱点属性ごとのダメージテーブル（弱点以外は0＝無効）
+// a = 通常技/空中技などの物理攻撃全般, b = 必殺技（飛び道具含む）, smash = 溜め攻撃
 const DESERT_WALL_WEAKNESS = {
-  brick: { a: 1, b: 0, smash: 0, maxHp: 3, color: ['#a8502f', '#7a3620'], label: 'レンガ壁（A攻撃で破壊）' },
-  stone: { a: 0, b: 1, smash: 0, maxHp: 3, color: ['#8a8f96', '#585d63'], label: '石壁（B攻撃で破壊）' },
+  brick: { a: 1, b: 0, smash: 0, maxHp: 3, color: ['#a8502f', '#7a3620'], label: 'レンガ壁（通常技で破壊）' },
+  stone: { a: 0, b: 1, smash: 0, maxHp: 3, color: ['#8a8f96', '#585d63'], label: '石壁（必殺技で破壊）' },
   onyx: { a: 0, b: 0, smash: 1, maxHp: 3, color: ['#1c1c22', '#000'], label: '黒光り壁（スマッシュ攻撃のみ有効）' },
 };
 
@@ -25,13 +26,48 @@ const DESERT_RANK_TIMES = [
 const DESERT_REWARD_BASE = { stat: 20, life: 8 };
 
 const PRACTICE_CONTROL_HELP = [
-  '移動: 左スティック（左右）',
-  'ジャンプ: JUMPボタン',
-  'A攻撃: Aボタン',
-  'B攻撃: Bボタン',
-  'スマッシュ攻撃: 方向とAボタンを同時押し',
-  'シールド: SHIELDボタン',
+  '移動: 左スティック（左右）／ジャンプ: JUMPボタン（2段ジャンプ対応）',
+  '通常技: Aボタン（方向+Aで強攻撃、方向とほぼ同時押しでスマッシュ）',
+  '必殺技: Bボタン（方向+Bで横/上/下必殺技）',
+  '空中技: 空中でA、シールド: SHIELDボタン、掴み: GRABボタン',
+  '実際のバトルと全く同じ操作・技・モーションが使えます。',
 ];
+
+// バトル本番(game.js内 buildOptions/resolveStats)と同じロジックの練習用簡易版。
+// 練習用Fighterの見た目・当たり判定サイズをfighters-data.jsの定義から組み立てる。
+function buildPracticeFighterOptions(def, monster) {
+  return {
+    fighterKey: def.key,
+    grabRange: def.grabRange,
+    name: monster ? monster.name : def.displayName,
+    stockIconSrc: def.stockIcon,
+    spriteSrc: def.idleImage,
+    hurtboxWidth: def.hurtboxWidth,
+    hurtboxHeight: def.hurtboxHeight,
+    spriteContentBox: def.spriteContentBox,
+    walkSheetSrc: def.walkSheetSrc,
+    walkSheetCols: def.walkSheetCols,
+    walkSheetRows: def.walkSheetRows,
+    walkFrameCount: def.walkFrameCount,
+    walkFrameDuration: def.walkFrameDuration,
+    walkFrameContentBox: def.walkFrameContentBox,
+    idleFrameSrcs: def.idleFrameSrcs,
+    idleFrameContentBox: def.idleFrameContentBox,
+    idleFrameDuration: def.idleFrameDuration,
+    jumpFrameSrcs: def.jumpFrameSrcs,
+    jumpFrameContentBox: def.jumpFrameContentBox,
+    jumpFrameDuration: def.jumpFrameDuration,
+    airIdleSrc: def.airIdleSrc,
+    airIdleContentBox: def.airIdleContentBox,
+  };
+}
+
+function resolvePracticeStats(def, monster) {
+  if (monster && monster.id) {
+    return GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: monster.trainingStats }, monster.aptitudes, monster.level);
+  }
+  return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
+}
 
 const PracticeGame = {
   active: false,
@@ -42,12 +78,8 @@ const PracticeGame = {
   frame: 0,
   elapsed: 0,
   lastTime: 0,
+  accumulator: 0,
   raf: 0,
-  previousAttack: false,
-  previousSpecial: false,
-  previousJump: false,
-  previousDirHeld: false,
-  dirPressAt: null,
 
   init() {
     this.canvas = document.getElementById('practice-canvas');
@@ -71,8 +103,8 @@ const PracticeGame = {
   },
 
   _readInput() {
-    const keyboard = window.SharedInput?.getPlayer1Input?.() || { left: false, right: false, up: false, down: false, jump: false, attack: false, special: false, shield: false, stickX: 0 };
-    const pad = window.SharedVPad?.getState?.() || { left: false, right: false, up: false, down: false, jump: false, attack: false, special: false, shield: false, stickX: 0 };
+    const keyboard = window.SharedInput?.getPlayer1Input?.() || { left: false, right: false, up: false, down: false, jump: false, attack: false, special: false, shield: false, grab: false, stickX: 0 };
+    const pad = window.SharedVPad?.getState?.() || { left: false, right: false, up: false, down: false, jump: false, attack: false, special: false, shield: false, grab: false, stickX: 0 };
     return typeof mergeInputs === 'function' ? mergeInputs(keyboard, pad) : keyboard;
   },
 
@@ -125,14 +157,24 @@ const PracticeGame = {
     this.course = course;
     this.frame = 0;
     this.elapsed = 0;
-    this.previousAttack = false;
-    this.previousSpecial = false;
-    this.previousJump = false;
-    this.previousDirHeld = false;
-    this.dirPressAt = null;
-    this.player = { x: 70, y: 410, vx: 0, vy: 0, w: 44, h: 68, facing: 1, onGround: false, attackTimer: 0, shield: false, hp: 3, hazardCooldown: 0 };
-    this.cameraX = 0;
-    this.cameraY = 0;
+    this.accumulator = 0;
+
+    // ---- 練習用Fighterを本番と全く同じクラスで生成する ----
+    // これにより、通常技/必殺技/スマッシュ/空中技/2段ジャンプ/シールドなど
+    // バトルで使える操作・モーションがそのまま修行でも使える。
+    const def = FIGHTERS[monster.baseFighterKey] || FIGHTERS.irumine;
+    const stats = resolvePracticeStats(def, monster);
+    this.fighter = new Fighter('practice', stats, def.color, { x: 70, y: 485 - (def.hurtboxHeight || CONFIG.BASE_HURTBOX_H) }, buildPracticeFighterOptions(def, monster));
+    this.fighter.stocks = 999; // 場外/撃墜処理は使わない（穴はコース側で個別に処理する）
+    // ブラストラインは実質無効化：Fighter標準のKO処理を発火させない
+    this.blastBounds = { left: -1e6, right: 1e6, top: -1e6, bottom: 1e6 };
+    // 技の系統判定（技オブジェクトの参照/chargedフラグから a/b/smash を割り出す）
+    this._specialMoveSet = new Set([
+      ...Object.values(MOVES.special || {}),
+      ...Object.values((this.fighter.moveSet && this.fighter.moveSet.special) || {}),
+    ]);
+
+    this.projectiles = [];
     this.score = 0;
     this.hits = 0;
     this.misses = 0;
@@ -140,7 +182,7 @@ const PracticeGame = {
     this.bestCombo = 0;
     this.avoided = 0;
     this.pitFalls = 0;
-    this._loadSprite();
+    this.hp = 3; // 火山コース用の簡易耐久（Fighter本体のstocksとは別管理）
     this._setupCourse();
     document.getElementById('practice-select-panel').classList.add('hidden');
     document.getElementById('practice-game-panel').classList.add('hidden');
@@ -154,7 +196,7 @@ const PracticeGame = {
     document.getElementById('practice-intro-title').textContent = `${course.name}`;
     let text = course.description;
     if (this.courseKey === 'desert') {
-      text = '灼熱の砂漠を制限時間1分以内に駆け抜けろ！\n行く手を阻む3種のモノリス（壁）は、見た目ごとに弱点となる攻撃が異なる。よく観察して正しい攻撃で打ち破ろう。\n落とし穴に落ちてもゲームオーバーにはならない。直前のチェックポイントからやり直しになるだけなので、あきらめずゴールを目指そう。';
+      text = '灼熱の砂漠を制限時間1分以内に駆け抜けろ！\n行く手を阻む3種のモノリス（壁）は、見た目ごとに弱点となる攻撃が異なる。よく観察して正しい攻撃で打ち破ろう。\n頭上は塞がっているため、ジャンプで飛び越えることはできない。\n落とし穴に落ちてもゲームオーバーにはならない。直前のチェックポイントからやり直しになるだけなので、あきらめずゴールを目指そう。';
     }
     document.getElementById('practice-intro-text').textContent = text;
     const hints = this.courseKey === 'desert'
@@ -170,27 +212,28 @@ const PracticeGame = {
     document.getElementById('practice-game-panel').classList.remove('hidden');
     this._attachSharedPad();
     this.active = true;
-    this.lastTime = performance.now();
+    this.lastTime = 0;
+    this.accumulator = 0;
     this._updateHud();
     this.raf = requestAnimationFrame(time => this.loop(time));
   },
 
-  _loadSprite() {
-    const def = FIGHTERS[this.monster.baseFighterKey] || FIGHTERS.irumine;
-    this.sprite = window.PreloadedImages?.get(def.idleImage) || new Image();
-    if (!this.sprite.src) this.sprite.src = def.idleImage;
-  },
-
   _setupCourse() {
+    const f = this.fighter;
     this.worldWidth = 960;
     this.platforms = [{ x: 0, y: 485, w: 960, h: 55 }];
     this.targets = [];
-    this.projectiles = [];
     this.hazards = [];
     this.pits = [];
     this.checkpoints = null;
     this.lastCheckpoint = null;
     this.goalX = null;
+    // 地面(y=485、雪山のみy=500)の上にきちんと立った状態でスタートする
+    // （キャラごとに身長(hurtboxHeight)が異なるため、固定値ではなく実際の高さから逆算する）
+    const groundY = this.courseKey === 'snow' ? 500 : 485;
+    f.x = 70;
+    f.y = groundY - f.h;
+    f.vx = 0; f.vy = 0;
     if (this.courseKey === 'desert') {
       this.worldWidth = 3200;
       this.goalX = 3100;
@@ -201,7 +244,8 @@ const PracticeGame = {
         { x: 2470, y: 485, w: 730, h: 55 },
       ];
       this.pits = [{ x: 300, w: 120 }, { x: 1300, w: 120 }, { x: 2350, w: 120 }];
-      this.checkpoints = [{ x: 70, y: 410 }, { x: 1200, y: 410 }, { x: 2250, y: 410 }, { x: 2490, y: 410 }];
+      const spawnY = 485 - f.h;
+      this.checkpoints = [{ x: 70, y: spawnY }, { x: 340, y: spawnY }, { x: 1340, y: spawnY }, { x: 2490, y: spawnY }];
       this.lastCheckpoint = this.checkpoints[0];
       let uid = 0;
       [[650, 'brick'], [1650, 'stone'], [2650, 'onyx']].forEach(([x, wallType]) => {
@@ -214,6 +258,7 @@ const PracticeGame = {
       this.switchOrder = [2, 1, 3];
       this.switchProgress = 0;
       this.hazards = [{ x: 390, y: 455, w: 65, h: 30, type: 'spikes' }, { x: 675, y: 455, w: 55, h: 30, type: 'spikes' }];
+      this.hazardCooldown = 0;
     } else if (this.courseKey === 'coast') {
       this.platforms.push({ x: 360, y: 415, w: 240, h: 16 });
       for (let i = 0; i < 5; i++) this._spawnCoastTarget(i);
@@ -224,7 +269,7 @@ const PracticeGame = {
       this.goalY = 500 - 18 * 92;
       this.avalancheY = 620;
     } else if (this.courseKey === 'volcano') {
-      this.player.x = 460;
+      f.x = 460;
       this.nextHazard = 20;
     }
   },
@@ -233,205 +278,238 @@ const PracticeGame = {
     this.targets[id] = { id, x: 300 + Math.random() * 570, y: 105 + Math.random() * 260, w: 34, h: 34, vx: (Math.random() < .5 ? -1 : 1) * (1.2 + Math.random() * 1.8), target: true };
   },
 
-  _fireCoastShot() {
-    const p = this.player;
-    const originX = p.x + p.w / 2;
-    const originY = p.y + 24;
-    const candidates = this.targets.filter(target => p.facing > 0 ? target.x + target.w / 2 > originX : target.x + target.w / 2 < originX);
-    const target = candidates.sort((a, b) => Math.hypot(a.x - originX, a.y - originY) - Math.hypot(b.x - originX, b.y - originY))[0];
-    let vx = p.facing * 13, vy = 0;
-    if (target) {
-      const dx = target.x + target.w / 2 - originX;
-      const dy = target.y + target.h / 2 - originY;
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      vx = dx / distance * 13;
-      vy = dy / distance * 13;
-    }
-    this.projectiles.push({ x: originX, y: originY, vx, vy, w: 18, h: 8 });
-  },
-
-  loop(time) {
+  // ---- メインループ：本番バトルと同じ「固定60fpsステップ」で進める ----
+  // (Fighterクラスの技の発生/持続フレーム等はすべて「1フレーム=1/60秒」前提のため、
+  //  可変dtでapplyInput/updateを呼ぶと技の発生タイミングや2段ジャンプ判定がズレてしまう)
+  loop(timestamp) {
     if (!this.active) return;
-    const dt = Math.min(2, Math.max(.25, (time - this.lastTime) / (1000 / 60)));
-    this.lastTime = time;
-    this.elapsed += dt / 60;
-    this.frame += dt;
-    this._update(dt);
+    try {
+      const now = Number.isFinite(timestamp) ? timestamp : performance.now();
+      if (!this.lastTime) this.lastTime = now;
+      const elapsed = Math.max(0, Math.min(100, now - this.lastTime));
+      this.lastTime = now;
+      this.accumulator += elapsed;
+      const STEP = 1000 / 60;
+      let steps = 0;
+      while (this.accumulator >= STEP && steps < 5) {
+        this._tick();
+        this.accumulator -= STEP;
+        steps++;
+      }
+      if (steps === 5 && this.accumulator >= STEP) this.accumulator = 0;
+    } catch (e) {
+      console.error('修行ループ内でエラーが発生しました:', e);
+    }
     this._draw();
     this._updateHud();
     if (this.active) this.raf = requestAnimationFrame(next => this.loop(next));
   },
 
-  _update(dt) {
-    const p = this.player;
+  _tick() {
+    this.frame++;
+    this.elapsed += 1 / 60;
     const inp = this._readInput();
-    if (p.hazardCooldown > 0) p.hazardCooldown = Math.max(0, p.hazardCooldown - dt);
-    p.shield = !!inp.shield;
-    const speed = p.shield ? 1.5 : 4.5;
-    if (inp.left !== inp.right) {
-      p.vx = (inp.left ? -speed : speed);
-      p.facing = inp.left ? -1 : 1;
-    } else p.vx *= Math.pow(.72, dt);
-    const jumpPressed = inp.jump && !this.previousJump;
-    if (jumpPressed && p.onGround) { p.vy = -11.5; p.onGround = false; }
-    this.previousJump = inp.jump;
+    const f = this.fighter;
+    f.applyInput(inp);
+    f.update(this.platforms, this.blastBounds);
+    // 練習コースの外へ出ないよう左端だけ簡易クランプ（右端は各コースのゴール/画面設計に任せる）
+    f.x = Math.max(0, f.x);
+    if (this.courseKey !== 'desert') f.x = Math.min(this.worldWidth - f.w, f.x);
 
-    // 方向キーの押し始めタイミングを記録（スマッシュ判定用）
-    const dirHeld = inp.left || inp.right;
-    if (dirHeld && !this.previousDirHeld) this.dirPressAt = performance.now();
-    if (!dirHeld) this.dirPressAt = null;
-    this.previousDirHeld = dirHeld;
+    this._checkMeleeHit();
+    this._updateProjectiles();
 
-    const attackPressed = inp.attack && !this.previousAttack;
-    this.previousAttack = inp.attack;
-    const specialPressed = !!inp.special && !this.previousSpecial;
-    this.previousSpecial = !!inp.special;
+    if (this.courseKey === 'desert') this._updateDesert();
+    else if (this.courseKey === 'jungle') this._updateJungle();
+    else if (this.courseKey === 'coast') this._updateCoast();
+    else if (this.courseKey === 'snow') this._updateSnow();
+    else if (this.courseKey === 'volcano') this._updateVolcano();
 
-    if (this.courseKey === 'desert') {
-      const smashWindow = (typeof CONFIG !== 'undefined' && CONFIG.SMASH_SIMULTANEOUS_WINDOW_MS) || 120;
-      if (attackPressed && p.attackTimer <= 0 && !p.shield) {
-        const isSmash = this.dirPressAt !== null && Math.abs(performance.now() - this.dirPressAt) <= smashWindow;
-        p.attackTimer = isSmash ? 20 : 14;
-        this._strike(isSmash ? 'smash' : 'a');
-      } else if (specialPressed && p.attackTimer <= 0 && !p.shield) {
-        p.attackTimer = 16;
-        this._strike('b');
-      }
-    } else if (attackPressed && p.attackTimer <= 0 && !p.shield) {
-      p.attackTimer = 14;
-      if (this.courseKey === 'coast') this._fireCoastShot();
-      else this._strike();
+    if (this.courseKey !== 'snow' && this.courseKey !== 'desert' && f.y > 570) {
+      f.x = 60; f.y = 390; f.vx = 0; f.vy = 0;
+      this.score = Math.max(0, this.score - 5);
     }
-    if (p.attackTimer > 0) p.attackTimer -= dt;
-    const previousBottom = p.y + p.h;
-    p.vy = Math.min(13, p.vy + .55 * dt);
-    p.x = Math.max(0, Math.min(this.worldWidth - p.w, p.x + p.vx * dt));
-    p.y += p.vy * dt;
-    p.onGround = false;
-    for (const platform of this.platforms) {
-      if (platform.gone) continue;
-      if (p.x + p.w > platform.x && p.x < platform.x + platform.w && p.vy >= 0 && previousBottom <= platform.y + 8 && p.y + p.h >= platform.y) {
-        p.y = platform.y - p.h; p.vy = 0; p.onGround = true;
-        if (platform.crumbles) { platform.touched += dt; if (platform.touched > 42) platform.gone = true; }
-      }
-    }
-    if (this.courseKey === 'desert') this._updateDesert(dt);
-    if (this.courseKey === 'jungle') this._updateJungle(dt);
-    if (this.courseKey === 'coast') this._updateCoast(dt);
-    if (this.courseKey === 'snow') this._updateSnow(dt);
-    if (this.courseKey === 'volcano') this._updateVolcano(dt);
-    if (this.courseKey !== 'snow' && this.courseKey !== 'desert' && p.y > 570) { p.x = 60; p.y = 390; p.vx = p.vy = 0; this.score = Math.max(0, this.score - 5); }
     if (this.elapsed >= this.course.duration) this.finish(false);
   },
 
-  _updateDesert(dt) {
-    const p = this.player;
-    // モノリス（壁）は破壊するまでジャンプでも越えられない障害物として振る舞う
+  // 現在の技が a(通常/空中技) / b(必殺技) / smash(溜め攻撃) のどれに属するか判定
+  _familyOf(move) {
+    if (!move) return 'a';
+    if (move.charged) return 'smash';
+    if (this._specialMoveSet.has(move)) return 'b';
+    return 'a';
+  },
+
+  // 本番のcheckAttacks()と同じ仕組み：現在の攻撃判定(hitbox)を一度だけ対象に当てる
+  _checkMeleeHit() {
+    const f = this.fighter;
+    const hb = f.getHitbox();
+    if (!hb || f.hasHitThisAttack) return;
+    const family = this._familyOf(f.currentMove);
+    for (const target of this.targets) {
+      if (!target || target.destroyed || !Physics.rectsOverlap(hb, target)) continue;
+      f.hasHitThisAttack = true;
+      this._applyHitToTarget(target, family);
+    }
+  },
+
+  _applyHitToTarget(target, family) {
+    if (target.switch) {
+      const expected = this.switchOrder[this.switchProgress];
+      if (target.id === expected) { target.active = true; this.switchProgress++; this.score += 18; }
+      else { this.switchProgress = 0; this.targets.forEach(item => { if (item) item.active = false; }); this.score = Math.max(0, this.score - 5); }
+    } else if (target.wallType) {
+      const dmg = (DESERT_WALL_WEAKNESS[target.wallType]?.[family]) || 0;
+      if (dmg > 0) {
+        target.hp -= dmg;
+        this.score += 10;
+        target.flash = 10;
+        if (target.hp <= 0) { target.destroyed = true; this.score += 20; }
+      } else {
+        target.bounce = 10; // 弱点でない攻撃は効かない（見た目で弾かれる演出のみ）
+      }
+    } else if (target.target) {
+      this.hits++; this.combo++; this.bestCombo = Math.max(this.bestCombo, this.combo);
+      this.score += 4 + Math.min(6, this.combo);
+      this._spawnCoastTarget(target.id);
+    }
+  },
+
+  // ---- 飛び道具（ルミナスアロー/ローリングボム等、必殺技のprojectile設定）----
+  _updateProjectiles() {
+    const request = this.fighter.consumeProjectileRequest?.();
+    if (request) {
+      const cfg = request.config;
+      const spritePath = request.move.projectileSprite;
+      const sprite = spritePath ? (window.PreloadedImages?.get(spritePath) || new Image()) : null;
+      if (sprite && !sprite.src) sprite.src = spritePath;
+      const f = this.fighter;
+      this.projectiles.push({
+        move: request.move, sprite, config: cfg,
+        x: f.facing === 1 ? f.x + f.w : f.x - cfg.width,
+        y: f.y + f.h * 0.42, vx: f.facing * cfg.speed, vy: 0,
+        w: cfg.width, h: cfg.height, life: cfg.lifetime, hit: false, exploding: 0,
+      });
+    }
+    const family = 'b'; // 飛び道具は必ず必殺技扱い
+    for (const p of this.projectiles) {
+      if (p.exploding > 0) { p.exploding--; if (p.exploding <= 0) p.hit = true; continue; }
+      const isBomb = p.config.type === 'bomb';
+      const previousBottom = p.y + p.h;
+      p.x += p.vx;
+      if (isBomb) {
+        p.vy += p.config.gravity || 0.25;
+        p.y += p.vy;
+        for (const platform of this.platforms) {
+          if (platform.gone) continue;
+          const withinX = p.x + p.w > platform.x && p.x < platform.x + platform.w;
+          if (withinX && p.vy >= 0 && previousBottom <= platform.y + 3 && p.y + p.h >= platform.y) {
+            p.y = platform.y - p.h; p.vy = 0; p.vx *= p.config.groundFriction || 0.985;
+            break;
+          }
+        }
+      }
+      p.life--;
+      if (isBomb && p.life <= 0) {
+        const radius = p.config.explosionRadius || 90;
+        const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+        for (const target of this.targets) {
+          if (!target || target.destroyed) continue;
+          const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
+          if (Math.hypot(tx - cx, ty - cy) <= radius) this._applyHitToTarget(target, family);
+        }
+        p.exploding = 12; p.vx = 0; p.vy = 0;
+        continue;
+      }
+      if (isBomb) continue;
+      if (!p.hit) {
+        for (const target of this.targets) {
+          if (!target || target.destroyed || !Physics.rectsOverlap(p, target)) continue;
+          this._applyHitToTarget(target, family);
+          p.hit = true;
+          break;
+        }
+      }
+    }
+    this.projectiles = this.projectiles.filter(p => !p.hit && (p.life > 0 || p.exploding > 0) &&
+      p.x > -200 && p.x < this.worldWidth + 200 && p.y < 900);
+  },
+
+  _updateDesert() {
+    const f = this.fighter;
+    // モノリス（壁）は破壊するまで通行不能。高さ方向の制限を設けないことで、
+    // ジャンプ（2段ジャンプ含む）でも決して飛び越えられない「天井付きの壁」として機能する。
     for (const wall of this.targets) {
       if (!wall || wall.destroyed) continue;
-      if (p.x + p.w > wall.x && p.x < wall.x + wall.w && p.y + p.h > wall.y) {
-        const approachingFromLeft = (p.x + p.w / 2) < (wall.x + wall.w / 2);
-        p.x = approachingFromLeft ? wall.x - p.w : wall.x + wall.w;
-        p.vx = 0;
+      if (f.x + f.w > wall.x && f.x < wall.x + wall.w) {
+        const approachingFromLeft = (f.x + f.w / 2) < (wall.x + wall.w / 2);
+        f.x = approachingFromLeft ? wall.x - f.w : wall.x + wall.w;
+        f.vx = 0;
       }
     }
     // カメラは横スクロールでプレイヤーを追従
-    this.cameraX = Math.max(0, Math.min(this.worldWidth - 960, p.x - 420));
+    this.cameraX = Math.max(0, Math.min(this.worldWidth - 960, f.x - 420));
     // チェックポイント更新
     for (const cp of this.checkpoints) {
-      if (p.x >= cp.x && cp.x > this.lastCheckpoint.x) this.lastCheckpoint = cp;
+      if (f.x >= cp.x && cp.x > this.lastCheckpoint.x) this.lastCheckpoint = cp;
     }
     // 落とし穴：ゲームオーバーにはせず、直前のチェックポイントへ戻す（タイムロスのみ）
-    if (p.y > 560) {
-      p.x = this.lastCheckpoint.x; p.y = this.lastCheckpoint.y; p.vx = 0; p.vy = 0;
+    if (f.y > 560) {
+      f.x = this.lastCheckpoint.x; f.y = this.lastCheckpoint.y; f.vx = 0; f.vy = 0;
       this.pitFalls++;
     }
-    if (p.x + p.w >= this.goalX) this.finish(true);
-  },
-
-  _strike(attackType = 'a') {
-    const p = this.player;
-    const box = { x: p.facing > 0 ? p.x + p.w : p.x - 76, y: p.y + 8, w: 76, h: 58 };
-    let hit = false;
-    for (const target of this.targets) {
-      if (!target || target.destroyed || !this._overlap(box, target)) continue;
-      hit = true;
-      if (target.switch) {
-        const expected = this.switchOrder[this.switchProgress];
-        if (target.id === expected) { target.active = true; this.switchProgress++; this.score += 18; }
-        else { this.switchProgress = 0; this.targets.forEach(item => { if (item) item.active = false; }); this.score = Math.max(0, this.score - 5); }
-      } else if (target.wallType) {
-        const dmg = (DESERT_WALL_WEAKNESS[target.wallType]?.[attackType]) || 0;
-        if (dmg > 0) {
-          target.hp -= dmg;
-          this.score += 10;
-          target.flash = 10;
-          if (target.hp <= 0) { target.destroyed = true; this.score += 20; }
-        } else {
-          target.bounce = 10; // 弱点でない攻撃は効かない（見た目で弾かれる演出のみ）
-        }
-      } else {
-        target.hp--; this.score += 6;
-        if (target.hp <= 0) { target.destroyed = true; this.score += 8; }
-      }
-    }
-    if (!hit && this.courseKey === 'desert') this.score = Math.max(0, this.score - 1);
+    if (f.x + f.w >= this.goalX) this.finish(true);
   },
 
   _updateJungle() {
+    const f = this.fighter;
+    if (this.hazardCooldown > 0) this.hazardCooldown--;
     for (const hazard of this.hazards) {
-      if (this.player.hazardCooldown <= 0 && this._overlap(this.player, hazard)) {
-        this.player.hazardCooldown = 45;
-        this.player.vy = -7;
-        this.player.x -= this.player.facing * 35;
+      if (this.hazardCooldown <= 0 && Physics.rectsOverlap(f.getHurtbox(), hazard)) {
+        this.hazardCooldown = 45;
+        f.vy = -7;
+        f.x -= f.facing * 35;
         this.score = Math.max(0, this.score - 3);
       }
     }
-    if (this.switchProgress >= this.switchOrder.length && this.player.x > 875) this.finish(true);
+    if (this.switchProgress >= this.switchOrder.length && f.x > 875) this.finish(true);
   },
 
-  _updateCoast(dt) {
+  _updateCoast() {
     this.targets.forEach(target => {
-      target.x += target.vx * dt;
+      target.x += target.vx;
       if (target.x < 260 || target.x > 915) target.vx *= -1;
     });
-    this.projectiles.forEach(shot => { shot.x += shot.vx * dt; shot.y += shot.vy * dt; });
-    for (const shot of this.projectiles) {
-      for (const target of this.targets) {
-        if (shot.hit || !this._overlap(shot, target)) continue;
-        shot.hit = true; this.hits++; this.combo++; this.bestCombo = Math.max(this.bestCombo, this.combo); this.score += 4 + Math.min(6, this.combo); this._spawnCoastTarget(target.id);
-      }
-      if (!shot.hit && (shot.x < -20 || shot.x > 980 || shot.y < -20 || shot.y > 560)) { shot.hit = true; this.misses++; this.combo = 0; }
-    }
-    this.projectiles = this.projectiles.filter(shot => !shot.hit);
   },
 
-  _updateSnow(dt) {
-    this.cameraY = Math.min(0, this.player.y - 270);
-    this.avalancheY -= .55 * dt;
-    const heightScore = Math.max(0, Math.round((500 - this.player.y) / (500 - this.goalY) * 100));
+  _updateSnow() {
+    const f = this.fighter;
+    this.cameraY = Math.min(0, f.y - 270);
+    this.avalancheY -= 0.55;
+    const heightScore = Math.max(0, Math.round((500 - f.y) / (500 - this.goalY) * 100));
     this.score = Math.max(this.score, heightScore);
-    if (this.player.y + this.player.h > this.avalancheY || this.player.y > 620) { this.finish(false); return; }
-    if (this.player.y <= this.goalY + 45) this.finish(true);
+    if (f.y + f.h > this.avalancheY || f.y > 620) { this.finish(false); return; }
+    if (f.y <= this.goalY + 45) this.finish(true);
   },
 
-  _updateVolcano(dt) {
-    this.nextHazard -= dt;
+  _updateVolcano() {
+    const f = this.fighter;
+    this.nextHazard--;
     if (this.nextHazard <= 0) {
-      this.nextHazard = Math.max(18, 50 - this.elapsed * .45);
+      this.nextHazard = Math.max(18, 50 - this.elapsed * 0.45);
       this.hazards.push({ x: 35 + Math.random() * 880, y: -40, vx: (Math.random() - .5) * 2, vy: 4 + Math.random() * 3, w: 30 + Math.random() * 24, h: 30 + Math.random() * 24, type: 'rock' });
     }
     for (const hazard of this.hazards) {
-      hazard.x += hazard.vx * dt; hazard.y += hazard.vy * dt;
-      if (!hazard.hit && this._overlap(this.player, hazard)) {
+      hazard.x += hazard.vx; hazard.y += hazard.vy;
+      if (!hazard.hit && Physics.rectsOverlap(f.getHurtbox(), hazard)) {
         hazard.hit = true;
-        if (this.player.shield) { this.avoided++; this.score += 4; }
-        else { this.player.hp--; this.player.vy = -7; this.score = Math.max(0, this.score - 8); }
+        if (f.shielding) { this.avoided++; this.score += 4; }
+        else { this.hp--; f.vy = -7; this.score = Math.max(0, this.score - 8); }
       }
       if (!hazard.hit && hazard.y > 540) { hazard.hit = true; this.avoided++; this.score += 2; }
     }
     this.hazards = this.hazards.filter(hazard => !hazard.hit);
-    if (this.player.hp <= 0) this.finish(false);
+    if (this.hp <= 0) this.finish(false);
   },
 
   _updateHud() {
@@ -440,8 +518,8 @@ const PracticeGame = {
     const status = this.courseKey === 'desert' ? `モノリス破壊 ${this.targets.filter(t => t.destroyed).length}/${this.targets.length}　落下 ${this.pitFalls || 0}回`
       : this.courseKey === 'jungle' ? `仕掛け ${this.switchProgress || 0}/3`
       : this.courseKey === 'coast' ? `命中 ${this.hits}　COMBO ${this.combo}`
-      : this.courseKey === 'snow' ? `高度 ${Math.max(0, Math.round((500 - this.player.y) / 10))}m`
-      : `耐久 ♥${this.player.hp}　防御 ${this.avoided}`;
+      : this.courseKey === 'snow' ? `高度 ${Math.max(0, Math.round((500 - this.fighter.y) / 10))}m`
+      : `耐久 ♥${this.hp}　防御 ${this.avoided}`;
     document.getElementById('practice-game-status').textContent = status;
   },
 
@@ -462,7 +540,7 @@ const PracticeGame = {
     } else if (this.courseKey === 'jungle') normalized = this.switchProgress / 3 * 65 + (cleared ? 35 : 0);
     else if (this.courseKey === 'coast') normalized = Math.min(100, this.hits * 4 + this.bestCombo * 3 - this.misses * 2);
     else if (this.courseKey === 'snow') normalized = Math.min(100, this.score + (cleared ? 15 : 0));
-    else normalized = Math.min(100, this.elapsed / this.course.duration * 75 + this.avoided * 2 + (this.player.hp > 0 ? 10 : 0));
+    else normalized = Math.min(100, this.elapsed / this.course.duration * 75 + this.avoided * 2 + (this.hp > 0 ? 10 : 0));
     normalized = Math.max(0, Math.round(normalized));
     if (!grade) grade = normalized >= 90 ? 'S' : normalized >= 75 ? 'A' : normalized >= 55 ? 'B' : normalized >= 30 ? 'C' : 'D';
     let growthText = '管理者テストのため能力値は変化しません';
@@ -512,7 +590,7 @@ const PracticeGame = {
     const [top, bottom] = themes[this.courseKey];
     const gradient = ctx.createLinearGradient(0, 0, 0, 540); gradient.addColorStop(0, top); gradient.addColorStop(1, bottom);
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, 960, 540);
-    const offsetY = -this.cameraY;
+    const offsetY = -(this.cameraY || 0);
     const offsetX = -(this.cameraX || 0);
     if (this.courseKey === 'snow') {
       ctx.fillStyle = 'rgba(255,255,255,.35)';
@@ -546,6 +624,11 @@ const PracticeGame = {
       else if (target.target) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(target.x + target.w/2, target.y + target.h/2, target.w/2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#ff3d45'; ctx.beginPath(); ctx.arc(target.x+target.w/2,target.y+target.h/2,9,0,Math.PI*2);ctx.fill(); }
       else if (target.wallType) {
         const info = DESERT_WALL_WEAKNESS[target.wallType];
+        // 破壊するまで頭上が塞がっていることを示す半透明の帯（見た目のバリア＝天井の代わり）
+        ctx.fillStyle = 'rgba(255,255,255,.10)';
+        ctx.fillRect(target.x, 0, target.w, target.y);
+        ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.setLineDash([6, 8]);
+        ctx.strokeRect(target.x, 0, target.w, target.y); ctx.setLineDash([]);
         const [wTop, wBottom] = info.color;
         const shake = target.bounce > 0 ? (Math.random() * 6 - 3) : 0;
         const flashOn = target.flash > 0 && Math.floor(target.flash / 3) % 2 === 0;
@@ -578,21 +661,39 @@ const PracticeGame = {
       if (hazard.type === 'spikes') { ctx.beginPath(); ctx.moveTo(hazard.x,hazard.y+hazard.h);ctx.lineTo(hazard.x+hazard.w/2,hazard.y);ctx.lineTo(hazard.x+hazard.w,hazard.y+hazard.h);ctx.fill(); }
       else { ctx.beginPath();ctx.arc(hazard.x+hazard.w/2,hazard.y+hazard.h/2,hazard.w/2,0,Math.PI*2);ctx.fill(); }
     }
-    ctx.fillStyle='#fff58a'; this.projectiles.forEach(shot=>ctx.fillRect(shot.x,shot.y,shot.w,shot.h));
-    const p = this.player;
-    ctx.save();
-    if (p.facing < 0) { ctx.translate(p.x + p.w, 0); ctx.scale(-1,1); ctx.translate(-p.x,0); }
-    if (this.sprite?.complete && this.sprite.naturalWidth) ctx.drawImage(this.sprite, p.x - 18, p.y - 25, p.w + 36, p.h + 30);
-    else { ctx.fillStyle='#b048d0';ctx.fillRect(p.x,p.y,p.w,p.h); }
-    ctx.restore();
-    if (p.shield) { ctx.strokeStyle='#82eaff';ctx.lineWidth=5;ctx.beginPath();ctx.arc(p.x+p.w/2,p.y+p.h/2,45,0,Math.PI*2);ctx.stroke(); }
-    if (p.attackTimer > 7 && this.courseKey !== 'coast') { ctx.fillStyle='rgba(255,245,120,.5)';ctx.fillRect(p.facing>0?p.x+p.w:p.x-76,p.y+8,76,58); }
+    this._drawProjectiles(ctx);
+    // ---- プレイヤー：本番と同じFighter.draw()でそのまま描画（全モーション対応）----
+    this.fighter.draw(ctx);
     if (this.courseKey === 'jungle' && this.switchProgress >= 3) { ctx.fillStyle='#8dfff0';ctx.fillRect(900,390,35,95); }
     if (this.courseKey === 'snow') { ctx.fillStyle='rgba(210,245,255,.75)';ctx.fillRect(0,this.avalancheY,960,260); }
     ctx.restore();
   },
 
-  _overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; },
+  _drawProjectiles(ctx) {
+    for (const p of this.projectiles) {
+      ctx.save();
+      ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+      if (p.exploding > 0) {
+        const progress = 1 - p.exploding / 12;
+        const radius = (p.config.explosionRadius || 90) * (0.45 + progress * 0.55);
+        ctx.globalAlpha = Math.max(.15, p.exploding / 12);
+        const gradient = ctx.createRadialGradient(0, 0, 4, 0, 0, radius);
+        gradient.addColorStop(0, '#fff7b0'); gradient.addColorStop(.35, '#ff9f1a'); gradient.addColorStop(1, 'rgba(255,45,0,0)');
+        ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        continue;
+      }
+      if (p.vx < 0) ctx.scale(-1, 1);
+      if (p.sprite && p.sprite.complete && p.sprite.naturalWidth) {
+        ctx.drawImage(p.sprite, -p.w / 2, -p.h / 2, p.w, p.h);
+      } else {
+        ctx.fillStyle = '#fff58a';
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      }
+      ctx.restore();
+    }
+  },
+
   escape(value) { const div = document.createElement('div'); div.textContent = String(value || ''); return div.innerHTML; },
 };
 
