@@ -227,6 +227,9 @@ class Fighter {
     this._hitTargets = new Set(); // 現在のヒット判定ウィンドウで既に当てた相手
     this._hurtbox = { x: 0, y: 0, w: 0, h: 0 }; // 毎フレームの再生成を避けるため使い回す
     this.groundDistance = Infinity; // 足元から真下の足場までの距離
+    this.shieldHeldFrames = 0;      // シールドを張り続けているフレーム数（ジャストガード判定用）
+    this.justShieldFlash = 0;       // ジャストガード成立時のエフェクト残りフレーム
+    this.crouching = false;         // しゃがみ中
   }
 
   getHeldDirection(input) {
@@ -389,7 +392,10 @@ class Fighter {
       if (this.downEdge) { this.startDodge('spot'); return; }
       if (this.leftEdge || this.rightEdge) { this.startDodge('roll', this.leftEdge ? -1 : 1); return; }
 
+      // 張り始めからのフレーム数を数える（ジャストガードの成立判定に使う）
+      this.shieldHeldFrames = this.shielding ? this.shieldHeldFrames + 1 : 1;
       this.shielding = true;
+      this.crouching = false;
       this.vx = 0;
       this.shieldHP -= CONFIG.SHIELD_DRAIN_PER_FRAME;
       if (this.shieldHP <= 0) { this.breakShield(); return; }
@@ -414,6 +420,7 @@ class Fighter {
       return;
     } else {
       this.shielding = false;
+      this.shieldHeldFrames = 0;
       if (this.shieldHP < CONFIG.SHIELD_MAX) {
         this.shieldHP = Math.min(CONFIG.SHIELD_MAX, this.shieldHP + CONFIG.SHIELD_REGEN_PER_FRAME);
       }
@@ -422,22 +429,44 @@ class Fighter {
     // ---- 移動（スティックの倒し込み量で 歩き/ダッシュ を判定） ----
     // ・DASH_TILT_THRESHOLD以上：ダッシュ速度（保持し続ければ走り、すぐ離せば結果的に短い「ステップ」になる）
     // ・それ未満〜デッドゾーン以上：倒し込み量に比例した歩行速度
+    // ---- しゃがみ（地上で下入力。当たり判定が低くなる） ----
+    this.crouching = wasOnGround && input.down && !this.isDashing &&
+      this.attackTimer <= 0 && this.recoveryTimer <= 0 && this.landingLag <= 0;
+
     if (this.attackTimer <= 0) {
       const stickX = input.stickX || 0;
       const absX = Math.abs(stickX);
-      if (absX < CONFIG.WALK_DEADZONE) {
-        this.vx = 0;
-        this.isDashing = false;
-      } else if (absX >= CONFIG.DASH_TILT_THRESHOLD) {
-        const speed = Physics.computeMoveSpeed(this.stats.evasion, true);
-        this.vx = Math.sign(stickX) * speed;
-        this.facing = Math.sign(stickX);
-        this.isDashing = true;
+      if (wasOnGround) {
+        // 地上：スティックの倒し込み量に応じて即座に速度が決まる
+        if (this.crouching || absX < CONFIG.WALK_DEADZONE) {
+          this.vx = 0;
+          this.isDashing = false;
+        } else if (absX >= CONFIG.DASH_TILT_THRESHOLD) {
+          this.vx = Math.sign(stickX) * Physics.computeMoveSpeed(this.stats.evasion, true);
+          this.facing = Math.sign(stickX);
+          this.isDashing = true;
+        } else {
+          this.vx = Math.sign(stickX) * Physics.computeMoveSpeed(this.stats.evasion, false) * absX;
+          this.facing = Math.sign(stickX);
+          this.isDashing = false;
+        }
       } else {
-        const walkSpeed = Physics.computeMoveSpeed(this.stats.evasion, false) * absX;
-        this.vx = Math.sign(stickX) * walkSpeed;
-        this.facing = Math.sign(stickX);
+        // 空中：本家同様、速度を直接書き換えず加速度で慣性を変える。
+        // 入力を離しても慣性は残り、進行方向と逆に入れると強めに効いて切り返せる。
         this.isDashing = false;
+        const airMax = Physics.computeMoveSpeed(this.stats.evasion, true) * CONFIG.AIR_MAX_SPEED_RATIO;
+        if (absX < CONFIG.WALK_DEADZONE) {
+          this.vx *= CONFIG.AIR_FRICTION;
+        } else {
+          const dir = Math.sign(stickX);
+          const target = dir * airMax * Math.min(1, absX / CONFIG.DASH_TILT_THRESHOLD);
+          const turning = this.vx !== 0 && Math.sign(this.vx) !== dir;
+          const accel = CONFIG.AIR_ACCEL * absX * (turning ? CONFIG.AIR_TURN_BOOST : 1);
+          if (this.vx < target) this.vx = Math.min(target, this.vx + accel);
+          else if (this.vx > target) this.vx = Math.max(target, this.vx - accel);
+          this.facing = dir;
+        }
+        if (Math.abs(this.vx) > airMax) this.vx = Math.sign(this.vx) * airMax;
       }
     }
 
@@ -546,8 +575,10 @@ class Fighter {
   grabLedge(ledge, platform) {
     const surfaceY = platform.surfaceY != null ? platform.surfaceY : platform.y;
     this.onLedge = { edge: ledge.edge, ledgeX: ledge.x, platformY: surfaceY };
-    this.x = ledge.edge === 'left' ? ledge.x - this.w + 6 : ledge.x - 6;
-    this.y = surfaceY - this.h + 10;
+    // 崖の縁に手をかけて“ぶら下がる”位置に置く。
+    // 以前は崖の上に立っているように見える高さだったため、掴まっているのか分かりにくかった。
+    this.x = ledge.edge === 'left' ? ledge.x - this.w * 0.82 : ledge.x - this.w * 0.18;
+    this.y = surfaceY - this.h * 0.42;
     this.vx = 0;
     this.vy = 0;
     this.invincible = Math.max(this.invincible, CONFIG.LEDGE_INVINCIBLE_FRAMES);
@@ -778,11 +809,32 @@ class Fighter {
     return { x, y, w: range, h: boxH };
   }
 
-  // 毎フレーム大量に呼ばれるため、オブジェクトを使い回してGC負荷を抑える
+  // 毎フレーム大量に呼ばれるため、オブジェクトを使い回してGC負荷を抑える。
+  // しゃがみ中は上半身が下がるぶん、当たり判定も低くなる。
   getHurtbox() {
     const box = this._hurtbox;
-    box.x = this.x; box.y = this.y; box.w = this.w; box.h = this.h;
+    const h = this.crouching ? this.h * CONFIG.CROUCH_HURTBOX_RATIO : this.h;
+    box.x = this.x; box.y = this.y + (this.h - h); box.w = this.w; box.h = h;
     return box;
+  }
+
+  // 被弾時に進行中の行動をすべて打ち切る。
+  // 技の突進(travelSpeed)や溜め・掴み要求が残っていると、
+  // 吹っ飛びに余計な慣性が乗ったり、のけぞり明けに技が暴発したりするため必ずここで消す。
+  cancelActionOnHit() {
+    this.attackTimer = 0;
+    this.currentMove = null;
+    this.recoveryTimer = 0;
+    this.smashCandidate = null;
+    this.landingLag = 0;
+    this.crouching = false;
+    this._wantsGrab = false;
+    this._projectileRequest = null;
+    this._projectileSpawned = false;
+    this._hitWindowIndex = -1;
+    this._isLinkHit = false;
+    this._hitTargets.clear();
+    if (this.grabbing) this.releaseGrab();
   }
 
   // ---- ワンパターン相殺（同じ技を連発すると威力が落ちる） ----
@@ -804,7 +856,8 @@ class Fighter {
 
   // options.projectile: 飛び道具によるヒット（攻撃側にはヒットストップを与えない）
   takeHit(attacker, move, options) {
-    if (this.invincible > 0 || this.dead) return;
+    // moveがnullになるのは呼び出し側の不整合だが、ここで落ちるとバトルごと止まるため必ず弾く
+    if (!move || !attacker || this.invincible > 0 || this.dead) return;
 
     // 掴まれている最中に別の攻撃を受けたら掴みは解除される
     // （解除しないと吹っ飛びが掴み側の位置固定に打ち消され、永久に拘束されてしまう）
@@ -844,13 +897,27 @@ class Fighter {
     }
 
     const rawDamage = dmg;
+    // ジャストガード：シールドを張った直後(JUST_SHIELD_WINDOW以内)に攻撃を受けると成立。
+    // ダメージ・シールド削り・ガード硬直がゼロになり、逆に攻撃側へ大きな硬直を与える。
+    const justShield = wasShielding && this.shieldHeldFrames <= CONFIG.JUST_SHIELD_WINDOW;
     if (wasShielding) {
-      // シールドブロック：ダメージ/吹っ飛びを大幅軽減する代わりにシールドが削れる。
-      // 削り量・ガード硬直とも技のダメージに比例するため、強い技ほどガードが不利になる。
-      dmg *= 0.1;
-      kbBase *= 0.1;
-      this.shieldHP -= Math.max(5, rawDamage * CONFIG.SHIELD_CHIP_SCALE);
-      if (this.shieldHP <= 0) this.breakShield();
+      if (justShield) {
+        dmg = 0;
+        kbBase = 0;
+        this.justShieldFlash = CONFIG.JUST_SHIELD_FLASH_FRAMES;
+        if (attacker && !(options && options.projectile)) {
+          attacker.recoveryTimer = Math.max(attacker.recoveryTimer, CONFIG.JUST_SHIELD_ATTACKER_LAG);
+          attacker.attackTimer = 0;
+          attacker.currentMove = null;
+        }
+      } else {
+        // 通常ガード：ダメージ/吹っ飛びを大幅軽減する代わりにシールドが削れる。
+        // 削り量・ガード硬直とも技のダメージに比例するため、強い技ほどガードが不利になる。
+        dmg *= 0.1;
+        kbBase *= 0.1;
+        this.shieldHP -= Math.max(5, rawDamage * CONFIG.SHIELD_CHIP_SCALE);
+        if (this.shieldHP <= 0) this.breakShield();
+      }
     }
 
     this.damagePercent += dmg;
@@ -864,6 +931,7 @@ class Fighter {
 
     if (linkHit) {
       // 怯み：ほぼその場に留めて次の段まで硬直させる（浮かせない／転倒させない）
+      this.cancelActionOnHit();
       this.vx = dir * kb * 0.35;
       this.vy = 0;
       this.tumbling = false;
@@ -871,20 +939,17 @@ class Fighter {
       this.lastAttacker = attacker;
       this.lastHitAt = Date.now();
       this.hitstun = Math.max(this.hitstun, move.linkHitstun || 34);
-      this.attackTimer = 0;
-      this.currentMove = null;
-      this.recoveryTimer = 0;
       return;
     }
 
     if (wasShielding) {
-      // ガード硬直＋ガード時の後退（ノックバックせず滑るだけ）
-      this.hitstun = Math.round(CONFIG.SHIELD_STUN_BASE + rawDamage * CONFIG.SHIELD_STUN_PER_DAMAGE);
-      this.vx = dir * Math.min(CONFIG.SHIELD_PUSHBACK_MAX, rawDamage * 0.28);
+      // ガード硬直＋ガード時の後退（ノックバックせず滑るだけ）。
+      // ジャストガードなら硬直も後退も発生しない＝すぐ反撃に移れる。
+      this.cancelActionOnHit();
+      this.hitstun = justShield ? 0
+        : Math.round(CONFIG.SHIELD_STUN_BASE + rawDamage * CONFIG.SHIELD_STUN_PER_DAMAGE);
+      this.vx = justShield ? 0 : dir * Math.min(CONFIG.SHIELD_PUSHBACK_MAX, rawDamage * 0.28);
       this.vy = 0;
-      this.attackTimer = 0;
-      this.currentMove = null;
-      this.recoveryTimer = 0;
       return;
     }
 
@@ -903,6 +968,8 @@ class Fighter {
       const ry = vx * sin + vy * cos;
       vx = rx; vy = ry;
     }
+    // 進行中の技・溜め・掴みは被弾で必ずキャンセルする（突進技の慣性を持ち越さない）
+    this.cancelActionOnHit();
     this.vx = vx;
     this.vy = vy;
     this.fastFalling = false;
@@ -915,10 +982,6 @@ class Fighter {
 
     this.hitstun = Math.min(CONFIG.HITSTUN_MAX,
       Math.max(CONFIG.HITSTUN_MIN, Math.round(kb * CONFIG.HITSTUN_PER_KB)));
-    this.attackTimer = 0;
-    this.currentMove = null;
-    this.recoveryTimer = 0;
-    this.smashCandidate = null;
     if (window.Camera) Camera.shake(Math.min(CONFIG.SHAKE_MAX, kb * CONFIG.SHAKE_PER_KB));
   }
 
@@ -988,6 +1051,17 @@ class Fighter {
     if (this.invincible > 0) this.invincible--;
     if (this.hitstun > 0) this.hitstun--;
 
+    if (this.justShieldFlash > 0) this.justShieldFlash--;
+
+    // 吹っ飛び速度の減衰。スマブラでは吹っ飛びが徐々に弱まっていくため、
+    // 低%の被弾でステージ端まで流され続けることがない。
+    const controllable = this.hitstun <= 0 && this.landingLag <= 0 && !this.downed &&
+      !this.tumbling && this.dazedTimer <= 0 && this.dodgeTimer <= 0;
+    if (!controllable) {
+      this.vx *= this.onGround ? CONFIG.GROUND_FRICTION : CONFIG.KNOCKBACK_DECAY;
+      if (Math.abs(this.vx) < 0.06) this.vx = 0;
+    }
+
     const wasAirborne = !this.onGround;
     // 足元から地面までの距離（受け身の判断や着地予測に使う）
     this.groundDistance = Physics.distanceToGround(this, platforms);
@@ -1014,6 +1088,7 @@ class Fighter {
       this.tumbleRotation += (this.vx < 0 ? -1 : 1) * 0.24;
     }
 
+    if (!this.onGround) this.crouching = false;
     if (this.onGround) {
       // 空中攻撃を出したまま着地すると着地隙が発生する
       if (wasAirborne && this.attackTimer > 0 && this.currentMove && this.currentMove.aerial) {
@@ -1103,6 +1178,9 @@ class Fighter {
     this.techLockout = 0;
     this.shielding = false;
     this.shieldHP = CONFIG.SHIELD_MAX;
+    this.shieldHeldFrames = 0;
+    this.justShieldFlash = 0;
+    this.crouching = false;
     this.dazedTimer = 0;
     this.dodgeTimer = 0;
     this.smashCandidate = null;
@@ -1146,6 +1224,14 @@ class Fighter {
     ctx.save();
     // ヒットストップ中は左右に小刻みに震わせ、止まっていることを視覚的に伝える
     if (this.hitlagShakeX) ctx.translate(this.hitlagShakeX, 0);
+    // しゃがみ：待機画像を足元を軸に縦へ潰して表現する（専用画像がなくても成立する）
+    if (this.crouching) {
+      const feetY = this.y + this.h;
+      const cx0 = this.x + this.w / 2;
+      ctx.translate(cx0, feetY);
+      ctx.scale(1.06, CONFIG.CROUCH_HURTBOX_RATIO);
+      ctx.translate(-cx0, -feetY);
+    }
     if (this.invincible > 0 && Math.floor(this.invincible / 4) % 2 === 0) {
       ctx.globalAlpha = 0.4;
     }
@@ -1304,6 +1390,56 @@ class Fighter {
       ctx.fillRect(this.x, this.y, this.w, this.h);
     }
 
+    // ---- 崖つかまりの表現 ----
+    // 掴んでいる手・崖の縁の光・残り時間ゲージを描き、状態がひと目で分かるようにする。
+    if (this.onLedge) {
+      const gripX = this.onLedge.ledgeX;
+      const gripY = this.onLedge.platformY;
+      const pulse = 0.55 + 0.45 * Math.sin(this.ledgeHangFrames * 0.22);
+      ctx.save();
+      // 崖の縁の光
+      const glow = ctx.createRadialGradient(gripX, gripY, 2, gripX, gripY, 26);
+      glow.addColorStop(0, `rgba(255,236,150,${0.85 * pulse})`);
+      glow.addColorStop(1, 'rgba(255,200,60,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(gripX, gripY, 26, 0, Math.PI * 2); ctx.fill();
+      // 掴んでいる手
+      ctx.fillStyle = '#ffe9a8';
+      ctx.strokeStyle = '#6b4b12';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(gripX, gripY - 2, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      // 体から手へ伸びる腕
+      ctx.strokeStyle = 'rgba(255,233,168,.9)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(this.x + this.w / 2, this.y + this.h * 0.3);
+      ctx.lineTo(gripX, gripY - 2);
+      ctx.stroke();
+      // 残りぶら下がり時間ゲージ（尽きると自動で手を離す）
+      const remain = Math.max(0, 1 - this.ledgeHangFrames / CONFIG.LEDGE_MAX_HANG_FRAMES);
+      const barW = 40;
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(gripX - barW / 2, gripY - 26, barW, 5);
+      ctx.fillStyle = remain > 0.3 ? '#8fe36a' : '#ff7a5c';
+      ctx.fillRect(gripX - barW / 2, gripY - 26, barW * remain, 5);
+      ctx.restore();
+    }
+
+    // ジャストガード成立エフェクト（白い閃光リング）
+    if (this.justShieldFlash > 0) {
+      const t = this.justShieldFlash / CONFIG.JUST_SHIELD_FLASH_FRAMES;
+      const r = 30 * (this.attackScale || 1) * (1.9 - t);
+      ctx.save();
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 5 * t + 1;
+      ctx.beginPath(); ctx.arc(this.x + this.w / 2, this.y + this.h / 2, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = '#8fe0ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(this.x + this.w / 2, this.y + this.h / 2, r * 0.72, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+
     // シールド（体を覆う円。シールドHPに応じて縮小、見た目スケールに応じて拡大）
     if (this.shielding) {
       const r = 34 * (this.shieldHP / CONFIG.SHIELD_MAX) * (this.attackScale || 1);
@@ -1340,6 +1476,12 @@ class Fighter {
     ctx.font = '11px sans-serif';
     if (this.dazedTimer > 0) {
       ctx.fillText('ピヨ', this.x + this.w / 2, this.y - 22);
+    } else if (this.onLedge) {
+      ctx.fillStyle = '#ffe9a8';
+      ctx.fillText('崖つかまり', this.x + this.w / 2, this.y - 22);
+    } else if (this.justShieldFlash > CONFIG.JUST_SHIELD_FLASH_FRAMES - 14) {
+      ctx.fillStyle = '#eaffff';
+      ctx.fillText('ジャスト!', this.x + this.w / 2, this.y - 22);
     } else if (this.landingLag > 0) {
       ctx.fillText('着地隙', this.x + this.w / 2, this.y - 22);
     } else if (this.grabbing) {

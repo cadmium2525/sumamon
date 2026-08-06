@@ -113,18 +113,14 @@ class VirtualPad {
     const root = document.createElement('div');
     root.id = 'vpad-root';
     root.innerHTML = `
-      <div id="vpad-left" class="vpad-zone">
-        <div id="joystick-base">
-          <div id="joystick-thumb"></div>
-        </div>
+      <div id="joystick-base" data-pad-key="stick">
+        <div id="joystick-thumb"></div>
       </div>
-      <div id="vpad-right" class="vpad-zone">
-        <button id="btn-shield" class="vbtn small">Shield</button>
-        <button id="btn-jump" class="vbtn small">Jump</button>
-        <button id="btn-grab" class="vbtn small">Grab</button>
-        <button id="btn-b" class="vbtn medium">B</button>
-        <button id="btn-a" class="vbtn large">A</button>
-      </div>
+      <button id="btn-shield" class="vbtn" data-pad-key="shield">Shield</button>
+      <button id="btn-jump" class="vbtn" data-pad-key="jump">Jump</button>
+      <button id="btn-grab" class="vbtn" data-pad-key="grab">Grab</button>
+      <button id="btn-b" class="vbtn" data-pad-key="b">B</button>
+      <button id="btn-a" class="vbtn primary" data-pad-key="a">A</button>
     `;
     this.container.appendChild(root);
     this.rootEl = root;
@@ -137,6 +133,7 @@ class VirtualPad {
       <div id="vpad-settings-panel" class="hidden">
         <div class="settings-tabs">
           <button class="settings-tab active" data-settings-tab="battle">バトル設定</button>
+          <button class="settings-tab" data-settings-tab="pad">操作パッド</button>
           <button class="settings-tab" data-settings-tab="audio">音量調節</button>
         </div>
         <div class="settings-pane" data-settings-pane="battle">
@@ -144,6 +141,20 @@ class VirtualPad {
           <label><input type="checkbox" id="cfg-tapjump"> スティック上入力でジャンプ</label>
           <label><input type="checkbox" id="cfg-shield"> シールドボタンを表示</label>
           <label><input type="checkbox" id="cfg-b"> Bボタンを表示</label>
+        </div>
+        <div class="settings-pane hidden" data-settings-pane="pad">
+          <label><input type="checkbox" id="cfg-mirror"> 左右反転（左利き配置）</label>
+          <div class="pad-slider"><strong>ボタンの大きさ</strong>
+            <input id="cfg-pad-scale" type="range" min="70" max="160" step="5"><output id="cfg-pad-scale-value">100%</output></div>
+          <div class="pad-slider"><strong>スティックの大きさ</strong>
+            <input id="cfg-stick-scale" type="range" min="70" max="160" step="5"><output id="cfg-stick-scale-value">100%</output></div>
+          <div class="pad-slider"><strong>ボタンの濃さ</strong>
+            <input id="cfg-pad-opacity" type="range" min="30" max="100" step="5"><output id="cfg-pad-opacity-value">85%</output></div>
+          <div class="pad-layout-actions">
+            <button id="cfg-pad-edit" type="button">ボタン配置を編集</button>
+            <button id="cfg-pad-reset" type="button">配置を初期化</button>
+          </div>
+          <small class="pad-note">「ボタン配置を編集」で各ボタンをドラッグして自由に動かせます。位置は画面サイズに対する割合で保存されるため、端末が変わっても崩れません。</small>
         </div>
         <div class="settings-pane hidden" data-settings-pane="audio">
           <label class="sound-enable-setting"><input id="cfg-sound-enabled" type="checkbox"> サウンド出力を有効にする</label>
@@ -182,9 +193,67 @@ class VirtualPad {
       cfgSeVolume: settingsRoot.querySelector('#cfg-se-volume'),
       cfgSeVolumeValue: settingsRoot.querySelector('#cfg-se-volume-value'),
       settingsClose: settingsRoot.querySelector('#vpad-settings-close'),
+      cfgMirror: settingsRoot.querySelector('#cfg-mirror'),
+      cfgPadScale: settingsRoot.querySelector('#cfg-pad-scale'),
+      cfgPadScaleValue: settingsRoot.querySelector('#cfg-pad-scale-value'),
+      cfgStickScale: settingsRoot.querySelector('#cfg-stick-scale'),
+      cfgStickScaleValue: settingsRoot.querySelector('#cfg-stick-scale-value'),
+      cfgPadOpacity: settingsRoot.querySelector('#cfg-pad-opacity'),
+      cfgPadOpacityValue: settingsRoot.querySelector('#cfg-pad-opacity-value'),
+      cfgPadEdit: settingsRoot.querySelector('#cfg-pad-edit'),
+      cfgPadReset: settingsRoot.querySelector('#cfg-pad-reset'),
     };
+    this.settingsRoot = settingsRoot;
     this._applyPadConfigToDOM();
     this._applyAudioSettingsToDOM();
+  }
+
+  // 現在の配置（カスタムがあればそれ、無ければ既定）を左右反転も反映して返す
+  _resolvedLayout() {
+    const base = { ...CONFIG.DEFAULT_PAD_LAYOUT, ...(this.padConfig.layout || {}) };
+    if (!this.padConfig.mirrored) return base;
+    const flipped = {};
+    for (const key in base) flipped[key] = { x: 1 - base[key].x, y: base[key].y };
+    return flipped;
+  }
+
+  _padElementFor(key) {
+    return { stick: this.el.stickBase, shield: this.el.btnShield, jump: this.el.btnJump,
+      grab: this.el.btnGrab, b: this.el.btnB, a: this.el.btnA }[key];
+  }
+
+  _sizeFor(key) {
+    const scale = key === 'stick' ? (this.padConfig.stickScale || 1) : (this.padConfig.padScale || 1);
+    return CONFIG.PAD_BUTTON_SIZES[key] * scale;
+  }
+
+  // 位置(割合)とサイズを実際のCSSへ反映する。
+  // 画面外にはみ出さないよう、要素の半径ぶんだけ内側にクランプする。
+  _applyLayoutToDOM() {
+    const layout = this._resolvedLayout();
+    const rect = this.container.getBoundingClientRect();
+    const width = rect.width || window.innerWidth;
+    const height = rect.height || window.innerHeight;
+    for (const key in layout) {
+      const el = this._padElementFor(key);
+      if (!el) continue;
+      const size = this._sizeFor(key);
+      const halfX = size / 2 / width;
+      const halfY = size / 2 / height;
+      const x = Math.min(1 - halfX, Math.max(halfX, layout[key].x));
+      const y = Math.min(1 - halfY, Math.max(halfY, layout[key].y));
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+      el.style.left = `${x * 100}%`;
+      el.style.top = `${y * 100}%`;
+    }
+    // スティックのつまみは土台サイズに追従させる
+    const stickSize = this._sizeFor('stick');
+    this.el.stickThumb.style.width = `${stickSize * 0.45}px`;
+    this.el.stickThumb.style.height = `${stickSize * 0.45}px`;
+    this.stickMaxRadius = stickSize * 0.36;
+    this.stickDeadzone = stickSize * 0.11;
+    this.rootEl.style.setProperty('--pad-opacity', this.padConfig.padOpacity ?? 0.85);
   }
 
   _applyPadConfigToDOM() {
@@ -195,6 +264,112 @@ class VirtualPad {
     this.el.cfgTapJump.checked = this.padConfig.tapJumpEnabled;
     this.el.cfgShield.checked = this.padConfig.showShieldButton;
     this.el.cfgB.checked = this.padConfig.showBButton;
+    this.el.cfgMirror.checked = !!this.padConfig.mirrored;
+    const padPct = Math.round((this.padConfig.padScale || 1) * 100);
+    const stickPct = Math.round((this.padConfig.stickScale || 1) * 100);
+    const opacityPct = Math.round((this.padConfig.padOpacity ?? 0.85) * 100);
+    this.el.cfgPadScale.value = padPct;
+    this.el.cfgPadScaleValue.textContent = `${padPct}%`;
+    this.el.cfgStickScale.value = stickPct;
+    this.el.cfgStickScaleValue.textContent = `${stickPct}%`;
+    this.el.cfgPadOpacity.value = opacityPct;
+    this.el.cfgPadOpacityValue.textContent = `${opacityPct}%`;
+    this._applyLayoutToDOM();
+  }
+
+  // ---- ボタン配置エディタ ----
+  // 実際のパッドと同じ配置の全画面オーバーレイを出し、ドラッグで位置を決める。
+  // バトル中でなくても開けるよう、パッド本体ではなく専用のオーバーレイ上で編集する。
+  openLayoutEditor() {
+    if (this._layoutEditor) return;
+    this.el.settingsPanel.classList.add('hidden');
+    const layout = { ...CONFIG.DEFAULT_PAD_LAYOUT, ...(this.padConfig.layout || {}) };
+    const mirrored = !!this.padConfig.mirrored;
+    const overlay = document.createElement('div');
+    overlay.id = 'pad-layout-editor';
+    overlay.innerHTML = `
+      <div class="pad-editor-hint">ボタンをドラッグして配置を決めてください</div>
+      <div class="pad-editor-actions">
+        <button data-pad-editor="reset">初期配置に戻す</button>
+        <button data-pad-editor="cancel">キャンセル</button>
+        <button data-pad-editor="save" class="primary">この配置で保存</button>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const labels = { stick: 'スティック', shield: 'Shield', jump: 'Jump', grab: 'Grab', b: 'B', a: 'A' };
+    const visible = key => (key === 'jump' ? this.padConfig.showJumpButton
+      : key === 'shield' ? this.padConfig.showShieldButton
+      : key === 'b' ? this.padConfig.showBButton : true);
+    const handles = {};
+    for (const key in layout) {
+      if (!visible(key)) continue;
+      const handle = document.createElement('div');
+      handle.className = `pad-editor-handle${key === 'stick' ? ' stick' : ''}${key === 'a' ? ' primary' : ''}`;
+      handle.textContent = labels[key];
+      overlay.appendChild(handle);
+      handles[key] = handle;
+    }
+
+    const render = () => {
+      for (const key in handles) {
+        const size = this._sizeFor(key);
+        const px = mirrored ? 1 - layout[key].x : layout[key].x;
+        const halfX = size / 2 / window.innerWidth;
+        const halfY = size / 2 / window.innerHeight;
+        handles[key].style.width = `${size}px`;
+        handles[key].style.height = `${size}px`;
+        handles[key].style.left = `${Math.min(1 - halfX, Math.max(halfX, px)) * 100}%`;
+        handles[key].style.top = `${Math.min(1 - halfY, Math.max(halfY, layout[key].y)) * 100}%`;
+      }
+    };
+    render();
+
+    let dragging = null;
+    const pointOf = ev => (ev.touches && ev.touches[0]) || ev;
+    const onDown = (key, ev) => { ev.preventDefault(); dragging = key; };
+    const onMove = ev => {
+      if (!dragging) return;
+      ev.preventDefault();
+      const point = pointOf(ev);
+      const x = Math.min(1, Math.max(0, point.clientX / window.innerWidth));
+      const y = Math.min(1, Math.max(0, point.clientY / window.innerHeight));
+      // 反転表示中は保存値も反転して戻す（保存は常に「反転していない状態」で持つ）
+      layout[dragging] = { x: mirrored ? 1 - x : x, y };
+      render();
+    };
+    const onUp = () => { dragging = null; };
+    for (const key in handles) {
+      handles[key].addEventListener('touchstart', ev => onDown(key, ev), { passive: false });
+      handles[key].addEventListener('mousedown', ev => onDown(key, ev));
+    }
+    overlay.addEventListener('touchmove', onMove, { passive: false });
+    overlay.addEventListener('mousemove', onMove);
+    overlay.addEventListener('touchend', onUp);
+    overlay.addEventListener('mouseup', onUp);
+    overlay.addEventListener('mouseleave', onUp);
+
+    const close = () => {
+      overlay.remove();
+      this._layoutEditor = null;
+      this.el.settingsPanel.classList.remove('hidden');
+    };
+    overlay.querySelectorAll('[data-pad-editor]').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.padEditor;
+        if (action === 'reset') {
+          for (const key in layout) layout[key] = { ...CONFIG.DEFAULT_PAD_LAYOUT[key] };
+          render();
+          return;
+        }
+        if (action === 'save') {
+          this.padConfig.layout = layout;
+          savePadConfig(this.padConfig);
+          this._applyLayoutToDOM();
+        }
+        close();
+      });
+    });
+    this._layoutEditor = overlay;
   }
 
   _applyAudioSettingsToDOM() {
@@ -232,6 +407,33 @@ class VirtualPad {
     this.el.cfgTapJump.addEventListener('change', onCfgChange);
     this.el.cfgShield.addEventListener('change', onCfgChange);
     this.el.cfgB.addEventListener('change', onCfgChange);
+
+    // --- 操作パッドのカスタマイズ ---
+    const onPadCustomChange = () => {
+      this.padConfig.mirrored = this.el.cfgMirror.checked;
+      this.padConfig.padScale = Number(this.el.cfgPadScale.value) / 100;
+      this.padConfig.stickScale = Number(this.el.cfgStickScale.value) / 100;
+      this.padConfig.padOpacity = Number(this.el.cfgPadOpacity.value) / 100;
+      savePadConfig(this.padConfig);
+      this._applyPadConfigToDOM();
+    };
+    this.el.cfgMirror.addEventListener('change', onPadCustomChange);
+    this.el.cfgPadScale.addEventListener('input', onPadCustomChange);
+    this.el.cfgStickScale.addEventListener('input', onPadCustomChange);
+    this.el.cfgPadOpacity.addEventListener('input', onPadCustomChange);
+    this.el.cfgPadEdit.addEventListener('click', () => this.openLayoutEditor());
+    this.el.cfgPadReset.addEventListener('click', () => {
+      this.padConfig.layout = null;
+      this.padConfig.mirrored = false;
+      this.padConfig.padScale = 1;
+      this.padConfig.stickScale = 1;
+      this.padConfig.padOpacity = CONFIG.DEFAULT_PAD_CONFIG.padOpacity;
+      savePadConfig(this.padConfig);
+      this._applyPadConfigToDOM();
+    });
+    // 画面回転やリサイズでも配置比率を保つ
+    window.addEventListener('resize', () => this._applyLayoutToDOM());
+    window.addEventListener('orientationchange', () => setTimeout(() => this._applyLayoutToDOM(), 120));
     this.el.cfgSoundEnabled.addEventListener('change', () => {
       AudioManager.setSoundEnabled(this.el.cfgSoundEnabled.checked);
     });
@@ -273,10 +475,11 @@ class VirtualPad {
     // --- 左スティック ---
     const base = this.el.stickBase;
     const thumb = this.el.stickThumb;
-    const maxRadius = 40;
-    const deadzone = 12;
 
     const updateStick = (clientX, clientY) => {
+      // スティックの大きさ設定に追従させる
+      const maxRadius = this.stickMaxRadius || 40;
+      const deadzone = this.stickDeadzone || 12;
       const rect = base.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;

@@ -262,6 +262,9 @@ function checkAttacks() {
     if (attacker.dead || attacker.hitlag > 0) continue;
     const hb = attacker.getHitbox();
     if (!hb) continue;
+    // 技の参照は先に控えておく。ジャストガードを取られると攻撃側の技はその場で中断されるため、
+    // ループ途中で attacker.currentMove が null になりうる。
+    const move = attacker.currentMove;
     for (const target of players) {
       if (target === attacker || target.dead) continue;
       if (survivalBattle && attacker !== players[0] && target !== players[0]) continue;
@@ -269,7 +272,9 @@ function checkAttacks() {
       if (attacker.hasHitTarget(target)) continue;
       if (Physics.rectsOverlap(hb, target.getHurtbox())) {
         attacker.markHitTarget(target);
-        target.takeHit(attacker, attacker.currentMove);
+        target.takeHit(attacker, move);
+        // 技が中断された（ジャストガードされた）場合、残りの相手には当たらない
+        if (attacker.currentMove !== move) break;
       }
     }
   }

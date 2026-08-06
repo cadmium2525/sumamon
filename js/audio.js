@@ -3,15 +3,31 @@
 // iOSでは明示再生したHTMLAudioElementはメディア扱いとなり、マナースイッチを無視するため使用しない。
 const AudioManager = {
   SETTINGS_KEY: 'smamon_audio_settings',
+  // BGM。ここに1行足すだけで管理者モードの確認画面にも自動で並ぶ（labelは表示名）。
   tracks: {
-    home: { src: 'assets/audio/home.mp3', baseVolume: 1 / 3 },
-    battleMode: { src: 'assets/audio/battlemode.mp3', baseVolume: 2 / 5 },
+    home: { label: 'ホーム', src: 'assets/audio/home.mp3', baseVolume: 1 / 3 },
+    battleMode: { label: '対戦準備', src: 'assets/audio/battlemode.mp3', baseVolume: 2 / 5 },
     // 実際の対戦中に流れる曲（ファイル名に空白を含むため、URLは%20でエンコードした形で統一する）
-    battle: { src: 'assets/audio/Pain%20the%20Universe.mp3', baseVolume: 2 / 5 },
+    battle: { label: '対戦中（Pain the Universe）', src: 'assets/audio/Pain%20the%20Universe.mp3', baseVolume: 2 / 5 },
   },
+  // SE。同じくここに足せば確認画面へ自動で反映される。
   effects: {
-    arrow: { src: 'assets/audio/arrow.mp3', baseVolume: 0.75 },
-    bomb: { src: 'assets/audio/bomb.mp3', baseVolume: 0.75 },
+    arrow: { label: '矢', src: 'assets/audio/arrow.mp3', baseVolume: 0.75 },
+    bomb: { label: '爆発', src: 'assets/audio/bomb.mp3', baseVolume: 0.75 },
+  },
+
+  // 管理者モードの確認画面用：登録済みBGM/SEの一覧を返す
+  listTracks() {
+    return Object.entries(this.tracks).map(([key, track]) => ({
+      key, label: track.label || key, src: decodeURI(track.src),
+      loaded: !!this.trackBuffers[key],
+    }));
+  },
+  listEffects() {
+    return Object.entries(this.effects).map(([key, effect]) => ({
+      key, label: effect.label || key, src: decodeURI(effect.src),
+      loaded: !!this.effectBuffers[key],
+    }));
   },
   bgmVolume: 70,
   seVolume: 70,

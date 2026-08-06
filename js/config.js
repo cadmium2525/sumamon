@@ -86,6 +86,26 @@ const CONFIG = {
   // 急降下：落下中に下入力で落下速度を上げる
   FAST_FALL_MULTIPLIER: 1.65,
 
+  // 吹っ飛び後の減速。スマブラでは吹っ飛び速度が毎フレーム減衰していくが、
+  // 以前は一切減速せず、のけぞりが解けるまで等速で滑り続けていたため
+  // 低%でもステージ端まで流されてしまっていた。
+  KNOCKBACK_DECAY: 0.935,   // 空中でののけぞり中の減衰
+  GROUND_FRICTION: 0.84,    // 接地中に操作できない状態（のけぞり・ダウン・着地隙）での摩擦
+
+  // ジャストガード：攻撃が当たる直前にシールドを張ると成立
+  JUST_SHIELD_WINDOW: 5,          // シールドを張ってから何フレーム以内のヒットで成立するか
+  JUST_SHIELD_ATTACKER_LAG: 16,   // 成立時に攻撃側へ与える追加硬直
+  JUST_SHIELD_FLASH_FRAMES: 20,   // 成立エフェクトの表示時間
+
+  // 空中制御（本家同様、空中では加速度で慣性を変える。地上のような即時反転はしない）
+  AIR_ACCEL: 0.135,          // 1フレームあたりの空中加速量
+  AIR_TURN_BOOST: 1.7,       // 進行方向と逆に入力した時の加速倍率（慣性を殺しやすくする）
+  AIR_MAX_SPEED_RATIO: 0.86, // 空中最高速度（ダッシュ速度に対する割合）
+  AIR_FRICTION: 0.992,       // 無入力時にゆっくり慣性が抜ける
+
+  // しゃがみ：当たり判定が低くなり、飛び道具や横方向の攻撃を避けやすくなる
+  CROUCH_HURTBOX_RATIO: 0.64,
+
   // 着地隙：空中攻撃を出したまま着地すると硬直する
   LANDING_LAG_DEFAULT: 10,
 
@@ -139,12 +159,31 @@ const CONFIG = {
   CAMERA_PADDING_Y: 150,       // 同上（上下）
   CAMERA_SMOOTHING: 0.08,      // 位置・ズームの追従速度（大きいほど素早く追従する。0〜1）
 
-  // 仮想パッドのボタン表示設定（プレイヤーが設定画面で変更可能・localStorageへ保存）
+  // 仮想パッドの既定配置。各ボタンの「中心位置」を画面に対する割合(0〜1)で持つ。
+  // 割合で持つことで、端末の画面サイズが変わっても同じ位置関係を保てる。
+  DEFAULT_PAD_LAYOUT: {
+    stick:  { x: 0.112, y: 0.760 },
+    shield: { x: 0.800, y: 0.655 },
+    jump:   { x: 0.876, y: 0.655 },
+    grab:   { x: 0.952, y: 0.655 },
+    b:      { x: 0.876, y: 0.855 },
+    a:      { x: 0.952, y: 0.855 },
+  },
+
+  // 仮想パッドのボタンごとの基準サイズ(px)。padScaleを掛けて実サイズになる。
+  PAD_BUTTON_SIZES: { shield: 58, jump: 58, grab: 58, b: 62, a: 72, stick: 110 },
+
+  // 仮想パッドの設定（プレイヤーが設定画面で変更可能・localStorageへ保存）
   DEFAULT_PAD_CONFIG: {
     showJumpButton: true,   // スティック上入力でもジャンプ可能なため任意
     showShieldButton: true,
     showBButton: true,
     tapJumpEnabled: true,   // スティック上入力をジャンプとして扱うか
+    padScale: 1,            // ボタンの大きさ倍率（0.7〜1.6）
+    stickScale: 1,          // スティックの大きさ倍率（0.7〜1.6）
+    padOpacity: 0.85,       // ボタンの不透明度（0.3〜1）
+    mirrored: false,        // 左右反転（左利き向け）
+    layout: null,           // 位置をカスタムした場合のみ { a:{x,y}, ... } が入る
   },
 };
 

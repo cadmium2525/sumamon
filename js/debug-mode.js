@@ -16,14 +16,7 @@ const DebugMotionViewer = {
     document.querySelectorAll('[data-admin-tab]').forEach(button => {
       button.addEventListener('click', () => this.switchTab(button.dataset.adminTab));
     });
-    document.querySelectorAll('[data-admin-bgm]').forEach(button => {
-      button.addEventListener('click', () => {
-        if (!window.AudioManager) return;
-        const track = button.dataset.adminBgm;
-        if (track === 'stop') AudioManager.stopBgm();
-        else AudioManager.playBgm(track);
-      });
-    });
+    this.buildAudioList();
     document.getElementById('admin-player-refresh').addEventListener('click', () => this.loadPlayerActivity());
 
     // 修行テスト：どのfighterで試すか選べるようにする
@@ -131,6 +124,55 @@ const DebugMotionViewer = {
     return overrides;
   },
 
+  // BGM/SE確認：AudioManagerの登録内容から一覧を自動生成する。
+  // 曲を追加してもここを触る必要はなく、AudioManager.tracks に足すだけで並ぶ。
+  buildAudioList() {
+    const bgmList = document.getElementById('admin-bgm-list');
+    const seList = document.getElementById('admin-se-list');
+    if (!bgmList || !window.AudioManager) return;
+    const tracks = AudioManager.listTracks();
+    bgmList.innerHTML = tracks.map(track => `
+      <button data-admin-bgm="${track.key}">
+        <strong>${this.escape(track.label)}</strong>
+        <small data-bgm-state="${track.key}">${track.loaded ? '再生' : '読み込み中…'}</small>
+      </button>`).join('') + '<button data-admin-bgm="stop" class="admin-audio-stop">■ 停止</button>';
+    seList.innerHTML = '<span class="admin-audio-heading">効果音</span>' +
+      AudioManager.listEffects().map(effect => `
+      <button data-admin-se="${effect.key}"><strong>${this.escape(effect.label)}</strong><small>再生</small></button>`).join('');
+
+    bgmList.querySelectorAll('[data-admin-bgm]').forEach(button => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.adminBgm;
+        if (key === 'stop') { AudioManager.stopBgm(); this.markPlayingBgm(null); return; }
+        AudioManager.playBgm(key);
+        this.markPlayingBgm(key);
+      });
+    });
+    seList.querySelectorAll('[data-admin-se]').forEach(button => {
+      button.addEventListener('click', () => AudioManager.playSe(button.dataset.adminSe));
+    });
+    this.refreshAudioLoadState();
+  },
+
+  markPlayingBgm(key) {
+    document.querySelectorAll('#admin-bgm-list [data-admin-bgm]').forEach(button => {
+      button.classList.toggle('playing', button.dataset.adminBgm === key);
+    });
+  },
+
+  // 読み込みが終わった曲の表示を「再生」に切り替える（読み込みは非同期のため）
+  refreshAudioLoadState() {
+    if (!window.AudioManager) return;
+    let pending = false;
+    AudioManager.listTracks().forEach(track => {
+      const label = document.querySelector(`[data-bgm-state="${track.key}"]`);
+      if (!label) return;
+      if (track.loaded) label.textContent = '再生';
+      else { label.textContent = '読み込み中…'; pending = true; }
+    });
+    if (pending) setTimeout(() => this.refreshAudioLoadState(), 700);
+  },
+
   switchTab(tabName) {
     document.querySelectorAll('[data-admin-tab]').forEach(button => button.classList.toggle('active', button.dataset.adminTab === tabName));
     document.querySelectorAll('[data-admin-pane]').forEach(pane => pane.classList.toggle('hidden', pane.dataset.adminPane !== tabName));
@@ -140,6 +182,7 @@ const DebugMotionViewer = {
       this.rafId = null;
     }
     if (tabName === 'players') this.loadPlayerActivity();
+    if (tabName === 'bgm') this.refreshAudioLoadState();
   },
 
   async loadPlayerActivity() {

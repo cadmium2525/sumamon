@@ -234,7 +234,13 @@ body.layout-pending .screen { visibility: hidden; }
 .admin-pane { width: min(92vw, 850px); }
 .admin-pane[data-admin-pane="motion"] { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .admin-pane.hidden { display: none; }
-.admin-bgm-controls { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 9px; margin-top: 28px; }
+.admin-bgm-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 9px; margin-top: 18px; }
+.admin-bgm-controls button strong, .admin-bgm-controls button small { display: block; }
+.admin-bgm-controls button small { margin-top: 2px; font-size: 10px; font-weight: 600; opacity: .75; }
+.admin-bgm-controls button.playing { color: #08131d; background: #65d7ff; }
+.admin-bgm-controls .admin-audio-stop { border-color: #ff9a8a; color: #ffd9d2; }
+.admin-se-controls { margin-top: 12px; }
+.admin-audio-heading { grid-column: 1 / -1; color: #9fb6c7; font-size: 11px; font-weight: 800; }
 .admin-bgm-controls button, .admin-player-toolbar button { padding: 11px; border: 1px solid #65d7ff; border-radius: 8px; color: #dff8ff; background: #10283a; font-weight: 800; }
 .admin-pane[data-admin-pane="bgm"] p { margin-top: 12px; color: #9fb6c7; text-align: center; }
 .admin-practice-pane { text-align: center; }
@@ -854,67 +860,134 @@ body.layout-pending .screen { visibility: hidden; }
 }
 
 /* ==== 仮想パッド ==== */
+/* 各ボタンは「中心位置を割合で指定した絶対配置」にしてあり、
+   設定画面のエディタからドラッグで自由に動かせる。 */
 #vpad-root {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  --pad-opacity: .85;
 }
-
-.vpad-zone {
-  position: absolute;
-  bottom: 20px;
-  pointer-events: auto;
-}
-
-#vpad-left { left: 20px; }
-#vpad-right {
-  right: 20px;
-  display: grid;
-  grid-template-columns: repeat(3, 58px);
-  grid-template-rows: repeat(2, 58px);
-  gap: 8px;
-  align-items: end;
-}
-#btn-shield { grid-column: 1; grid-row: 1; }
-#btn-jump   { grid-column: 2; grid-row: 1; }
-#btn-grab   { grid-column: 3; grid-row: 1; }
-#btn-b      { grid-column: 2; grid-row: 2; }
-#btn-a      { grid-column: 3; grid-row: 2; }
 
 #joystick-base {
+  position: absolute;
   width: 110px;
   height: 110px;
   border-radius: 50%;
   background: rgba(255,255,255,0.15);
   border: 2px solid rgba(255,255,255,0.4);
-  position: relative;
+  opacity: var(--pad-opacity);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
   touch-action: none;
 }
 
 #joystick-thumb {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 50px;
   height: 50px;
+  margin: -25px 0 0 -25px;
   border-radius: 50%;
   background: rgba(255,255,255,0.7);
-  position: absolute;
-  top: 30px;
-  left: 30px;
   transition: transform 0.03s linear;
   pointer-events: none;
 }
 
 .vbtn {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   border: none;
   background: rgba(255,255,255,0.25);
   color: #fff;
+  font-size: 13px;
   font-weight: bold;
+  opacity: var(--pad-opacity);
+  transform: translate(-50%, -50%);
+  touch-action: none;
+  user-select: none;
+  pointer-events: auto;
+}
+.vbtn.primary { background: rgba(255,80,80,0.5); font-size: 17px; }
+
+/* ---- ボタン配置エディタ ---- */
+#pad-layout-editor {
+  position: fixed;
+  z-index: 900;
+  inset: 0;
+  background: rgba(4,10,18,.72);
   touch-action: none;
   user-select: none;
 }
-.vbtn.small { width: 100%; height: 100%; font-size: 12px; }
-.vbtn.medium { width: 100%; height: 100%; font-size: 16px; }
-.vbtn.large { width: 100%; height: 100%; font-size: 18px; background: rgba(255,80,80,0.5); }
+.pad-editor-hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  padding: 7px 16px;
+  border-radius: 999px;
+  color: #e8f7ff;
+  background: rgba(8,20,34,.9);
+  font-size: 12px;
+  font-weight: 800;
+  transform: translateX(-50%);
+}
+.pad-editor-actions {
+  position: absolute;
+  top: 52px;
+  left: 50%;
+  display: flex;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+.pad-editor-actions button {
+  padding: 7px 13px;
+  border: 1px solid #65d7ff;
+  border-radius: 8px;
+  color: #dff8ff;
+  background: #10283a;
+  font-size: 12px;
+  font-weight: 800;
+}
+.pad-editor-actions button.primary { border-color: #ffd45e; color: #2a1c00; background: #ffd45e; }
+.pad-editor-handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(255,255,255,.85);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(255,255,255,.3);
+  font-size: 12px;
+  font-weight: 800;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+}
+.pad-editor-handle.primary { background: rgba(255,80,80,.55); }
+.pad-editor-handle.stick { border-style: solid; background: rgba(120,200,255,.32); }
+
+/* ---- 設定パネル：操作パッドのタブ ---- */
+.pad-slider { display: flex; align-items: center; gap: 8px; margin: 7px 0; font-size: 12px; }
+.pad-slider strong { min-width: 108px; }
+.pad-slider input[type=range] { flex: 1; min-width: 90px; }
+.pad-slider output { min-width: 42px; text-align: right; }
+.pad-layout-actions { display: flex; gap: 8px; margin-top: 10px; }
+.pad-layout-actions button {
+  flex: 1;
+  padding: 9px;
+  border: 1px solid #65d7ff;
+  border-radius: 8px;
+  color: #dff8ff;
+  background: #10283a;
+  font-size: 12px;
+  font-weight: 800;
+}
+.pad-note { display: block; margin-top: 9px; color: #9fb6c7; font-size: 10px; line-height: 1.5; }
 
 #vpad-settings-toggle {
   position: fixed;
@@ -1021,7 +1094,6 @@ body.layout-pending .screen { visibility: hidden; }
 @keyframes shopToastIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.85); } 12%, 82% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -54%) scale(.96); } }
 
 @media (max-height: 500px) {
-  #vpad-left, #vpad-right { bottom: clamp(92px, 27vh, 118px); }
   .item-shop-screen { padding-top: 8px; }
   .item-shop-header { margin-bottom: 7px; }
   .item-shop-header .screen-heading { font-size: 21px; }
@@ -1352,6 +1424,7 @@ body.layout-pending .screen { visibility: hidden; }
 #battle-pause-overlay strong { font-size: clamp(42px, 10vw, 90px); font-weight: 950; letter-spacing: .12em; }
 #battle-suspend-btn { padding: 9px 18px; border: 1px solid #ffe18a; border-radius: 9px; color: #fff2b1; background: rgba(55,35,5,.94); font-size: 13px; font-weight: 900; }
 #battle-suspend-btn.hidden { display: none; }
+.battle-survival-counter.hidden { display: none; }
 .battle-survival-counter { position: absolute; z-index: 42; top: max(12px, env(safe-area-inset-top)); left: 50%; padding: 7px 18px; border: 2px solid rgba(255,226,116,.86); border-radius: 18px; color: #fff5c7; background: rgba(9,18,31,.88); box-shadow: 0 3px 14px rgba(0,0,0,.55); font-size: 16px; font-weight: 950; transform: translateX(-50%); pointer-events: none; }
 .survival-result-hero { display: grid; place-items: center; min-width: 240px; padding: 20px; border: 2px solid #79d8ff; border-radius: 16px; background: rgba(6,24,42,.88); }
 .survival-result-hero > span { color: #cceeff; font-size: 18px; font-weight: 900; }
