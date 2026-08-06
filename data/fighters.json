@@ -81,6 +81,12 @@
           "bottom": 283
         }
       }
+    },
+    "parts": {
+      "neckY": 96,
+      "hipY": 196,
+      "legSplitX": 107,
+      "overlap": 6
     }
   },
   "dullahan": {
@@ -125,6 +131,12 @@
         "x": 116,
         "y": 358
       }
+    },
+    "parts": {
+      "neckY": 195,
+      "hipY": 392,
+      "legSplitX": 178,
+      "overlap": 10
     }
   }
 }

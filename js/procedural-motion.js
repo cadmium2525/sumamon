@@ -208,3 +208,83 @@ ProceduralMotion.weaponAngleFor = function (fighter, { attacking } = {}) {
   const scaled = angle * gain;
   return Math.max(-this.MAX_SWING_ANGLE, Math.min(this.MAX_SWING_ANGLE, scaled));
 };
+
+// ==== パーツ分割（頭・胴・左右の脚） ====
+// 立ち絵を横線2本（首・腰）と縦線1本（脚の分かれ目）で切り分け、
+// それぞれを付け根を軸に振る。歩行やジャンプの説得力が上がる。
+// 角度はすべて度。前方向が+（向きに応じて自動で反転する）。
+ProceduralMotion.PART_STATES = {
+  idle(f, m) {
+    const w = m._wave(f.proceduralClock, 96);
+    return { head: -1.2 * w, torso: 0.8 * w, legBack: 0, legFront: 0 };
+  },
+  walk(f, m) {
+    const w = m._wave(f.proceduralClock, 28);
+    // 左右の脚を逆位相で振る。胴は軽く反対へ、頭はさらに反対へ振れて生き物らしくなる。
+    return { head: -2.5 * w, torso: 1.8 * w, legBack: -16 * w, legFront: 16 * w };
+  },
+  dash(f, m) {
+    const w = m._wave(f.proceduralClock, 18);
+    return { head: -3 * w, torso: 2, legBack: -24 * w, legFront: 24 * w };
+  },
+  airIdle(f, m) {
+    const w = m._wave(f.proceduralClock, 72);
+    return { head: -2 * w, torso: 1.5 * w, legBack: -6 + 3 * w, legFront: 8 - 3 * w };
+  },
+  jump(f) {
+    // 上昇中は脚を畳み、落下中は伸ばす
+    const v = Math.max(-1, Math.min(1, f.vy / 9));
+    return { head: 2 * -v, torso: -3 * -v, legBack: -22 * -v, legFront: 14 * -v };
+  },
+  shield() {
+    return { head: 3, torso: -4, legBack: -8, legFront: 8 };
+  },
+  hurt(f) {
+    const p = Math.max(0, Math.min(1, f.hitstun / 18));
+    return { head: -14 * p, torso: -8 * p, legBack: 10 * p, legFront: -6 * p };
+  },
+  ledge(f, m) {
+    const w = m._wave(f.proceduralClock, 80);
+    return { head: 2 * w, torso: -3, legBack: 8 + 3 * w, legFront: -6 - 3 * w };
+  },
+};
+
+// 技のとき：踏み込みに合わせて足を開き、胴と頭は振りに引っぱられる
+ProceduralMotion.partAnglesForAttack = function (fighter) {
+  const move = fighter.currentMove;
+  const spec = this.ATTACKS[fighter.currentMoveSlot] || this.DEFAULT_ATTACK;
+  const duration = Math.max(1, move.duration || 1);
+  const phase = Math.max(0, Math.min(1, (duration - fighter.attackTimer) / duration));
+  const active = Array.isArray(move.active) ? move.active : [duration * 0.3, duration * 0.6];
+  const t = this._attackTransform(spec,
+    phase,
+    Math.max(0, Math.min(0.95, active[0] / duration)),
+    Math.max(0.05, Math.min(1, active[1] / duration)));
+  // 体の踏み込み量(dx)を、そのまま脚の開きへ写す
+  const stride = t.dx * 110;
+  const airborne = !fighter.onGround;
+  return {
+    head: -t.rot * 0.25,
+    torso: t.rot * 0.15,
+    legBack: airborne ? -14 - stride * 0.4 : -stride * 0.55,
+    legFront: airborne ? 12 + stride * 0.4 : stride * 0.85,
+  };
+};
+
+ProceduralMotion.ZERO_PARTS = { head: 0, torso: 0, legBack: 0, legFront: 0 };
+
+// このフレームの各パーツの角度。パーツ設定が無い／自動モーションが切ってあればnull。
+ProceduralMotion.partAnglesFor = function (fighter, { attacking, stateKey } = {}) {
+  if (!fighter.proceduralEnabled || !fighter.partsLayer) return null;
+  let raw = null;
+  if (attacking && fighter.currentMove) raw = this.partAnglesForAttack(fighter);
+  else if (stateKey && this.PART_STATES[stateKey]) raw = this.PART_STATES[stateKey](fighter, this);
+  if (!raw) return null;
+  const gain = fighter.proceduralIntensity;
+  const cap = 42;   // 切り口の隙間が目立たない範囲に収める
+  const clamp = v => Math.max(-cap, Math.min(cap, v * gain));
+  return {
+    head: clamp(raw.head), torso: clamp(raw.torso),
+    legBack: clamp(raw.legBack), legFront: clamp(raw.legFront),
+  };
+};

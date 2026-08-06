@@ -158,6 +158,27 @@ button:disabled { opacity: .45; }
   <input id="spec-fall" type="range" min="70" max="140" value="100">
   <p class="note" style="margin-top:6px">モンスターごとの個性で、育成では変わりません。
     速いほどコンボを抜けやすい反面、崖の外へ出ると復帰が難しくなります。</p>
+  <label class="check" style="margin-top:14px"><input id="spec-parts" type="checkbox"> 体を切り分けて動かす（頭・胴・脚）</label>
+  <div id="parts-fields" class="hidden">
+    <p class="note" style="margin-top:8px">首・腰・脚の分かれ目を線で指定すると、歩行やジャンプで
+      脚が振られるようになります。線の位置はスライダーで合わせてください。</p>
+    <label>首の位置 <span id="parts-neck-value">0</span></label>
+    <input id="parts-neck" type="range" min="0" max="100" value="35">
+    <label>腰の位置 <span id="parts-hip-value">0</span></label>
+    <input id="parts-hip" type="range" min="0" max="100" value="72">
+    <label>脚の分かれ目 <span id="parts-split-value">0</span></label>
+    <input id="parts-split" type="range" min="0" max="100" value="50">
+    <div class="row seg" style="margin-top:10px">
+      <button id="parts-pose-stand" class="seg-on" type="button">直立</button>
+      <button id="parts-pose-walk" type="button">歩行</button>
+      <button id="parts-pose-dash" type="button">ダッシュ</button>
+      <button id="parts-pose-jump" type="button">ジャンプ</button>
+    </div>
+    <div class="preview"><canvas id="parts-preview" width="360" height="200"></canvas></div>
+    <div id="parts-info" class="box-info"></div>
+    <p class="note">切り口の隙間が見えないよう、上の部品が下の継ぎ目を少し覆うように切っています。
+      それでも大きく振ると継ぎ目が見えるため、ゲーム内では角度を控えめに抑えています。</p>
+  </div>
   <label class="check" style="margin-top:14px"><input id="spec-weapon" type="checkbox"> 武器を振らせる（剣・斧など）</label>
   <div id="weapon-fields" class="hidden">
     <p class="note" style="margin-top:8px">下のプレビューで<b>武器を囲むようにドラッグ</b>し、次に<b>握りの位置をタップ</b>します。

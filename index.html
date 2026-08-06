@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.00</small>
+    <small class="home-version">Version 1.01</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.01</time><strong>体を切り分けて動かせるようになりました（頭・胴・脚）</strong><p>立ち絵を首・腰・脚の分かれ目で切り分け、それぞれを付け根から振れるようにしました。歩行やダッシュでは左右の脚が交互に前後し、ジャンプでは脚を畳み、技では踏み込みに合わせて前後の足が開きます。頭と胴も少し遅れて動くので、生き物らしい動きになります。イルミネとデュラハンには設定済みです。スタジオでは首・腰・脚の位置をスライダーで合わせ、直立／歩行／ダッシュ／ジャンプの姿勢で見え方を確かめられます。</p></article>
           <article><time>Version 1.00</time><strong>剣や斧を「振る」表現を追加（斬撃の軌跡・武器レイヤー）</strong><p>技を出しても体当たりのように見えていた点を改善しました。攻撃判定の通り道に沿って<b>斬撃の軌跡</b>が描かれるようになり、振りの方向と速さが目で分かります。さらに、剣や斧を持つモンスターは<b>武器だけを握りを軸に振る</b>ようになりました。スタジオのプレビューで武器を囲み、握りの位置をタップするだけで設定でき、振り角スライダーで実際の見え方を確かめられます。デュラハンには設定済みです。</p></article>
           <article><time>Version 0.99</time><strong>攻撃判定の黄色表示を非表示に・管理者バトルテストのスクロール修正</strong><p>専用モーションが無い技で出ていた半透明の黄色い攻撃判定表示を、通常のプレイでは出さないようにしました（動作確認用の表示だったため、自動モーションの追加で役目を終えました）。また、管理者モードのバトルテストで中身が画面に収まらず、「テスト対戦を開始」も「戻る」も押せなくなっていた問題を修正しました。</p></article>
           <article><time>Version 0.98</time><strong>専用モーションが無い技・状態も動くようになりました（自動モーション）</strong><p>これまで専用モーションを用意していない技や状態は棒立ちのままで、当たり判定だけが出ていました。立ち絵を上下動・傾き・伸び縮み・踏み込みで動かす「自動モーション」を追加し、歩行・ダッシュ・空中・ガード・被弾・崖つかまり、そして全ての技が動くようになります。技は「構えて引く → 判定に合わせて踏み込む → ゆっくり戻る」形で、上方向の技は伸び上がり、下方向の技は沈み込むなど、技ごとに動きが変わります。専用モーションを登録したものは今までどおりそちらが優先されるため、用意できたものから少しずつ差し替えていけます。スタジオからモンスターごとに自動モーションのオン/オフと動きの強さを設定できます。</p></article>
@@ -526,9 +527,9 @@
   <script src="js/audio.js?v=6"></script>
   <script src="js/moves.js?v=29"></script>
   <script src="js/physics.js?v=34"></script>
-  <script src="js/procedural-motion.js?v=2"></script>
-  <script src="js/fighter.js?v=49"></script>
-  <script src="js/fighters-data.js?v=6"></script>
+  <script src="js/procedural-motion.js?v=3"></script>
+  <script src="js/fighter.js?v=50"></script>
+  <script src="js/fighters-data.js?v=7"></script>
   <script src="js/debug-mode.js?v=10"></script>
   <script src="js/stage.js?v=32"></script>
   <script src="js/camera.js?v=3"></script>

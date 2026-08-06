@@ -79,6 +79,7 @@ const StudioBuild = {
       fallSpeed: spec.fallSpeed,
       proceduralMotion: spec.proceduralMotion,
     };
+    if (spec.parts) fighter.parts = spec.parts; else delete fighter.parts;
     if (spec.weapon) fighter.weapon = spec.weapon; else delete fighter.weapon;
     if (spec.idleImage) fighter.idleImage = spec.idleImage;
     if (spec.stockIcon) fighter.stockIcon = spec.stockIcon;

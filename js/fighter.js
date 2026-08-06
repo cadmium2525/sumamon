@@ -98,6 +98,9 @@ class Fighter {
 
     // 武器レイヤー：立ち絵から武器の部分だけを切り出し、握りを軸に振る。
     // rect/pivot は立ち絵のピクセル座標で指定する。
+    // パーツ分割：頭・胴・左右の脚を付け根で振る（立ち絵のピクセル座標で指定）
+    this.partsSpec = options.parts || null;
+    this.partsLayer = null;
     this.weaponSpec = options.weapon || null;
     this.weaponLayer = null;      // { weapon: canvas, body: canvas, pivotX, pivotY }
     // 斬撃の軌跡（攻撃判定の通り道）を数フレームぶん覚えておく
@@ -814,6 +817,53 @@ class Fighter {
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // 立ち絵を 頭 / 胴 / 奥の脚 / 手前の脚 の4枚へ切り分ける。
+  // 上の部品は下の部品より少しはみ出して切り、振った時に切り口の隙間が
+  // 見えないようにする（胴が腰の継ぎ目を、頭が首の継ぎ目を覆う）。
+  _buildPartsLayer() {
+    const spec = this.partsSpec;
+    if (!spec || !this.sprite || !this.spriteLoaded) return null;
+    if (typeof document === 'undefined') return null;
+    const W = this.sprite.width, H = this.sprite.height;
+    const neckY = Math.max(1, Math.min(H - 2, Math.round(spec.neckY)));
+    const hipY = Math.max(neckY + 1, Math.min(H - 1, Math.round(spec.hipY)));
+    const splitX = Math.max(1, Math.min(W - 1, Math.round(spec.legSplitX)));
+    const overlap = Math.max(0, Math.round(spec.overlap != null ? spec.overlap : Math.round(H * 0.02)));
+
+    const slice = (sx, sy, sw, sh) => {
+      if (sw <= 0 || sh <= 0) return null;
+      const c = document.createElement('canvas');
+      c.width = sw; c.height = sh;
+      c.getContext('2d').drawImage(this.sprite, sx, sy, sw, sh, 0, 0, sw, sh);
+      return { canvas: c, x: sx, y: sy };
+    };
+
+    // 切り出した絵の中で、実際に色がある範囲の横中心を求める（脚の付け根の目安）
+    const centerXOf = (part, fallback) => {
+      if (!part) return fallback;
+      const ctx = part.canvas.getContext('2d', { willReadFrequently: true });
+      const data = ctx.getImageData(0, 0, part.canvas.width, Math.min(part.canvas.height, 12)).data;
+      let sum = 0, count = 0;
+      for (let i = 0, px = 0; i < data.length; i += 4, px++) {
+        if (data[i + 3] > 40) { sum += px % part.canvas.width; count++; }
+      }
+      return count ? part.x + sum / count : fallback;
+    };
+
+    const head = slice(0, 0, W, Math.min(H, neckY + overlap));
+    const torso = slice(0, neckY, W, Math.min(H - neckY, hipY + overlap - neckY));
+    const legBack = slice(0, hipY, splitX, H - hipY);
+    const legFront = slice(splitX, hipY, W - splitX, H - hipY);
+    if (!head || !torso || !legBack || !legFront) return null;
+
+    return {
+      head: { ...head, pivotX: W / 2, pivotY: neckY },
+      torso: { ...torso, pivotX: W / 2, pivotY: hipY },
+      legBack: { ...legBack, pivotX: centerXOf(legBack, splitX / 2), pivotY: hipY },
+      legFront: { ...legFront, pivotX: centerXOf(legFront, (splitX + W) / 2), pivotY: hipY },
+    };
   }
 
   // 立ち絵から武器の部分だけを取り出す。
@@ -1537,9 +1587,37 @@ class Fighter {
       // 武器レイヤーがあれば「武器を抜いた体」→「振った武器」の順に重ねる
       if (this.weaponSpec && !this.weaponLayer) this.weaponLayer = this._buildWeaponLayer();
       const layer = this.weaponLayer;
+      // パーツ分割があれば、頭・胴・脚をそれぞれ付け根で振って描く
+      if (this.partsSpec && !this.partsLayer) this.partsLayer = this._buildPartsLayer();
+      const parts = this.partsLayer && window.ProceduralMotion
+        ? ProceduralMotion.partAnglesFor(this, {
+            attacking: missingMoveMotion,
+            stateKey: missingStateMotion ? found.wanted : (attacking ? null : 'idle'),
+          })
+        : null;
+      const scale0 = drawW / this.sprite.width;
+      const drawParts = () => {
+        // 奥の脚 → 手前の脚 → 胴 → 頭 の順。上の部品が下の継ぎ目を隠す。
+        for (const key of ['legBack', 'legFront', 'torso', 'head']) {
+          const part = this.partsLayer[key];
+          const angle = parts[key] || 0;
+          const px = drawX + part.pivotX * scale0;
+          const py = drawY + part.pivotY * scale0;
+          ctx.save();
+          if (angle) {
+            ctx.translate(px, py);
+            ctx.rotate(angle * Math.PI / 180);
+            ctx.translate(-px, -py);
+          }
+          ctx.drawImage(part.canvas, drawX + part.x * scale0, drawY + part.y * scale0,
+            part.canvas.width * scale0, part.canvas.height * scale0);
+          ctx.restore();
+        }
+      };
+
       if (layer && window.ProceduralMotion) {
         const scale = drawW / this.sprite.width;
-        ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
+        if (parts) drawParts(); else ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
         const angle = ProceduralMotion.weaponAngleFor(this, { attacking: missingMoveMotion });
         const px = drawX + layer.pivotX * scale;
         const py = drawY + layer.pivotY * scale;
@@ -1551,6 +1629,8 @@ class Fighter {
           drawX + layer.rect.x * scale, drawY + layer.rect.y * scale,
           layer.rect.w * scale, layer.rect.h * scale);
         ctx.restore();
+      } else if (parts) {
+        drawParts();
       } else {
         ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
       }

@@ -8,6 +8,8 @@ const Studio = {
   frameMode: 'use',      // コマ一覧のタップが「使うコマ」か「判定コマ」か
   weapon: {},            // 武器レイヤー { rect, pivot }
   weaponMode: 'rect',    // プレビュー上のドラッグが「囲む」か「握り指定」か
+  parts: {},             // パーツ分割 { neckY, hipY, legSplitX, overlap }
+  partsPose: 'stand',    // プレビューの姿勢
   fightersJson: null,
   movesetsJson: null,
   editing: null,
@@ -34,6 +36,7 @@ const Studio = {
     this.el('spec-fall').addEventListener('input', () => this.refreshFallLabel());
     this.el('spec-proc-intensity').addEventListener('input', () => this.refreshProcLabel());
     this.bindWeapon();
+    this.bindParts();
     this.el('btn-diff').addEventListener('click', () => this.showDiff());
     this.el('btn-commit').addEventListener('click', () => this.commit());
 
@@ -49,6 +52,117 @@ const Studio = {
   refreshFallLabel() {
     const value = (Number(this.el('spec-fall').value) || 100) / 100;
     this.el('spec-fall-value').textContent = value.toFixed(2);
+  },
+
+  // ---- パーツ分割（頭・胴・左右の脚） ----
+  // ゲーム側 ProceduralMotion.PART_STATES と同じ角度でプレビューする。
+  PARTS_POSES: {
+    stand: { head: 0, torso: 0, legBack: 0, legFront: 0 },
+    walk:  { head: -2.5, torso: 1.8, legBack: -16, legFront: 16 },
+    dash:  { head: -3, torso: 2, legBack: -24, legFront: 24 },
+    jump:  { head: 2, torso: -3, legBack: -22, legFront: 14 },
+  },
+
+  bindParts() {
+    const use = this.el('spec-parts');
+    use.addEventListener('change', () => {
+      this.el('parts-fields').classList.toggle('hidden', !use.checked);
+      if (use.checked) { this._ensurePartsDefaults(); this.drawPartsPreview(); }
+    });
+    ['parts-neck', 'parts-hip', 'parts-split'].forEach(id => {
+      this.el(id).addEventListener('input', () => this.drawPartsPreview());
+    });
+    ['stand', 'walk', 'dash', 'jump'].forEach(pose => {
+      this.el(`parts-pose-${pose}`).addEventListener('click', () => {
+        this.partsPose = pose;
+        ['stand', 'walk', 'dash', 'jump'].forEach(other =>
+          this.el(`parts-pose-${other}`).classList.toggle('seg-on', other === pose));
+        this.drawPartsPreview();
+      });
+    });
+  },
+
+  _partsSource() {
+    const idle = this.motions.idle;
+    return idle && idle.canvases.length ? idle.canvases[0] : null;
+  },
+
+  // スライダーは画像サイズに対する割合(0〜100)で持つ。初回は無難な位置に置く。
+  _ensurePartsDefaults() {
+    const source = this._partsSource();
+    if (!source) return;
+    if (this.parts.neckY == null) {
+      this.el('parts-neck').value = 35;
+      this.el('parts-hip').value = 72;
+      this.el('parts-split').value = 50;
+    }
+  },
+
+  _readParts() {
+    const source = this._partsSource();
+    if (!source) return null;
+    const pct = id => Number(this.el(id).value) / 100;
+    return {
+      neckY: Math.round(source.height * pct('parts-neck')),
+      hipY: Math.round(source.height * pct('parts-hip')),
+      legSplitX: Math.round(source.width * pct('parts-split')),
+      overlap: Math.max(2, Math.round(source.height * 0.02)),
+    };
+  },
+
+  drawPartsPreview() {
+    const canvas = this.el('parts-preview');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const source = this._partsSource();
+    if (!source) {
+      this.el('parts-info').textContent = '先に「待機」モーションを登録してください（その1コマ目を土台にします）';
+      return;
+    }
+    const spec = this._readParts();
+    this.parts = spec;
+    const scale = Math.min(canvas.width / source.width, canvas.height / source.height);
+    const offsetX = (canvas.width - source.width * scale) / 2;
+    const offsetY = (canvas.height - source.height * scale) / 2;
+    const W = source.width, H = source.height;
+    const { neckY, hipY, legSplitX, overlap } = spec;
+    const pose = this.PARTS_POSES[this.partsPose] || this.PARTS_POSES.stand;
+
+    const slices = [
+      ['legBack',  0, hipY, legSplitX, H - hipY,            legSplitX / 2, hipY],
+      ['legFront', legSplitX, hipY, W - legSplitX, H - hipY, (legSplitX + W) / 2, hipY],
+      ['torso',    0, neckY, W, Math.max(1, hipY + overlap - neckY), W / 2, hipY],
+      ['head',     0, 0, W, Math.min(H, neckY + overlap),    W / 2, neckY],
+    ];
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    for (const [key, sx, sy, sw, sh, px, py] of slices) {
+      if (sw <= 0 || sh <= 0) continue;
+      ctx.save();
+      const angle = pose[key] || 0;
+      if (angle) {
+        ctx.translate(px, py); ctx.rotate(angle * Math.PI / 180); ctx.translate(-px, -py);
+      }
+      ctx.drawImage(source, sx, sy, sw, sh, sx, sy, sw, sh);
+      ctx.restore();
+    }
+    // 切る位置の目安線
+    ctx.lineWidth = 1.5 / scale;
+    ctx.setLineDash([6 / scale, 4 / scale]);
+    ctx.strokeStyle = '#ffd45e';
+    ctx.beginPath(); ctx.moveTo(0, neckY); ctx.lineTo(W, neckY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(W, hipY); ctx.stroke();
+    ctx.strokeStyle = '#7ce0ff';
+    ctx.beginPath(); ctx.moveTo(legSplitX, hipY); ctx.lineTo(legSplitX, H); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    this.el('parts-neck-value').textContent = String(neckY);
+    this.el('parts-hip-value').textContent = String(hipY);
+    this.el('parts-split-value').textContent = String(legSplitX);
+    this.el('parts-info').textContent =
+      `首 y=${neckY} ／ 腰 y=${hipY} ／ 脚の分かれ目 x=${legSplitX}（画像 ${W}×${H}px・のりしろ ${overlap}px）`;
   },
 
   // ---- 武器レイヤー（剣・斧などを握りを軸に振る） ----
@@ -310,6 +424,18 @@ const Studio = {
     this.el('spec-hw').value = fighter.hurtboxWidth || 54;
     this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
     this.refreshFallLabel();
+    const partsSpec = fighter.parts || null;
+    this.el('spec-parts').checked = !!partsSpec;
+    this.el('parts-fields').classList.toggle('hidden', !partsSpec);
+    if (partsSpec) {
+      const source = this._partsSource();
+      const h = source ? source.height : 1, w = source ? source.width : 1;
+      this.el('parts-neck').value = Math.round((partsSpec.neckY / h) * 100);
+      this.el('parts-hip').value = Math.round((partsSpec.hipY / h) * 100);
+      this.el('parts-split').value = Math.round((partsSpec.legSplitX / w) * 100);
+    }
+    this.parts = partsSpec || {};
+    this.drawPartsPreview();
     this.weapon = fighter.weapon ? { rect: { ...fighter.weapon.rect }, pivot: fighter.weapon.pivot ? { ...fighter.weapon.pivot } : null } : {};
     this.el('spec-weapon').checked = !!fighter.weapon;
     this.el('weapon-fields').classList.toggle('hidden', !fighter.weapon);
@@ -1072,6 +1198,7 @@ const Studio = {
         hurtboxHeight: Number(this.el('spec-hh').value) || 124,
         hurtboxWidth: Number(this.el('spec-hw').value) || 54,
         fallSpeed: Number((Number(this.el('spec-fall').value) / 100).toFixed(2)) || 1,
+        parts: (this.el('spec-parts').checked && this._readParts()) || null,
         weapon: (this.el('spec-weapon').checked && this.weapon.rect && this.weapon.rect.w > 2)
           ? { rect: this.weapon.rect, pivot: this.weapon.pivot || null } : null,
         proceduralMotion: {
@@ -1124,6 +1251,8 @@ const Studio = {
       const lines = [
         `■ モンスター: ${collected.displayName}（${collected.key}）`,
         `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth} / 落下速度 ${collected.spec.fallSpeed}倍`,
+        `■ パーツ分割: ${collected.spec.parts
+          ? `あり（首y=${collected.spec.parts.neckY} 腰y=${collected.spec.parts.hipY}）` : 'なし'}`,
         `■ 武器レイヤー: ${collected.spec.weapon
           ? `あり（${collected.spec.weapon.rect.w}×${collected.spec.weapon.rect.h}px）` : 'なし'}`,
         `■ 自動モーション: ${collected.spec.proceduralMotion.enabled
