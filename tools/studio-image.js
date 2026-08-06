@@ -48,29 +48,109 @@ const StudioImage = {
   // 背景透過。
   // mode: 'none' | 'white' | 'black' | 'corner' | 'color'
   // 単純なしきい値だけだと輪郭がギザギザになるため、しきい値付近は半透明にして境界をなじませる。
-  removeBackground(canvas, { mode = 'corner', threshold = 30, color = null, feather = 18 } = {}) {
-    if (mode === 'none') return canvas;
-    // 透過済みの素材に「四隅の色を抜く」を適用しても得るものが無く、害だけあるので何もしない
-    if (mode === 'corner' && this.hasTransparentCorners(canvas)) return canvas;
-    const target = mode === 'white' ? [255, 255, 255]
-      : mode === 'black' ? [0, 0, 0]
-      : mode === 'color' && color ? color
-      : this.cornerColor(canvas);
+  // 画像の縁を一周サンプルして、背景の代表色を集める。
+  // 背景にグラデーションがあっても複数色を拾えるため、1色だけを基準にするより強い。
+  borderColors(canvas, samples = 40, minDistance = 26) {
     const ctx = this._ctx(canvas);
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { width: w, height: h } = canvas;
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const at = (x, y) => {
+      const i = (y * w + x) * 4;
+      return data[i + 3] === 0 ? null : [data[i], data[i + 1], data[i + 2]];
+    };
+    const points = [];
+    for (let i = 0; i < samples; i++) {
+      const t = i / samples;
+      points.push([Math.round(t * (w - 1)), 0]);
+      points.push([Math.round(t * (w - 1)), h - 1]);
+      points.push([0, Math.round(t * (h - 1))]);
+      points.push([w - 1, Math.round(t * (h - 1))]);
+    }
+    const colors = [];
+    for (const [x, y] of points) {
+      const c = at(x, y);
+      if (!c) continue;
+      // 既に拾った色と近ければ数えない（代表色だけを残す）
+      if (colors.some(o => Math.hypot(o[0] - c[0], o[1] - c[1], o[2] - c[2]) < minDistance)) continue;
+      colors.push(c);
+    }
+    return colors.length ? colors : [this.cornerColor(canvas)];
+  },
+
+  // 指定した位置の色を拾う（スポイト用）
+  pickColor(canvas, x, y) {
+    const ctx = this._ctx(canvas);
+    const px = Math.max(0, Math.min(canvas.width - 1, Math.round(x)));
+    const py = Math.max(0, Math.min(canvas.height - 1, Math.round(y)));
+    const d = ctx.getImageData(px, py, 1, 1).data;
+    return d[3] === 0 ? null : [d[0], d[1], d[2]];
+  },
+
+  // 背景透過。
+  // 「画像全体で色が一致するピクセルを消す」のではなく、
+  // 画像の縁（とスポイトで指した位置）から色がつながっている範囲だけを消す。
+  // こうするとキャラクターの内側にある同系色は残るため、
+  // 背景と同じ色の服や装備が欠けてしまう事故が起きない。
+  removeBackground(canvas, { mode = 'corner', threshold = 30, color = null,
+                             feather = 18, extraColors = [], seeds = [] } = {}) {
+    if (mode === 'none') return canvas;
+    if (mode === 'corner' && this.hasTransparentCorners(canvas) && !extraColors.length) return canvas;
+
+    let targets;
+    if (mode === 'white') targets = [[255, 255, 255]];
+    else if (mode === 'black') targets = [[0, 0, 0]];
+    else if (mode === 'color' && color) targets = [color];
+    else targets = this.borderColors(canvas);
+    targets = targets.concat(extraColors.filter(Boolean));
+
+    const ctx = this._ctx(canvas);
+    const { width: w, height: h } = canvas;
+    const image = ctx.getImageData(0, 0, w, h);
     const data = image.data;
     const inner = threshold;
     const outer = threshold + Math.max(1, feather);
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] === 0) continue;
-      const dr = data[i] - target[0], dg = data[i + 1] - target[1], db = data[i + 2] - target[2];
-      const distance = Math.sqrt(dr * dr + dg * dg + db * db);
-      if (distance <= inner) data[i + 3] = 0;
-      else if (distance < outer) {
-        // 境界をなめらかに（完全な二値化より輪郭がきれいに出る）
-        data[i + 3] = Math.round(data[i + 3] * ((distance - inner) / (outer - inner)));
+
+    const distanceToTargets = i => {
+      let best = Infinity;
+      for (const t of targets) {
+        const dr = data[i] - t[0], dg = data[i + 1] - t[1], db = data[i + 2] - t[2];
+        const d = Math.sqrt(dr * dr + dg * dg + db * db);
+        if (d < best) best = d;
       }
+      return best;
+    };
+
+    const visited = new Uint8Array(w * h);
+    const stack = [];
+    const push = (x, y) => {
+      if (x < 0 || y < 0 || x >= w || y >= h) return;
+      const p = y * w + x;
+      if (visited[p]) return;
+      visited[p] = 1;
+      stack.push(p);
+    };
+    // 種：画像の四辺すべてと、スポイトで指した位置
+    for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+    for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+    for (const seed of seeds) push(Math.round(seed.x), Math.round(seed.y));
+
+    while (stack.length) {
+      const p = stack.pop();
+      const i = p * 4;
+      if (data[i + 3] === 0) {
+        // 既に透明なところは通り抜けて、その先も調べる
+        const x = p % w, y = (p - (p % w)) / w;
+        push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1);
+        continue;
+      }
+      const distance = distanceToTargets(i);
+      if (distance >= outer) continue;              // 背景ではない：ここで止まる
+      if (distance <= inner) data[i + 3] = 0;
+      else data[i + 3] = Math.round(data[i + 3] * ((distance - inner) / (outer - inner)));
+      const x = p % w, y = (p - (p % w)) / w;
+      push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1);
     }
+
     ctx.putImageData(image, 0, 0);
     return canvas;
   },

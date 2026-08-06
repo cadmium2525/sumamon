@@ -91,6 +91,13 @@ button:disabled { opacity: .45; }
   border-radius: 8px; background: #0a121c; color: #b9d3e8; font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
 .apt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .apt-grid label { margin: 0 0 2px; }
+.dropper-box { margin-top: 10px; padding: 10px; border: 1px solid #2b3f57; border-radius: 10px; background: #0f1a27; }
+.dropper-box button.on { border-color: #ffd45e; color: #2a1c00; background: #ffd45e; }
+.dropper-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.dropper-chip { display: flex; align-items: center; gap: 5px; padding: 3px 8px 3px 4px; border: 1px solid #2b3f57;
+  border-radius: 999px; background: #16243494; color: #cfe6f7; font-size: 11px; }
+.dropper-chip i { display: block; width: 16px; height: 16px; border: 1px solid rgba(255,255,255,.5); border-radius: 4px; }
+.preview.pick { outline: 2px solid #ffd45e; cursor: crosshair; }
 .hidden { display: none; }
 </style>
 </head>
@@ -282,6 +289,15 @@ button:disabled { opacity: .45; }
     </select>
     <label>しきい値 <span id="ed-threshold-value">30</span> — 大きくすると背景を多く抜きます</label>
     <input id="ed-threshold" type="range" min="0" max="140" value="30">
+    <div class="dropper-box">
+      <button id="ed-dropper" type="button">スポイトで背景の色を足す</button>
+      <div id="ed-dropper-list" class="dropper-list"></div>
+      <p class="note" style="margin-top:6px">背景が抜けきらない時は、このボタンを押してから
+        <b>下のプレビューで残っている背景をタップ</b>してください。その色も背景として抜かれます。
+        何回でも足せます（色をタップすると取り消せます）。<br>
+        背景は「画像の縁からつながっている範囲」だけを抜くため、
+        キャラクターの内側にある同じ色は消えません。</p>
+    </div>
     <label>1コマの表示フレーム数 <span id="ed-dur-value">8</span>（小さいほど速い・60分の1秒単位）</label>
     <input id="ed-duration" type="range" min="1" max="20" value="8">
     <label>足元の位置を微調整 <span id="ed-foot-value">0</span>px — 影が残る/削れすぎる時だけ動かします</label>

@@ -8,6 +8,7 @@ const Studio = {
   frameMode: 'use',      // コマ一覧のタップが「使うコマ」か「判定コマ」か
   weapon: {},            // 武器レイヤー { rect, pivot }
   weaponMode: 'rect',    // プレビュー上のドラッグが「囲む」か「握り指定」か
+  dropperOn: false,      // スポイトで背景色を拾うモード
   parts: {},             // パーツ分割 { neckY, hipY, legSplitX, overlap }
   partsPose: 'stand',    // プレビューの姿勢
   fightersJson: null,
@@ -45,6 +46,7 @@ const Studio = {
     this.bindEditor();
     this.bindProjectile();
     this.bindAttack();
+    this.bindDropper();
     if (settings.token) this.connect();
   },
 
@@ -52,6 +54,60 @@ const Studio = {
   refreshFallLabel() {
     const value = (Number(this.el('spec-fall').value) || 100) / 100;
     this.el('spec-fall-value').textContent = value.toFixed(2);
+  },
+
+  // ---- スポイト（残った背景の色を足して抜く） ----
+  bindDropper() {
+    const button = this.el('ed-dropper');
+    button.addEventListener('click', () => {
+      this.dropperOn = !this.dropperOn;
+      button.classList.toggle('on', this.dropperOn);
+      button.textContent = this.dropperOn ? 'スポイト中（プレビューをタップ）' : 'スポイトで背景の色を足す';
+      this.el('ed-preview').parentElement.classList.toggle('pick', this.dropperOn);
+    });
+
+    // プレビュー上の位置を、元のコマ画像のピクセル座標へ戻して色を拾う
+    const canvas = this.el('ed-preview');
+    canvas.addEventListener('pointerdown', event => {
+      if (!this.dropperOn) return;
+      const map = this._previewMap;
+      const entry = this.editing && this.motions[this.editing.slot];
+      if (!map || !entry) return;
+      event.preventDefault();
+      const box = canvas.getBoundingClientRect();
+      const cx = ((event.clientX - box.left) / box.width) * canvas.width;
+      const cy = ((event.clientY - box.top) / box.height) * canvas.height;
+      const sx = (cx - map.x) / map.scale;
+      const sy = (cy - map.y) / map.scale;
+      if (sx < 0 || sy < 0 || sx >= map.source.width || sy >= map.source.height) return;
+      // 抜く前の元画像から色を拾う（既に抜けた場所を指しても意味が無いため）
+      const raw = entry.sources[map.sourceIndex] || map.source;
+      const color = StudioImage.pickColor(raw, sx * (raw.width / map.source.width), sy * (raw.height / map.source.height));
+      if (!color) return;
+      entry.extraColors = entry.extraColors || [];
+      if (entry.extraColors.some(c => Math.hypot(c[0] - color[0], c[1] - color[1], c[2] - color[2]) < 12)) return;
+      entry.extraColors.push(color);
+      this.renderDropperList();
+      this.processFrames();
+    });
+    this.renderDropperList();
+  },
+
+  renderDropperList() {
+    const entry = this.editing && this.motions[this.editing.slot];
+    const colors = (entry && entry.extraColors) || [];
+    const list = this.el('ed-dropper-list');
+    list.innerHTML = colors.map((c, i) =>
+      `<button type="button" class="dropper-chip" data-drop="${i}">
+        <i style="background:rgb(${c[0]},${c[1]},${c[2]})"></i>rgb(${c[0]},${c[1]},${c[2]}) ×
+      </button>`).join('');
+    list.querySelectorAll('[data-drop]').forEach(node => {
+      node.addEventListener('click', () => {
+        entry.extraColors.splice(Number(node.dataset.drop), 1);
+        this.renderDropperList();
+        this.processFrames();
+      });
+    });
   },
 
   // ---- パーツ分割（頭・胴・左右の脚） ----
@@ -82,9 +138,47 @@ const Studio = {
     });
   },
 
+  // パーツ／武器のプレビューに使う立ち絵。
+  // この場で読み込んだ待機モーションが無くても、既に登録済みのモンスターなら
+  // サーバー上の待機画像を取ってきて使う（編集のたびに読み込み直さなくて済む）。
   _partsSource() {
     const idle = this.motions.idle;
-    return idle && idle.canvases.length ? idle.canvases[0] : null;
+    if (idle && idle.canvases.length) return idle.canvases[0];
+    if (this._existingIdleCanvas) return this._existingIdleCanvas;
+    this._loadExistingIdle();
+    return null;
+  },
+
+  _existingIdlePath() {
+    const key = (this.el('spec-key').value || '').trim();
+    const fighter = this.fightersJson && this.fightersJson[key];
+    if (!fighter) return null;
+    const frames = fighter.animations && fighter.animations.idle && fighter.animations.idle.frames;
+    return (frames && frames[0]) || fighter.idleImage || null;
+  },
+
+  async _loadExistingIdle() {
+    const path = this._existingIdlePath();
+    if (!path || this._loadingIdlePath === path) return;
+    this._loadingIdlePath = path;
+    try {
+      // スタジオは /tools/ 配下にあるため、1つ上へ戻ってから画像を指す
+      const url = new URL('../' + path, location.href).href;
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext('2d').drawImage(image, 0, 0);
+      this._existingIdleCanvas = canvas;
+      this._syncPartsSliders();
+      this.drawPartsPreview();
+      this.drawWeaponPreview();
+    } catch (error) {
+      this._loadingIdlePath = null;
+    }
   },
 
   // スライダーは画像サイズに対する割合(0〜100)で持つ。初回は無難な位置に置く。
@@ -96,6 +190,18 @@ const Studio = {
       this.el('parts-hip').value = 72;
       this.el('parts-split').value = 50;
     }
+  },
+
+  // 登録済みの値（ピクセル）をスライダーの割合へ戻す。立ち絵が読めるまでは何もしない。
+  _syncPartsSliders() {
+    const spec = this._savedParts;
+    const source = this._partsSource();
+    if (!spec || !source) return;
+    const pct = (value, size) => Math.max(0, Math.min(100, Math.round((value / size) * 100)));
+    this.el('parts-neck').value = pct(spec.neckY, source.height);
+    this.el('parts-hip').value = pct(spec.hipY, source.height);
+    this.el('parts-split').value = pct(spec.legSplitX, source.width);
+    this._savedParts = null;      // 一度反映したら以降は操作を優先する
   },
 
   _readParts() {
@@ -116,7 +222,9 @@ const Studio = {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const source = this._partsSource();
     if (!source) {
-      this.el('parts-info').textContent = '先に「待機」モーションを登録してください（その1コマ目を土台にします）';
+      this.el('parts-info').textContent = this._existingIdlePath()
+        ? '登録済みの待機画像を読み込んでいます…'
+        : '先に「待機」モーションを登録してください（その1コマ目を土台にします）';
       return;
     }
     const spec = this._readParts();
@@ -236,11 +344,12 @@ const Studio = {
     const canvas = this.el('weapon-preview');
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const idle = this.motions.idle;
-    const source = idle && idle.canvases.length ? idle.canvases[0] : null;
+    const source = this._partsSource();
     this._weaponView = null;
     if (!source) {
-      this.el('weapon-info').textContent = '先に「待機」モーションを登録してください（その1コマ目を土台にします）';
+      this.el('weapon-info').textContent = this._existingIdlePath()
+        ? '登録済みの待機画像を読み込んでいます…'
+        : '先に「待機」モーションを登録してください（その1コマ目を土台にします）';
       return;
     }
     const scale = Math.min(canvas.width / source.width, canvas.height / source.height);
@@ -424,17 +533,16 @@ const Studio = {
     this.el('spec-hw').value = fighter.hurtboxWidth || 54;
     this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
     this.refreshFallLabel();
+    this._existingIdleCanvas = null;
+    this._loadingIdlePath = null;
     const partsSpec = fighter.parts || null;
     this.el('spec-parts').checked = !!partsSpec;
     this.el('parts-fields').classList.toggle('hidden', !partsSpec);
-    if (partsSpec) {
-      const source = this._partsSource();
-      const h = source ? source.height : 1, w = source ? source.width : 1;
-      this.el('parts-neck').value = Math.round((partsSpec.neckY / h) * 100);
-      this.el('parts-hip').value = Math.round((partsSpec.hipY / h) * 100);
-      this.el('parts-split').value = Math.round((partsSpec.legSplitX / w) * 100);
-    }
+    // 立ち絵はこの時点でまだ読めていないことがあるため、値を覚えておいて
+    // 画像が用意できてからスライダーへ反映する
+    this._savedParts = partsSpec;
     this.parts = partsSpec || {};
+    this._syncPartsSliders();
     this.drawPartsPreview();
     this.weapon = fighter.weapon ? { rect: { ...fighter.weapon.rect }, pivot: fighter.weapon.pivot ? { ...fighter.weapon.pivot } : null } : {};
     this.el('spec-weapon').checked = !!fighter.weapon;
@@ -857,9 +965,12 @@ const Studio = {
   processFrames() {
     const entry = this.motions[this.editing.slot];
     if (!entry || !entry.sources.length) return;
+    const entry0 = this.motions[this.editing.slot];
     const options = {
       mode: this.el('ed-bgmode').value,
       threshold: Number(this.el('ed-threshold').value),
+      // スポイトで足した背景色。縁からつながっている範囲だけを抜く。
+      extraColors: (entry0 && entry0.extraColors) || [],
     };
     entry.options = options;
     entry.frameDuration = Number(this.el('ed-duration').value);
@@ -906,6 +1017,7 @@ const Studio = {
       }
     }
     this.renderFrames();
+    this.renderDropperList();
   },
 
   renderFrames() {
@@ -1022,6 +1134,19 @@ const Studio = {
       drawWith(idle.canvases[0], idle.contentBox, 0.25);
     }
     const currentIndex = this.playIndex % usable.length;
+    // スポイトでタップ位置を元画像へ戻せるよう、描画の対応関係を覚えておく
+    const usedIndexes = entry.canvases.map((_, i) => i).filter(i => entry.used[i]);
+    {
+      const box = entry.contentBox;
+      const scale = unitHeight / (box.bottom - box.top);
+      this._previewMap = {
+        scale,
+        x: centerX - ((box.left + box.right) / 2) * scale,
+        y: (baseline - unitHeight) - box.top * scale,
+        source: usable[currentIndex],
+        sourceIndex: usedIndexes[currentIndex],
+      };
+    }
     drawWith(usable[currentIndex], entry.contentBox, 1);
 
     // 崖つかまり→よじ登りのように足元が上下するモーションは、
