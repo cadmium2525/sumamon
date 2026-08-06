@@ -489,4 +489,10 @@ const Studio = {
   },
 };
 
-window.addEventListener('DOMContentLoaded', () => Studio.init());
+// スクリプトは動的に読み込まれるため、この時点で既にDOMContentLoadedが
+// 済んでいる場合がある。読み込み済みならそのまま初期化する。
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => Studio.init());
+} else {
+  Studio.init();
+}

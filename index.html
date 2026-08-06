@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.86</small>
+    <small class="home-version">Version 0.87</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.87</time><strong>モンスター作成スタジオを独立したアプリに</strong><p>スタジオをゲームとは別のアプリとして開けるようにしました。共有ボタンから「ホーム画面に追加」すると専用アイコンで直接起動でき、ゲームを開く必要がありません。</p></article>
           <article><time>Version 0.86</time><strong>モンスター作成スタジオを追加</strong><p>管理者モードに「ツール」タブを追加しました。画像を選ぶだけで背景透過・コマ選択・表示位置の自動計算まで行い、そのままリポジトリへ登録できます。キャッシュ番号・バージョン・更新履歴も自動で更新されます。</p></article>
           <article><time>Version 0.85</time><strong>全モーションに対応</strong><p>待機・歩行・ダッシュ・ジャンプ・空中待機・しゃがみ・ガード・被弾・吹っ飛び・ダウン・崖つかまりの各状態に個別のモーションを設定できるようにしました。用意されていないモーションは自動的に別の状態（最終的には待機）へ切り替わるため、一部だけ用意した状態でも破綻しません。</p></article>
           <article><time>Version 0.84</time><strong>キャラクター・技データを外部ファイル化</strong><p>これまでプログラム内に直接書かれていたキャラクターと技の定義を、data/fighters.json と data/movesets.json に分離しました。モンスターやモーションの追加をツールから安全に行えるようにするための準備です。ゲームの内容に変更はありません。</p></article>
@@ -265,7 +266,7 @@
     </div>
     <div class="admin-pane hidden admin-tools-pane" data-admin-pane="tools">
       <p>モンスターの追加・モーションの差し替えをブラウザだけで行い、そのままリポジトリへ反映できます。</p>
-      <a class="admin-tool-link" href="tools/monster-studio.html" target="_blank" rel="noopener">
+      <a class="admin-tool-link" href="tools/" target="_blank" rel="noopener">
         <strong>🐣 モンスター作成スタジオを開く</strong>
         <small>画像を選ぶ → 背景透過 → コマ選択 → 登録まで完結。位置合わせ・キャッシュ・バージョン・更新履歴も自動更新</small>
       </a>
