@@ -72,15 +72,77 @@ const DebugMotionViewer = {
     accuracy: '命中', evasion: '回避', defense: '丈夫さ',
   },
 
+  // ステータス欄は数値を直接打ち込むと手間がかかるため、
+  // ±100 / ±10 のボタンと、片側まとめて書き換えるボタンを添える。
+  _statCellHtml(side, key) {
+    const id = `debug-stat-${side}-${key}`;
+    return `<span class="admin-stat-cell">
+      <button type="button" class="admin-stat-step" data-step-for="${id}" data-step="-100">-100</button>
+      <button type="button" class="admin-stat-step" data-step-for="${id}" data-step="-10">-10</button>
+      <input id="${id}" type="number" min="1" max="${GROWTH.STAT_MAX}" data-stat-side="${side}" data-stat-key="${key}">
+      <button type="button" class="admin-stat-step" data-step-for="${id}" data-step="10">+10</button>
+      <button type="button" class="admin-stat-step" data-step-for="${id}" data-step="100">+100</button>
+    </span>`;
+  },
+
+  _statBulkHtml(side, label) {
+    return `<span class="admin-stat-col">${label}
+      <span class="admin-stat-bulk">
+        <button type="button" data-bulk-side="${side}" data-bulk="max">全${GROWTH.STAT_MAX}</button>
+        <button type="button" data-bulk-side="${side}" data-bulk="min">全最低</button>
+        <button type="button" data-bulk-side="${side}" data-bulk="default">既定</button>
+      </span></span>`;
+  },
+
   buildStatEditor() {
     const grid = document.getElementById('debug-battle-stat-grid');
-    grid.innerHTML = `<span class="admin-stat-corner"></span><span class="admin-stat-col">P1</span><span class="admin-stat-col">CPU</span>` +
+    grid.innerHTML = `<span class="admin-stat-corner"></span>${this._statBulkHtml('p1', 'P1')}${this._statBulkHtml('cpu', 'CPU')}` +
       GROWTH.STAT_KEYS.map(key => `
         <label for="debug-stat-p1-${key}">${this.STAT_LABELS[key]}</label>
-        <input id="debug-stat-p1-${key}" type="number" min="1" max="${GROWTH.STAT_MAX}" data-stat-side="p1" data-stat-key="${key}">
-        <input id="debug-stat-cpu-${key}" type="number" min="1" max="${GROWTH.STAT_MAX}" data-stat-side="cpu" data-stat-key="${key}">
+        ${this._statCellHtml('p1', key)}
+        ${this._statCellHtml('cpu', key)}
       `).join('');
+
+    // 組み直しのたびにリスナーが増えると1回の操作が二重に効いてしまうため、
+    // 中身を差し替えても消えないgrid側には一度だけ登録する。
+    if (grid.dataset.bound !== '1') {
+      grid.dataset.bound = '1';
+      grid.addEventListener('click', event => {
+        const step = event.target.closest('[data-step-for]');
+        if (step) {
+          const input = document.getElementById(step.dataset.stepFor);
+          if (input) this._setStat(input, (Number(input.value) || 0) + Number(step.dataset.step));
+          return;
+        }
+        const bulk = event.target.closest('[data-bulk-side]');
+        if (bulk) this.applyBulkStats(bulk.dataset.bulkSide, bulk.dataset.bulk);
+      });
+    }
     this.fillDefaultStats();
+  },
+
+  _setStat(input, value) {
+    input.value = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round(Number(value) || 1)));
+  },
+
+  // 片側のステータスをまとめて書き換える。
+  // ライフだけは基準値が異なるため、最低値でも他ステータスと同じ1にはしない。
+  applyBulkStats(side, kind) {
+    if (kind === 'default') {
+      const stats = side === 'p1'
+        ? this._baseStatsFor(this.battleSelects.p1.value)
+        : this._cpuStatsFor(this.battleSelects.p2.value, this.battleSelects.level.value);
+      for (const key of GROWTH.STAT_KEYS) {
+        const input = document.getElementById(`debug-stat-${side}-${key}`);
+        if (input) this._setStat(input, stats[key]);
+      }
+      return;
+    }
+    const defaults = defaultStats();
+    for (const key of GROWTH.STAT_KEYS) {
+      const input = document.getElementById(`debug-stat-${side}-${key}`);
+      if (input) this._setStat(input, kind === 'max' ? GROWTH.STAT_MAX : defaults[key]);
+    }
   },
 
   // game.js の resolveStats() / applyCpuLevelStats() と同じ計算で既定値を求める

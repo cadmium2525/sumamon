@@ -81,6 +81,7 @@ function buildFighterOptions(def, masmon) {
     spriteSrc: def.idleImage,
     hurtboxWidth: def.hurtboxWidth,
     hurtboxHeight: def.hurtboxHeight,
+    fallSpeed: def.fallSpeed,
     spriteContentBox: def.spriteContentBox,
     animations: def.animations,
     walkSheetSrc: def.walkSheetSrc,

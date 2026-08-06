@@ -13,6 +13,7 @@
     },
     "hurtboxWidth": 54,
     "hurtboxHeight": 124,
+    "fallSpeed": 0.92,
     "stats": {
       "life": 100,
       "power": 10,
@@ -79,6 +80,7 @@
     },
     "hurtboxWidth": 39,
     "hurtboxHeight": 110,
+    "fallSpeed": 1.14,
     "walkSheetSrc": "assets/images/fighter/dullahan/walk_sheet.png",
     "walkSheetCols": 5,
     "walkSheetRows": 5,

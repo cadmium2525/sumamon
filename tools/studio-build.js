@@ -70,6 +70,7 @@ const StudioBuild = {
       color: spec.color,
       hurtboxWidth: spec.hurtboxWidth,
       hurtboxHeight: spec.hurtboxHeight,
+      fallSpeed: spec.fallSpeed,
     };
     if (spec.idleImage) fighter.idleImage = spec.idleImage;
     if (spec.stockIcon) fighter.stockIcon = spec.stockIcon;

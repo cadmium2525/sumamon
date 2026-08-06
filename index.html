@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=59">
+<link rel="stylesheet" href="css/style.css?v=60">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.94</small>
+    <small class="home-version">Version 0.95</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.95</time><strong>育成がバトルに効くよう調整・バトルテストのUI改善</strong><p>育てたステータスの手応えを強くしました。ちから／かしこさによる威力と吹っ飛ばしを引き上げ、カンストしたマスモンなら育成前の約半分の蓄積%で相手を撃墜できます。また、落下速度を回避ステータスから切り離してモンスターごとの固定値にしました。これまでは育てるほど落下が速くなって復帰が難しくなり、強くしたはずが自滅しやすいという逆転が起きていました。回避は横方向の移動速度と、技の後隙・着地隙の短縮に効くようになります。あわせてトレーニング画面の適性アルファベットがマスモン管理画面より暗く見えていた点を直し、管理者モードのバトルテストに ±100／±10 ボタンと「全999／全最低／既定」のまとめ変更を追加しました。</p></article>
           <article><time>Version 0.94</time><strong>スタジオの不具合修正（動画の透明コマ・崖つかまりの確認・戻るボタン）</strong><p>動画からコマを切り出すと透明なコマが混ざることがあった問題を修正しました。端末が絵を用意し終える前に取り込んでいたのが原因で、取り出せるまで待ち直すようにしています。あわせて、崖つかまりのように足元の高さが変わるモーションで、各コマの浮き具合と足元の軌跡をプレビューに表示するようにしました。モーション編集画面の「戻る」が端末の時計と重なって押しづらかった点も直しています。</p></article>
           <article><time>Version 0.93</time><strong>技ごとの威力・攻撃判定をスタジオで設定可能に</strong><p>モンスターの技ごとに、ダメージや吹っ飛ばし、判定の発生タイミング・持続コマ・判定の軌道を設定できるようになりました。「素早い/標準/大ぶり」を選んで威力スライダーを動かすだけで各数値は自動で決まり、判定の位置と大きさもコマ画像から自動で抜き出します。斧を後方から頭上を通して前方へ振り下ろすような、コマごとに動く判定も作れます。細かく詰めたい場合は詳細設定から個別に上書きできます。</p></article>
           <article><time>Version 0.92</time><strong>イルミネ崖捕まり2</strong><p>デプロイ失敗</p></article>
@@ -296,7 +297,8 @@
           <strong>ステータス調整</strong>
           <button id="debug-battle-stat-reset" type="button">既定値に戻す</button>
         </div>
-        <p class="admin-stat-note">キャラ／CPUレベルを変更すると、その組み合わせの既定値が自動で入ります。入力した値がそのまま対戦に使われます。</p>
+        <p class="admin-stat-note">キャラ／CPUレベルを変更すると、その組み合わせの既定値が自動で入ります。入力した値がそのまま対戦に使われます。<br>
+          ±ボタンで手早く増減でき、見出しの「全999／全最低／既定」でその側をまとめて書き換えられます。</p>
         <div id="debug-battle-stat-grid" class="admin-stat-grid"></div>
       </div>
       <button id="debug-battle-start" class="menu-btn">テスト対戦を開始</button>
@@ -501,13 +503,13 @@
 
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=5"></script>
+  <script src="js/config.js?v=6"></script>
   <script src="js/audio.js?v=6"></script>
   <script src="js/moves.js?v=29"></script>
-  <script src="js/physics.js?v=33"></script>
-  <script src="js/fighter.js?v=45"></script>
-  <script src="js/fighters-data.js?v=3"></script>
-  <script src="js/debug-mode.js?v=9"></script>
+  <script src="js/physics.js?v=34"></script>
+  <script src="js/fighter.js?v=46"></script>
+  <script src="js/fighters-data.js?v=4"></script>
+  <script src="js/debug-mode.js?v=10"></script>
   <script src="js/stage.js?v=32"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=3"></script>

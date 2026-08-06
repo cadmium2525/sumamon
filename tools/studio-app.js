@@ -29,6 +29,7 @@ const Studio = {
     this.el('spec-mode').addEventListener('change', () => this.onModeChange());
     this.el('spec-existing').addEventListener('change', () => this.loadExisting());
     this.el('spec-key').addEventListener('input', () => this.refreshExistingMotions());
+    this.el('spec-fall').addEventListener('input', () => this.refreshFallLabel());
     this.el('btn-diff').addEventListener('click', () => this.showDiff());
     this.el('btn-commit').addEventListener('click', () => this.commit());
 
@@ -38,6 +39,12 @@ const Studio = {
     this.bindProjectile();
     this.bindAttack();
     if (settings.token) this.connect();
+  },
+
+  // 落下速度はモンスターごとの個性（育成では変わらない）。倍率で表示する。
+  refreshFallLabel() {
+    const value = (Number(this.el('spec-fall').value) || 100) / 100;
+    this.el('spec-fall-value').textContent = value.toFixed(2);
   },
 
   setStatus(id, kind, text) {
@@ -172,6 +179,8 @@ const Studio = {
     this.el('spec-color').value = fighter.color || '#ff4757';
     this.el('spec-hh').value = fighter.hurtboxHeight || 124;
     this.el('spec-hw').value = fighter.hurtboxWidth || 54;
+    this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
+    this.refreshFallLabel();
     const stats = fighter.stats || {};
     ['life', 'power', 'intelligence', 'accuracy', 'evasion', 'defense'].forEach(stat => {
       this.el(`st-${stat}`).value = stats[stat] != null ? stats[stat] : (stat === 'life' ? 100 : 10);
@@ -925,6 +934,7 @@ const Studio = {
         color: this.el('spec-color').value,
         hurtboxHeight: Number(this.el('spec-hh').value) || 124,
         hurtboxWidth: Number(this.el('spec-hw').value) || 54,
+        fallSpeed: Number((Number(this.el('spec-fall').value) / 100).toFixed(2)) || 1,
         idleImage, stockIcon, spriteContentBox,
         stats,
       },
@@ -966,7 +976,7 @@ const Studio = {
       this.pending = built;
       const lines = [
         `■ モンスター: ${collected.displayName}（${collected.key}）`,
-        `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth}`,
+        `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth} / 落下速度 ${collected.spec.fallSpeed}倍`,
         `■ 登録モーション: ${Object.keys(collected.animations).join('、') || 'なし'}`,
         `■ 技: ${Object.entries(collected.moveData).map(([k, v]) =>
           k + (v.animation ? '(モーション)' : '') + (v.projectile ? '(飛び道具)' : '')

@@ -253,10 +253,17 @@ body.layout-pending .screen { visibility: hidden; }
 .admin-stat-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #bceeff; font-size: 12px; }
 .admin-stat-head button { padding: 5px 12px; border: 1px solid #65d7ff; border-radius: 6px; color: #dff8ff; background: #10283a; font-size: 11px; font-weight: 800; }
 .admin-stat-note { margin: 6px 0 9px; color: #9fb6c7; font-size: 10px; line-height: 1.5; }
-.admin-stat-grid { display: grid; grid-template-columns: 1fr 84px 84px; gap: 5px 8px; align-items: center; }
+.admin-stat-grid { display: grid; grid-template-columns: minmax(56px, auto) 1fr 1fr; gap: 5px 8px; align-items: center; }
 .admin-stat-grid .admin-stat-col { color: #65d7ff; font-size: 11px; font-weight: 800; text-align: center; }
 .admin-stat-grid label { color: #eefaff; font-size: 12px; }
-.admin-stat-grid input { width: 100%; padding: 5px 6px; border: 1px solid rgba(255,255,255,.3); border-radius: 5px; color: #fff; background: #142232; font-size: 12px; text-align: center; }
+/* ±ボタンで挟んだ数値入力。指で押せる大きさを保ちつつ2列に収める */
+.admin-stat-cell { display: grid; grid-template-columns: 34px 30px minmax(44px, 1fr) 30px 34px; gap: 3px; align-items: center; }
+.admin-stat-grid input { width: 100%; padding: 5px 4px; border: 1px solid rgba(255,255,255,.3); border-radius: 5px; color: #fff; background: #142232; font-size: 12px; text-align: center; }
+.admin-stat-step { padding: 5px 0; border: 1px solid rgba(118,207,255,.55); border-radius: 5px; color: #dff1ff; background: rgba(29,111,158,.45); font-size: 10px; font-weight: 800; }
+.admin-stat-step:active { background: rgba(76,182,247,.75); }
+.admin-stat-bulk { display: flex; gap: 3px; margin-top: 3px; }
+.admin-stat-bulk button { flex: 1; padding: 4px 0; border: 1px solid rgba(255,216,112,.55); border-radius: 5px; color: #ffeaa8; background: rgba(74,58,20,.6); font-size: 10px; font-weight: 800; }
+.admin-stat-bulk button:active { background: rgba(160,126,40,.8); }
 .admin-tools-pane { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 .admin-tools-pane > p { color: #ffe49a; font-size: 11px; }
 .admin-tool-link { display: block; width: min(460px, 88vw); padding: 16px 18px; border: 1px solid #65d7ff;
@@ -1802,6 +1809,10 @@ body.layout-pending .screen { visibility: hidden; }
   font-weight: 900;
   line-height: 1.15;
   text-align: center;
+  /* 置かれる場所（トレーニング画面など）の文字影を受け継ぐと、
+     グラデーション面の上に黒がのって暗く見えるため必ず打ち消す。
+     立体感はここのdrop-shadowだけで出す。 */
+  text-shadow: none;
   filter: drop-shadow(0 1.5px 0.5px rgba(0,0,0,.4));
 }
 .stat-apt::after {
@@ -1810,6 +1821,7 @@ body.layout-pending .screen { visibility: hidden; }
   right: 0;
   left: 0;
   top: 0;
+  text-shadow: none;
   -webkit-text-stroke: 0;
   background: linear-gradient(180deg, #fff 14%, #fff 26%, var(--rank-light) 46%, var(--rank-deep) 78%);
   -webkit-background-clip: text;

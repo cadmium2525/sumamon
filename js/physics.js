@@ -51,20 +51,32 @@ const Physics = {
     return base * (1 + this.softBonus((evasion || 10) - 10, CONFIG.EVASION_SPEED_MAX, CONFIG.EVASION_SPEED_HALF));
   },
 
-  // 落下速度倍率（回避が高いほど速く落ちる）
-  fallMultiplier(evasion) {
-    return 1 + this.softBonus((evasion || 10) - 10, CONFIG.EVASION_FALL_MAX, CONFIG.EVASION_FALL_HALF);
+  // 技の後隙・着地隙（回避が高いほど短くなる）。
+  // 0フレームになると振り得の技が生まれて差し合いが壊れるため下限を設ける。
+  endlagFrames(frames, evasion) {
+    const base = Math.max(0, Math.round(frames) || 0);
+    if (base <= 0) return 0;
+    const cut = this.softBonus((evasion || 10) - 10, CONFIG.EVASION_ENDLAG_MAX, CONFIG.EVASION_ENDLAG_HALF);
+    const reduced = Math.round(base * (1 - cut));
+    return Math.max(Math.min(base, CONFIG.MIN_ENDLAG_FRAMES), reduced);
+  },
+
+  // 落下速度倍率。ステータスではなくモンスターごとの固定値。
+  // 育成で落下速度が変わると復帰の難易度や操作感まで変わってしまうため、
+  // ここは種族の個性として固定し、育成では動かさない。
+  fallMultiplier(fallSpeed) {
+    const value = Number(fallSpeed);
+    return Number.isFinite(value) && value > 0 ? value : CONFIG.DEFAULT_FALL_SPEED;
   },
 
   // 通常の終端速度と急降下時の終端速度
-  terminalFallSpeed(evasion, fastFalling) {
-    return CONFIG.MAX_FALL_SPEED * this.fallMultiplier(evasion) * (fastFalling ? CONFIG.FAST_FALL_MULTIPLIER : 1);
+  terminalFallSpeed(fallSpeed, fastFalling) {
+    return CONFIG.MAX_FALL_SPEED * this.fallMultiplier(fallSpeed) * (fastFalling ? CONFIG.FAST_FALL_MULTIPLIER : 1);
   },
 
-  // 重力適用（回避ステータスが高いほど落下も速い＝ハイリスクハイリターン）
-  applyGravity(entity, evasion) {
-    entity.vy += CONFIG.GRAVITY * this.fallMultiplier(evasion);
-    const maxFall = this.terminalFallSpeed(evasion, entity.fastFalling);
+  applyGravity(entity, fallSpeed) {
+    entity.vy += CONFIG.GRAVITY * this.fallMultiplier(fallSpeed);
+    const maxFall = this.terminalFallSpeed(fallSpeed, entity.fastFalling);
     if (entity.vy > maxFall) entity.vy = maxFall;
   },
 

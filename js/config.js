@@ -15,13 +15,22 @@ const CONFIG = {
   //   g    = ステータス - 基準値(ライフ100 / その他10)
   //   HALF = 上限の半分に届くのに必要な伸び幅
   // これにより「伸びるほど効果は緩やかになるが、1ポイントも無駄にならない」形になる。
-  DAMAGE_STAT_MAX: 1.0,    DAMAGE_STAT_HALF: 190,   // ちから/かしこさ → 与ダメージ
-  KB_POWER_MAX: 0.55,      KB_POWER_HALF: 240,      // ちから/かしこさ → 吹っ飛ばし力
+  DAMAGE_STAT_MAX: 1.30,   DAMAGE_STAT_HALF: 170,   // ちから/かしこさ → 与ダメージ
+  KB_POWER_MAX: 0.95,      KB_POWER_HALF: 200,      // ちから/かしこさ → 吹っ飛ばし力
   LIFE_DAMAGE_MAX: 0.40,   LIFE_DAMAGE_HALF: 260,   // ライフ → 被ダメージ軽減
   DEFENSE_KB_MAX: 0.45,    DEFENSE_KB_HALF: 230,    // 丈夫さ → 吹っ飛びにくさ（重さ）
-  EVASION_SPEED_MAX: 0.70, EVASION_SPEED_HALF: 260, // 回避 → 移動速度
-  EVASION_FALL_MAX: 0.35,  EVASION_FALL_HALF: 260,  // 回避 → 落下速度（速い＝ハイリスク）
+  EVASION_SPEED_MAX: 0.70, EVASION_SPEED_HALF: 260, // 回避 → 移動速度（X方向のみ）
+  EVASION_ENDLAG_MAX: 0.30, EVASION_ENDLAG_HALF: 220, // 回避 → 技の後隙・着地隙の短縮
   ACCURACY_CRIT_MAX: 0.22, ACCURACY_CRIT_HALF: 320, // 命中 → クリティカル率
+
+  // 後隙・着地隙の短縮には下限を設ける。0フレームになると
+  // 「振り得の技」が生まれてしまい、差し合いが成立しなくなるため。
+  MIN_ENDLAG_FRAMES: 3,
+
+  // 落下速度はステータスではなくモンスターごとの個性として持つ。
+  // （回避に紐づけていた頃は、育てるほど復帰が難しくなり自滅が増える
+  //   ＝育成するほど不利になるという逆転が起きていた）
+  DEFAULT_FALL_SPEED: 1.0,
 
   // 吹っ飛び計算共通係数（各技のkbBaseと組み合わせて使用）
   KB_BASE_MULTIPLIER: 0.82,

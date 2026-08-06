@@ -84,6 +84,10 @@ class Fighter {
     this.attackScale = this.h / CONFIG.BASE_HURTBOX_H;
     this.grabRange = (options.grabRange || CONFIG.GRAB_RANGE_DEFAULT) * this.attackScale;
 
+    // 落下速度はモンスターごとの個性（育成では変わらない）。
+    // 大きいほど速く落ち、コンボは抜けやすいが復帰は難しくなる。
+    this.fallSpeed = Physics.fallMultiplier(options.fallSpeed);
+
     // 見た目用スプライト（未指定の場合は色付き矩形のまま）
     this.sprite = null;
     this.spriteLoaded = false;
@@ -486,7 +490,7 @@ class Fighter {
     // スマブラ同様、入力した瞬間に落下速度が最大まで跳ね上がる。
     if (!wasOnGround && this.vy > 0 && this.downEdge && !this.fastFalling) {
       this.fastFalling = true;
-      this.vy = Math.max(this.vy, Physics.terminalFallSpeed(this.stats.evasion, false));
+      this.vy = Math.max(this.vy, Physics.terminalFallSpeed(this.fallSpeed, false));
     }
 
     // ---- 掴み ----
@@ -1111,7 +1115,7 @@ class Fighter {
       }
       this.attackTimer--;
       if (this.attackTimer <= 0 && this.currentMove) {
-        this.recoveryTimer = this.currentMove.endlag || 0;
+        this.recoveryTimer = Physics.endlagFrames(this.currentMove.endlag || 0, this.stats.evasion);
         this.currentMove = null;
       }
     } else if (this.recoveryTimer > 0) {
@@ -1134,7 +1138,7 @@ class Fighter {
     const wasAirborne = !this.onGround;
     // 足元から地面までの距離（受け身の判断や着地予測に使う）
     this.groundDistance = Physics.distanceToGround(this, platforms);
-    Physics.applyGravity(this, this.stats.evasion);
+    Physics.applyGravity(this, this.fallSpeed);
     this.x += this.vx;
     this.y += this.vy;
     Physics.resolvePlatformCollision(this, platforms);
@@ -1161,7 +1165,7 @@ class Fighter {
     if (this.onGround) {
       // 空中攻撃を出したまま着地すると着地隙が発生する
       if (wasAirborne && this.attackTimer > 0 && this.currentMove && this.currentMove.aerial) {
-        this.landingLag = this.currentMove.landingLag || CONFIG.LANDING_LAG_DEFAULT;
+        this.landingLag = Physics.endlagFrames(this.currentMove.landingLag || CONFIG.LANDING_LAG_DEFAULT, this.stats.evasion);
         this.attackTimer = 0;
         this.currentMove = null;
         this.recoveryTimer = 0;

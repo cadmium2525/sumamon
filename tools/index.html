@@ -154,6 +154,10 @@ button:disabled { opacity: .45; }
   </div>
   <p class="note" style="margin-top:6px">待機モーションを登録すると自動で計算されます。
     数値が大きいほどキャラが大きく表示され、技の間合いやシールドの大きさも比例して広がります。</p>
+  <label>落下速度 <span id="spec-fall-value">1.00</span> 倍 — 大きいほど速く落ちます</label>
+  <input id="spec-fall" type="range" min="70" max="140" value="100">
+  <p class="note" style="margin-top:6px">モンスターごとの個性で、育成では変わりません。
+    速いほどコンボを抜けやすい反面、崖の外へ出ると復帰が難しくなります。</p>
   <label>イメージカラー（HUDの枠色）</label>
   <input id="spec-color" type="color" value="#ff4757" style="height:44px">
 </section>
