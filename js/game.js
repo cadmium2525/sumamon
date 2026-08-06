@@ -45,6 +45,8 @@ const SURVIVAL_FIGHTER_STATE_KEYS = [
   'idleAnimTimer','idleAnimFrame','animTimer','animFrame','helpless','kos','falls','selfDestructs',
   'eliminatedAt','dropThroughTimer','ledgeCooldown','ledgeHangFrames','ledgeLocked','onLedge',
   '_usedUpSpecialAirborne','_airDodgeUsed','survivalHandled','survivalCpuLevel',
+  // スマブラ的な挙動用の状態（中断・再開で手応えが変わらないよう保存する）
+  'hitlag','landingLag','fastFalling','techWindow','techLockout','staleQueue',
 ];
 
 function survivalSaveKey(mode, uid) {
@@ -144,6 +146,14 @@ suspendButton.addEventListener('click', event => {
 
 window.setBattleInputLocked = locked => { battleInputLocked = !!locked; };
 
+// 毎フレームの一時オブジェクト生成を避けるための使い回し
+const PROJECTILE_HIT = { projectile: true };
+const _projectileBox = { x: 0, y: 0, w: 0, h: 0 };
+function projectileBox(p) {
+  _projectileBox.x = p.x; _projectileBox.y = p.y; _projectileBox.w = p.w; _projectileBox.h = p.h;
+  return _projectileBox;
+}
+
 function updateProjectiles() {
   for (const owner of players) {
     const request = owner.consumeProjectileRequest();
@@ -189,7 +199,7 @@ function updateProjectiles() {
         if (target === p.owner || target.dead) continue;
         if (survivalBattle && p.owner !== players[0] && target !== players[0]) continue;
         const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
-        if (Math.hypot(tx - cx, ty - cy) <= radius) target.takeHit(p.owner, p.move);
+        if (Math.hypot(tx - cx, ty - cy) <= radius) target.takeHit(p.owner, p.move, PROJECTILE_HIT);
       }
       p.exploding = 12;
       if (window.AudioManager) AudioManager.playSe('bomb');
@@ -201,8 +211,8 @@ function updateProjectiles() {
     for (const target of players) {
       if (target === p.owner || target.dead || p.hit) continue;
       if (survivalBattle && p.owner !== players[0] && target !== players[0]) continue;
-      if (Physics.rectsOverlap({ x: p.x, y: p.y, w: p.w, h: p.h }, target.getHurtbox())) {
-        target.takeHit(p.owner, p.move);
+      if (Physics.rectsOverlap(projectileBox(p), target.getHurtbox())) {
+        target.takeHit(p.owner, p.move, PROJECTILE_HIT);
         p.hit = true;
       }
     }
@@ -248,14 +258,18 @@ function drawProjectiles() {
 
 function checkAttacks() {
   for (const attacker of players) {
+    // ヒットストップ中は判定を止める（止まっている間に当たり続けないようにする）
+    if (attacker.dead || attacker.hitlag > 0) continue;
     const hb = attacker.getHitbox();
-    if (!hb || attacker.hasHitThisAttack) continue;
+    if (!hb) continue;
     for (const target of players) {
       if (target === attacker || target.dead) continue;
       if (survivalBattle && attacker !== players[0] && target !== players[0]) continue;
+      // 1つの判定ウィンドウにつき同じ相手には1回だけ。乱闘では重なった全員に当たる。
+      if (attacker.hasHitTarget(target)) continue;
       if (Physics.rectsOverlap(hb, target.getHurtbox())) {
+        attacker.markHitTarget(target);
         target.takeHit(attacker, attacker.currentMove);
-        attacker.hasHitThisAttack = true;
       }
     }
   }
@@ -354,32 +368,91 @@ function checkLedges() {
   }
 }
 
-function updateHUD() {
+// HUDは毎フレーム更新されるため、以前のように innerHTML を丸ごと組み直すと
+// 60fpsでDOM全体の再生成＋レイアウトが走り、無視できない負荷になっていた。
+// ここでは構造を1度だけ作り、以降は変化した値だけを書き換える。
+let hudRefs = [];
+let hudSignature = '';
+
+function buildHUD() {
   hud.dataset.count = String(players.length);
   hud.innerHTML = players.map(p => {
-    const stockIconStyle = p.stockIconSrc
-      ? `background-image:url('${p.stockIconSrc}')`
-      : '';
-    const stockDots = Array.from({ length: Math.max(0, p.stocks) })
-      .map(() => `<span class="phud-stock-dot" style="${stockIconStyle}"></span>`).join('');
-    const shieldPct = Math.max(0, Math.floor(p.shieldHP));
-    const damage = Math.floor(p.damagePercent);
-    const damageTone = damage >= 120 ? 'danger' : damage >= 60 ? 'warning' : 'normal';
     const iconStyle = (p.sprite && p.spriteLoaded)
       ? `background:${p.color} url(${p.sprite.src}) center bottom/contain no-repeat`
-      : `background:${p.color}`;
+      : `background:${p.color}`; // 未読込ならまず色だけ。読み込み後にupdateHUD()が差し替える
     return `
       <div class="phud" style="--fighter-color:${p.color}">
         <div class="phud-icon" style="${iconStyle}"></div>
         <div class="phud-info">
-          <div class="phud-topline"><span class="phud-player">${p.hudLabel || p.id.toUpperCase()}</span><div class="phud-stocks">${stockDots}</div></div>
-          <div class="phud-percent ${damageTone}">${damage}<span class="pct-sign">%</span></div>
-          <div class="phud-shield-bar"><div class="phud-shield-fill" style="width:${shieldPct}%"></div></div>
-          <div class="phud-name">${p.name}</div>
+          <div class="phud-topline"><span class="phud-player"></span><div class="phud-stocks"></div></div>
+          <div class="phud-percent">0<span class="pct-sign">%</span></div>
+          <div class="phud-shield-bar"><div class="phud-shield-fill"></div></div>
+          <div class="phud-name"></div>
         </div>
       </div>
     `;
   }).join('');
+  hudRefs = Array.from(hud.children).map(node => ({
+    root: node,
+    stocks: node.querySelector('.phud-stocks'),
+    percent: node.querySelector('.phud-percent'),
+    shield: node.querySelector('.phud-shield-fill'),
+    name: node.querySelector('.phud-name'),
+    label: node.querySelector('.phud-player'),
+    lastStocks: -1,
+    lastDamage: -1,
+    lastTone: '',
+    lastShield: -1,
+    iconApplied: false,
+    icon: node.querySelector('.phud-icon'),
+  }));
+  hudRefs.forEach((ref, index) => {
+    const p = players[index];
+    ref.label.textContent = p.hudLabel || p.id.toUpperCase();
+    ref.name.textContent = p.name;
+  });
+}
+
+function updateHUD() {
+  // 参加者の顔ぶれが変わった時だけ組み直す（連戦でCPUが入れ替わる場合など）
+  const signature = players.map(p => `${p.id}|${p.name}|${p.color}`).join(',');
+  if (signature !== hudSignature) {
+    hudSignature = signature;
+    buildHUD();
+  }
+  for (let i = 0; i < hudRefs.length; i++) {
+    const ref = hudRefs[i];
+    const p = players[i];
+    if (!p) continue;
+    const stocks = Math.max(0, p.stocks);
+    if (stocks !== ref.lastStocks) {
+      ref.lastStocks = stocks;
+      const style = p.stockIconSrc ? `background-image:url('${p.stockIconSrc}')` : '';
+      ref.stocks.innerHTML = stocks
+        ? `<span class="phud-stock-dot" style="${style}"></span>`.repeat(stocks) : '';
+    }
+    const damage = Math.floor(p.damagePercent);
+    if (damage !== ref.lastDamage) {
+      ref.lastDamage = damage;
+      ref.percent.firstChild.nodeValue = String(damage);
+      const tone = damage >= 120 ? 'danger' : damage >= 60 ? 'warning' : 'normal';
+      if (tone !== ref.lastTone) {
+        if (ref.lastTone) ref.percent.classList.remove(ref.lastTone);
+        ref.percent.classList.add(tone);
+        ref.lastTone = tone;
+      }
+    }
+    // アイコン画像は読み込み完了後に一度だけ差し込む（構築時にはまだ未読込のことがある）
+    if (!ref.iconApplied && p.sprite && p.spriteLoaded) {
+      ref.iconApplied = true;
+      ref.icon.style.background = `${p.color} url(${p.sprite.src}) center bottom/contain no-repeat`;
+    }
+    const shield = Math.max(0, Math.round(p.shieldHP));
+    if (shield !== ref.lastShield) {
+      ref.lastShield = shield;
+      ref.shield.style.width = `${shield}%`;
+    }
+  }
 }
 
 function computeRanking() {
@@ -444,12 +517,18 @@ function checkMatchEnd() {
   }
 }
 
+let lastSurvivalCounterText = '';
 function updateSurvivalCounter() {
   if (!survivalCounter || !survivalBattle) return;
   survivalCounter.classList.remove('hidden');
-  survivalCounter.textContent = survivalBattle.mode === 'hundred'
+  // 毎フレーム呼ばれるため、表示が変わった時だけ書き換える（不要な再レイアウトを避ける）
+  const text = survivalBattle.mode === 'hundred'
     ? `撃破 ${Math.min(100, survivalBattle.defeated)} / 100`
     : `撃破 ${survivalBattle.defeated}`;
+  if (text !== lastSurvivalCounterText) {
+    lastSurvivalCounterText = text;
+    survivalCounter.textContent = text;
+  }
 }
 
 function finishSurvivalBattle(cleared) {
@@ -478,6 +557,7 @@ function createNetworkSnapshot() {
     'downed','shielding','shieldHP','dazedTimer','dodgeTimer','invincible','isMoving','attackTimer',
     'recoveryTimer','jumpAnimTimer','idleAnimTimer','idleAnimFrame','animTimer','animFrame',
     'helpless','kos','falls','selfDestructs','eliminatedAt',
+    'hitlag','hitlagShakeX','landingLag',
   ];
   return {
     fighters: players.map(fighter => ({
@@ -497,20 +577,37 @@ function networkMoveKey(fighter) {
   return moveKeyFor(fighter, fighter && fighter.currentMove);
 }
 
+// 技を文字列キーへ変換（通信/中断セーブ用）。
+// 以前はファイター固有のmoveSetしか探しておらず、共通の技テーブル(MOVES)を使う技が
+// 復元できずモーションと当たり判定が失われていたため、両方を対象にする。
 function moveKeyFor(fighter, targetMove) {
-  if (!fighter || !targetMove) return null;
-  for (const [groupKey, group] of Object.entries(fighter.moveSet || {})) {
-    for (const [moveKey, moveDef] of Object.entries(group || {})) {
-      if (moveDef === targetMove) return `${groupKey}:${moveKey}`;
+  if (!targetMove) return null;
+  if (fighter) {
+    for (const [groupKey, group] of Object.entries(fighter.moveSet || {})) {
+      for (const [moveKey, moveDef] of Object.entries(group || {})) {
+        if (moveDef === targetMove) return `set:${groupKey}:${moveKey}`;
+      }
     }
   }
-  return null;
+  for (const [groupKey, group] of Object.entries(MOVES)) {
+    for (const [moveKey, moveDef] of Object.entries(group)) {
+      if (moveDef === targetMove) return `base:${groupKey}:${moveKey}`;
+    }
+  }
+  for (const [moveKey, moveDef] of Object.entries(THROWS)) {
+    if (moveDef === targetMove) return `throw:${moveKey}`;
+  }
+  return null; // 溜めスマッシュなど動的生成された技は復元不能
 }
 
 function resolveNetworkMove(fighter, key) {
   if (!key) return null;
-  const [groupKey, moveKey] = key.split(':');
-  return fighter.moveSet?.[groupKey]?.[moveKey] || null;
+  const parts = key.split(':');
+  if (parts[0] === 'set') return fighter?.moveSet?.[parts[1]]?.[parts[2]] || null;
+  if (parts[0] === 'base') return MOVES[parts[1]]?.[parts[2]] || null;
+  if (parts[0] === 'throw') return THROWS[parts[1]] || null;
+  // 旧フォーマット（groupKey:moveKey）との互換
+  return fighter?.moveSet?.[parts[0]]?.[parts[1]] || null;
 }
 
 function applyNetworkSnapshot(snapshot) {

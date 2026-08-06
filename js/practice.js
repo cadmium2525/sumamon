@@ -514,15 +514,26 @@ const PracticeGame = {
     if (this.hp <= 0) this.finish(false);
   },
 
+  // 毎フレーム呼ばれるため、要素参照をキャッシュし表示が変わった時だけ書き換える
   _updateHud() {
+    if (!this._hudTimeEl) {
+      this._hudTimeEl = document.getElementById('practice-game-time');
+      this._hudStatusEl = document.getElementById('practice-game-status');
+    }
     const remaining = Math.max(0, Math.ceil((this.course?.duration || 0) - this.elapsed));
-    document.getElementById('practice-game-time').textContent = `${remaining}`;
+    if (remaining !== this._hudLastTime) {
+      this._hudLastTime = remaining;
+      this._hudTimeEl.textContent = `${remaining}`;
+    }
     const status = this.courseKey === 'desert' ? `モノリス破壊 ${this.targets.filter(t => t.destroyed).length}/${this.targets.length}　落下 ${this.pitFalls || 0}回`
       : this.courseKey === 'jungle' ? `仕掛け ${this.switchProgress || 0}/3`
       : this.courseKey === 'coast' ? `命中 ${this.hits}　COMBO ${this.combo}`
       : this.courseKey === 'snow' ? `高度 ${Math.max(0, Math.round((500 - this.fighter.y) / 10))}m`
       : `耐久 ♥${this.hp}　防御 ${this.avoided}`;
-    document.getElementById('practice-game-status').textContent = status;
+    if (status !== this._hudLastStatus) {
+      this._hudLastStatus = status;
+      this._hudStatusEl.textContent = status;
+    }
   },
 
   finish(cleared) {

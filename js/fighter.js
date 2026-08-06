@@ -20,16 +20,31 @@ class Fighter {
       for (const move of Object.values(moveGroup || {})) {
         const animation = move && move.animation;
         if (!animation || !animation.frames || !animation.frames.length) continue;
+        // 多段技はコマを使い回すため、同じパスに対して何枚もImageを作らないよう共有する。
+        // 事前読み込み済み(PreloadedImages)があればそれをそのまま使い、再ダウンロード/再デコードを避ける。
         const state = { images: [], loaded: 0, failed: 0, config: animation };
+        const perSource = new Map();
         state.images = animation.frames.map(src => {
-          const image = new Image();
-          image.onload = () => { state.loaded++; };
-          image.onerror = () => {
+          if (perSource.has(src)) {
+            state.loaded++; // 同じ画像の2回目以降は読み込み結果を共有する
+            return perSource.get(src);
+          }
+          const preloaded = window.PreloadedImages && window.PreloadedImages.get(src);
+          if (preloaded && preloaded.complete) {
+            state.loaded++;
+            if (!preloaded.naturalWidth) state.failed++;
+            perSource.set(src, preloaded);
+            return preloaded;
+          }
+          const image = preloaded || new Image();
+          image.addEventListener('load', () => { state.loaded++; }, { once: true });
+          image.addEventListener('error', () => {
             state.loaded++; // 読み込み失敗も「決着した」扱いにし、他のコマが無期限にブロックされないようにする
             state.failed++; // 1枚でも失敗したらこの技のアニメは使わず、待機コマにフォールバック（透明化を防ぐ）
             console.warn('[Fighter] モーション画像の読み込みに失敗しました:', src);
-          };
-          image.src = src;
+          }, { once: true });
+          if (!image.src) image.src = src;
+          perSource.set(src, image);
           return image;
         });
         this.moveAnimations.set(move, state);
@@ -195,6 +210,23 @@ class Fighter {
 
     // 各方向キーが「押され始めた時刻」（強攻撃/スマッシュの同時押し判定に使用）
     this.dirPressTime = { up: null, down: null, left: null, right: null };
+
+    // ---- スマブラ的な挙動のための状態 ----
+    this.hitlag = 0;          // ヒットストップ中（攻撃側・被弾側とも完全停止）
+    this.hitlagShakeX = 0;    // ヒットストップ中の小刻みな揺れ（描画のみ）
+    this.fastFalling = false; // 急降下中
+    this.landingLag = 0;      // 空中攻撃を出したまま着地した際の硬直
+    this.techWindow = 0;      // 受け身の入力受付が残っているフレーム数
+    this.techLockout = 0;     // 受け身失敗後の再入力禁止
+    this.staleQueue = [];     // ワンパターン相殺用の直近使用技リスト
+    this.diX = 0;             // 被弾時のベクトル変更（DI）に使うスティック入力
+    this.diY = 0;
+    this.shieldEdge = false;  // このフレームでシールドが押され始めたか
+    this._hitWindowIndex = -1;
+    this._isLinkHit = false;
+    this._hitTargets = new Set(); // 現在のヒット判定ウィンドウで既に当てた相手
+    this._hurtbox = { x: 0, y: 0, w: 0, h: 0 }; // 毎フレームの再生成を避けるため使い回す
+    this.groundDistance = Infinity; // 足元から真下の足場までの距離
   }
 
   getHeldDirection(input) {
@@ -210,6 +242,15 @@ class Fighter {
     this.rightEdge = input.right && !this.prevRightHeld;
     this.downEdge = input.down && !this.prevDownHeld;
     this.upEdge = input.up && !this.prevUpHeld;
+    // シールドのエッジ検出はヒットストップ中の受け身入力でも使うため、ここで一元化する
+    this.shieldEdge = input.shield && !this.prevShieldHeld;
+    this.prevShieldHeld = input.shield;
+
+    // ベクトル変更(DI)用に、常に最新のスティック方向を保持しておく
+    this.diX = typeof input.stickX === 'number' && Math.abs(input.stickX) > 0.15
+      ? input.stickX : (input.left ? -1 : input.right ? 1 : 0);
+    this.diY = typeof input.stickY === 'number' && Math.abs(input.stickY) > 0.15
+      ? input.stickY : (input.up ? -1 : input.down ? 1 : 0);
 
     const now = Date.now();
     this.prevLeftHeld = input.left;
@@ -228,6 +269,9 @@ class Fighter {
   applyInput(input) {
     if (this.dead) return;
     this.updateEdges(input);
+    // ヒットストップ中は攻撃側・被弾側とも完全に停止（DIの入力だけは上で拾っている）
+    if (this.hitlag > 0) return;
+    if (this.landingLag > 0) return; // 着地隙
 
     const hasWakeInput = input.left || input.right || input.up || input.down || input.jump ||
       input.attack || input.special || input.shield || input.grab || Math.abs(input.stickX || 0) > 0.1;
@@ -237,6 +281,13 @@ class Fighter {
         this.recoveryTimer = 8;
       }
       return;
+    }
+
+    // ---- 受け身（テック）の先行入力 ----
+    // 吹っ飛び中に地面へ叩きつけられる直前でシールドを押すと、ダウンせずに立て直せる。
+    if (this.tumbling && !this.onGround && this.shieldEdge && this.techLockout <= 0) {
+      this.techWindow = CONFIG.TECH_WINDOW_FRAMES;
+      this.techLockout = CONFIG.TECH_LOCKOUT_FRAMES;
     }
 
     const tumbleJumpCancel = input.jump && !this.prevJumpHeld;
@@ -331,10 +382,7 @@ class Fighter {
       return;
     }
 
-    // シールドボタンのエッジ検出（空中緊急回避の一回性トリガーに使用）
-    const shieldWasHeld = this.prevShieldHeld;
-    this.prevShieldHeld = input.shield;
-    const shieldEdge = input.shield && !shieldWasHeld;
+    const shieldEdge = this.shieldEdge; // updateEdges()で算出済み
 
     // ---- シールド／回避（シールド + 方向） ----
     if (input.shield && wasOnGround && this.attackTimer <= 0) {
@@ -417,6 +465,13 @@ class Fighter {
       }
     }
     this.prevJumpHeld = jumpHeldCombined;
+
+    // ---- 急降下（落下中に下を入れ直すと一気に落ちる） ----
+    // スマブラ同様、入力した瞬間に落下速度が最大まで跳ね上がる。
+    if (!wasOnGround && this.vy > 0 && this.downEdge && !this.fastFalling) {
+      this.fastFalling = true;
+      this.vy = Math.max(this.vy, Physics.terminalFallSpeed(this.stats.evasion, false));
+    }
 
     // ---- 掴み ----
     const grabPressed = input.grab && !this.prevGrabHeld;
@@ -616,17 +671,26 @@ class Fighter {
 
     const dmg = Physics.computeDamage(move.dmgBase, this.stats[move.statKey], target.stats.life);
     target.damagePercent += dmg;
-    const kb = Physics.computeKnockback(move.kbBase, target.damagePercent, this.stats[move.statKey], target.stats.defense);
+    const kb = Physics.computeKnockback(move.kbBase, target.damagePercent, this.stats[move.statKey], target.stats.defense)
+      * target.knockbackTakenMultiplier;
     const angleRad = (move.angle * Math.PI) / 180;
     target.vx = dir * kb * Math.cos(angleRad);
     target.vy = -kb * Math.sin(angleRad);
-    target.hitstun = Math.min(50, Math.max(6, Math.round(kb * 3)));
+    target.hitstun = Math.min(CONFIG.HITSTUN_MAX,
+      Math.max(CONFIG.HITSTUN_MIN, Math.round(kb * CONFIG.HITSTUN_PER_KB)));
     target.onGround = false;
+    target.fastFalling = false;
     target.lastAttacker = this;
     target.lastHitAt = Date.now();
     target.downed = false;
     target.tumbling = target.damagePercent >= CONFIG.TUMBLE_DAMAGE_THRESHOLD;
+    target.techWindow = 0;
     target.grabbedBy = null;
+    // 投げも命中時は一瞬止める（掴み→投げの決定感を出す）
+    const lag = Physics.hitlagFrames(dmg, false);
+    this.hitlag = Math.max(this.hitlag, lag);
+    target.hitlag = Math.max(target.hitlag, lag);
+    if (window.Camera) Camera.shake(Math.min(CONFIG.SHAKE_MAX, kb * CONFIG.SHAKE_PER_KB));
 
     this.grabbing = null;
     this.grabTimer = 0;
@@ -650,6 +714,7 @@ class Fighter {
     this.hasHitThisAttack = false;
     this._hitWindowIndex = -1;
     this._isLinkHit = false;
+    this._hitTargets.clear();
     this._projectileSpawned = false;
   }
 
@@ -659,30 +724,51 @@ class Fighter {
     return request;
   }
 
-  getHitbox() {
-    if (this.attackTimer <= 0 || !this.currentMove) return null;
-    const m = this.currentMove;
-    const framesElapsed = m.duration - this.attackTimer;
-    let windowIndex = -1;
+  // 現在の判定ウィンドウ番号（多段技はループごと、通常技は0、判定が出ていなければ-1）。
+  // 副作用を持たないため描画からも安全に呼べる。
+  _activeWindowIndex(m, framesElapsed) {
     if (Array.isArray(m.multiHit) && m.multiHit.length) {
       for (let i = 0; i < m.multiHit.length; i++) {
-        if (framesElapsed >= m.multiHit[i][0] && framesElapsed <= m.multiHit[i][1]) { windowIndex = i; break; }
+        if (framesElapsed >= m.multiHit[i][0] && framesElapsed <= m.multiHit[i][1]) return i;
       }
-      if (windowIndex === -1) return null;
-    } else {
-      if (framesElapsed < m.active[0] || framesElapsed > m.active[1]) return null;
-      windowIndex = 0;
+      return -1;
     }
-    // 新しい判定ウィンドウに入ったら再ヒット可能にする（多段技: ループ/区間ごとに1回ずつヒットする）
-    if (windowIndex !== this._hitWindowIndex) {
-      this._hitWindowIndex = windowIndex;
+    return (framesElapsed >= m.active[0] && framesElapsed <= m.active[1]) ? 0 : -1;
+  }
+
+  // 判定ウィンドウの切り替わりを検出して「誰に当てたか」をリセットする。
+  // update()から1シミュレーションステップにつき1回だけ呼ぶこと
+  // （以前はgetHitbox()内で行っていたため、描画からの呼び出しで状態が壊れる恐れがあった）。
+  _updateHitWindow() {
+    const m = this.currentMove;
+    if (this.attackTimer <= 0 || !m) {
+      this._hitWindowIndex = -1;
+      this._isLinkHit = false;
+      return;
+    }
+    const index = this._activeWindowIndex(m, m.duration - this.attackTimer);
+    if (index !== this._hitWindowIndex) {
+      this._hitWindowIndex = index;
       this.hasHitThisAttack = false;
+      this._hitTargets.clear();
     }
     // 多段技の途中段かどうか（最終段のみ吹っ飛び、それ以外は怯ませ判定）
     const hitCount = (Array.isArray(m.multiHit) && m.multiHit.length) ? m.multiHit.length : 1;
-    this._isLinkHit = windowIndex < hitCount - 1;
+    this._isLinkHit = index >= 0 && index < hitCount - 1;
+  }
+
+  // 同じ判定ウィンドウ中に同じ相手へ多重ヒットしないための記録
+  hasHitTarget(target) { return this._hitTargets.has(target); }
+  markHitTarget(target) {
+    this._hitTargets.add(target);
+    this.hasHitThisAttack = true; // 単発判定しか見ない箇所（修行ミニゲーム等）との互換用
+  }
+
+  getHitbox() {
+    const m = this.currentMove;
+    if (this.attackTimer <= 0 || !m || m.projectile) return null;
+    if (this._activeWindowIndex(m, m.duration - this.attackTimer) < 0) return null;
     const scale = this.attackScale || 1;
-    if (m.projectile) return null;
     const range = m.range * scale;
     const boxH = m.h * scale;
     const yOff = (m.yOff || 0) * scale;
@@ -692,25 +778,54 @@ class Fighter {
     return { x, y, w: range, h: boxH };
   }
 
+  // 毎フレーム大量に呼ばれるため、オブジェクトを使い回してGC負荷を抑える
   getHurtbox() {
-    return { x: this.x, y: this.y, w: this.w, h: this.h };
+    const box = this._hurtbox;
+    box.x = this.x; box.y = this.y; box.w = this.w; box.h = this.h;
+    return box;
   }
 
-  takeHit(attacker, move) {
+  // ---- ワンパターン相殺（同じ技を連発すると威力が落ちる） ----
+  stalenessFor(move) {
+    const key = move && move.name;
+    if (!key || !this.staleQueue.length) return 1;
+    let used = 0;
+    for (let i = 0; i < this.staleQueue.length; i++) if (this.staleQueue[i] === key) used++;
+    if (!used) return 1;
+    const perUse = CONFIG.STALE_MAX_REDUCTION / CONFIG.STALE_QUEUE_SIZE;
+    return 1 - Math.min(CONFIG.STALE_MAX_REDUCTION, used * perUse);
+  }
+
+  pushStale(move) {
+    if (!move || !move.name) return;
+    this.staleQueue.push(move.name);
+    if (this.staleQueue.length > CONFIG.STALE_QUEUE_SIZE) this.staleQueue.shift();
+  }
+
+  // options.projectile: 飛び道具によるヒット（攻撃側にはヒットストップを与えない）
+  takeHit(attacker, move, options) {
     if (this.invincible > 0 || this.dead) return;
+
+    // 掴まれている最中に別の攻撃を受けたら掴みは解除される
+    // （解除しないと吹っ飛びが掴み側の位置固定に打ち消され、永久に拘束されてしまう）
+    if (this.grabbedBy && this.grabbedBy !== attacker) {
+      this.grabbedBy.grabbing = null;
+      this.grabbedBy.grabTimer = 0;
+      this.grabbedBy = null;
+    }
 
     // 多段技の途中ヒット：ふっ飛ばさずその場で怯ませ、ガードも許さない。
     // 最終段だけが通常どおりの吹っ飛び判定になる。
     const linkHit = Array.isArray(move.multiHit) && move.multiHit.length > 1
       && attacker.currentMove === move && attacker._isLinkHit === true;
+    const wasShielding = this.shielding && !linkHit;
 
     const dmgBase = (!linkHit && move.finalHit && move.finalHit.dmgBase != null)
       ? move.finalHit.dmgBase : move.dmgBase;
     let dmg = Physics.computeDamage(dmgBase, attacker.stats[move.statKey], this.stats.life);
-    const accuracyGrowth = Math.max(0, (attacker.stats.accuracy || 10) - 10);
-    const criticalChance = Math.min(CONFIG.CRITICAL_CHANCE_MAX,
-      CONFIG.CRITICAL_CHANCE_BASE + accuracyGrowth * CONFIG.ACCURACY_CRITICAL_SCALE);
-    const critical = Math.random() < criticalChance;
+    // ワンパターン相殺：同じ技を続けて当てるほど威力が落ちる（多段技の途中段は数えない）
+    if (!linkHit) dmg *= attacker.stalenessFor(move);
+    const critical = Math.random() < Physics.criticalChance(attacker.stats.accuracy);
     if (critical) dmg *= 1.2;
     let kbBase = move.kbBase;
     let angleDeg = move.angle;
@@ -719,24 +834,33 @@ class Fighter {
       // 途中段はガード不能：シールドを強制解除してそのまま怯み判定を通す
       this.shielding = false;
       kbBase *= (move.linkKbScale != null ? move.linkKbScale : 0.15);
-    } else if (move.finalHit) {
-      // 最終段の吹っ飛び性能を個別に指定できる
-      if (move.finalHit.kbBase != null) kbBase = move.finalHit.kbBase;
-      if (move.finalHit.angle != null) angleDeg = move.finalHit.angle;
+    } else {
+      attacker.pushStale(move);
+      if (move.finalHit) {
+        // 最終段の吹っ飛び性能を個別に指定できる
+        if (move.finalHit.kbBase != null) kbBase = move.finalHit.kbBase;
+        if (move.finalHit.angle != null) angleDeg = move.finalHit.angle;
+      }
     }
 
-    if (this.shielding) {
-      // シールドブロック：ダメージ/吹っ飛びを大幅軽減する代わりにシールドが削れる
+    const rawDamage = dmg;
+    if (wasShielding) {
+      // シールドブロック：ダメージ/吹っ飛びを大幅軽減する代わりにシールドが削れる。
+      // 削り量・ガード硬直とも技のダメージに比例するため、強い技ほどガードが不利になる。
       dmg *= 0.1;
       kbBase *= 0.1;
-      this.shieldHP -= 15;
+      this.shieldHP -= Math.max(5, rawDamage * CONFIG.SHIELD_CHIP_SCALE);
       if (this.shieldHP <= 0) this.breakShield();
     }
 
     this.damagePercent += dmg;
     const kb = Physics.computeKnockback(kbBase, this.damagePercent, attacker.stats[move.statKey], this.stats.defense) * this.knockbackTakenMultiplier;
-    const angleRad = (angleDeg * Math.PI) / 180;
     const dir = move.backHit ? -attacker.facing : attacker.facing;
+
+    // ヒットストップ：攻撃側・被弾側とも一瞬止まる（飛び道具は攻撃側を止めない）
+    const lag = Physics.hitlagFrames(rawDamage, wasShielding);
+    this.hitlag = Math.max(this.hitlag, lag);
+    if (attacker && !(options && options.projectile)) attacker.hitlag = Math.max(attacker.hitlag, lag);
 
     if (linkHit) {
       // 怯み：ほぼその場に留めて次の段まで硬直させる（浮かせない／転倒させない）
@@ -753,24 +877,68 @@ class Fighter {
       return;
     }
 
-    this.vx = dir * kb * Math.cos(angleRad);
-    this.vy = -kb * Math.sin(angleRad);
-    if (!this.shielding) this.onGround = false;
-    if (!this.shielding) {
-      this.lastAttacker = attacker;
-      this.lastHitAt = Date.now();
-      this.downed = false;
-      this.tumbling = this.damagePercent >= CONFIG.TUMBLE_DAMAGE_THRESHOLD;
+    if (wasShielding) {
+      // ガード硬直＋ガード時の後退（ノックバックせず滑るだけ）
+      this.hitstun = Math.round(CONFIG.SHIELD_STUN_BASE + rawDamage * CONFIG.SHIELD_STUN_PER_DAMAGE);
+      this.vx = dir * Math.min(CONFIG.SHIELD_PUSHBACK_MAX, rawDamage * 0.28);
+      this.vy = 0;
+      this.attackTimer = 0;
+      this.currentMove = null;
+      this.recoveryTimer = 0;
+      return;
     }
 
-    this.hitstun = this.shielding ? 4 : Math.min(50, Math.max(6, Math.round(kb * 3)));
+    // 吹っ飛びベクトル。被弾側のスティック入力でこれを最大±DI_MAX_ANGLE_SHIFT度ずらせる（DI）。
+    const angleRad = (angleDeg * Math.PI) / 180;
+    let vx = dir * kb * Math.cos(angleRad);
+    let vy = -kb * Math.sin(angleRad);
+    const diMag = Math.hypot(this.diX, this.diY);
+    if (diMag > 0.25 && kb > 0) {
+      // 吹っ飛び方向に対する「直交成分」の分だけ軌道を回す（スマブラのDIと同じ考え方）
+      const ux = vx / kb, uy = vy / kb;
+      const cross = ux * (this.diY / diMag) - uy * (this.diX / diMag);
+      const shift = Math.max(-1, Math.min(1, cross)) * CONFIG.DI_MAX_ANGLE_SHIFT * Math.PI / 180;
+      const cos = Math.cos(shift), sin = Math.sin(shift);
+      const rx = vx * cos - vy * sin;
+      const ry = vx * sin + vy * cos;
+      vx = rx; vy = ry;
+    }
+    this.vx = vx;
+    this.vy = vy;
+    this.fastFalling = false;
+    this.onGround = false;
+    this.lastAttacker = attacker;
+    this.lastHitAt = Date.now();
+    this.downed = false;
+    this.tumbling = this.damagePercent >= CONFIG.TUMBLE_DAMAGE_THRESHOLD;
+    if (this.tumbling) this.techWindow = 0; // 新しく吹っ飛んだら受け身は入力し直し
+
+    this.hitstun = Math.min(CONFIG.HITSTUN_MAX,
+      Math.max(CONFIG.HITSTUN_MIN, Math.round(kb * CONFIG.HITSTUN_PER_KB)));
     this.attackTimer = 0;
     this.currentMove = null;
     this.recoveryTimer = 0;
+    this.smashCandidate = null;
+    if (window.Camera) Camera.shake(Math.min(CONFIG.SHAKE_MAX, kb * CONFIG.SHAKE_PER_KB));
   }
 
   update(platforms, blastBounds) {
     if (this.dead) return;
+
+    // ヒットストップ：位置・速度・全タイマーを完全に停止させ、
+    // 「当たった瞬間に画面が固まる」スマブラ特有の手応えを出す。描画用の小刻みな揺れだけ更新する。
+    if (this.hitlag > 0) {
+      this.hitlag--;
+      this.hitlagShakeX = this.hitlag > 0 ? (this.hitlag % 2 ? 2.4 : -2.4) : 0;
+      return;
+    }
+    this.hitlagShakeX = 0;
+    if (this.techLockout > 0) this.techLockout--;
+    if (this.techWindow > 0) this.techWindow--;
+    if (this.landingLag > 0) {
+      this.landingLag--;
+      this.vx *= 0.8; // 着地隙の間は踏ん張って止まる
+    }
 
     // 掴まれている間は相手の近くに固定（自由落下しない）
     if (this.grabbedBy) {
@@ -797,6 +965,8 @@ class Fighter {
     if (this.ledgeCooldown > 0) this.ledgeCooldown--;
     if (this.dropThroughTimer > 0) this.dropThroughTimer--;
 
+    this._updateHitWindow();
+
     if (this.attackTimer > 0) {
       const elapsed = this.currentMove ? this.currentMove.duration - this.attackTimer : 0;
       if (this.currentMove && this.currentMove.projectile && !this._projectileSpawned &&
@@ -818,6 +988,9 @@ class Fighter {
     if (this.invincible > 0) this.invincible--;
     if (this.hitstun > 0) this.hitstun--;
 
+    const wasAirborne = !this.onGround;
+    // 足元から地面までの距離（受け身の判断や着地予測に使う）
+    this.groundDistance = Physics.distanceToGround(this, platforms);
     Physics.applyGravity(this, this.stats.evasion);
     this.x += this.vx;
     this.y += this.vy;
@@ -825,16 +998,32 @@ class Fighter {
 
     if (this.tumbling && this.onGround) {
       this.tumbling = false;
-      this.downed = true;
       this.hitstun = 0;
       this.vx = 0;
       this.vy = 0;
+      if (this.techWindow > 0) {
+        // 受け身成功：ダウンせずその場で立て直し、短い無敵がつく
+        this.techWindow = 0;
+        this.downed = false;
+        this.invincible = Math.max(this.invincible, CONFIG.TECH_INVINCIBLE_FRAMES);
+        this.recoveryTimer = 6;
+      } else {
+        this.downed = true;
+      }
     } else if (this.tumbling) {
       this.tumbleRotation += (this.vx < 0 ? -1 : 1) * 0.24;
     }
 
     if (this.onGround) {
+      // 空中攻撃を出したまま着地すると着地隙が発生する
+      if (wasAirborne && this.attackTimer > 0 && this.currentMove && this.currentMove.aerial) {
+        this.landingLag = this.currentMove.landingLag || CONFIG.LANDING_LAG_DEFAULT;
+        this.attackTimer = 0;
+        this.currentMove = null;
+        this.recoveryTimer = 0;
+      }
       this.ledgeLocked = false;
+      this.fastFalling = false;
       this._airDodgeUsed = false;
       this._usedUpSpecialAirborne = false;
       this.helpless = false;
@@ -844,7 +1033,7 @@ class Fighter {
     }
 
     // このフレームで「移動中」とみなすか（歩行アニメで使用）
-    this.isMoving = this.onGround && Math.abs(this.vx) > 0.3 &&
+    this.isMoving = this.onGround && Math.abs(this.vx) > 0.3 && this.landingLag <= 0 &&
       this.attackTimer <= 0 && this.hitstun <= 0 && !this.shielding && !this.smashCandidate;
     this.motionTimer = this.isMoving ? this.motionTimer + 1 : 0;
 
@@ -905,6 +1094,22 @@ class Fighter {
     this.tumbling = false;
     this.downed = false;
     this.tumbleRotation = 0;
+    this.hitlag = 0;
+    this.hitlagShakeX = 0;
+    this.hitstun = 0;
+    this.landingLag = 0;
+    this.fastFalling = false;
+    this.techWindow = 0;
+    this.techLockout = 0;
+    this.shielding = false;
+    this.shieldHP = CONFIG.SHIELD_MAX;
+    this.dazedTimer = 0;
+    this.dodgeTimer = 0;
+    this.smashCandidate = null;
+    this.attackTimer = 0;
+    this.currentMove = null;
+    this.recoveryTimer = 0;
+    this._hitTargets.clear();
   }
 
   _drawAnimationImage(ctx, image, box, nextImage, blend) {
@@ -939,6 +1144,8 @@ class Fighter {
   draw(ctx) {
     if (this.dead) return;
     ctx.save();
+    // ヒットストップ中は左右に小刻みに震わせ、止まっていることを視覚的に伝える
+    if (this.hitlagShakeX) ctx.translate(this.hitlagShakeX, 0);
     if (this.invincible > 0 && Math.floor(this.invincible / 4) % 2 === 0) {
       ctx.globalAlpha = 0.4;
     }
@@ -1133,6 +1340,8 @@ class Fighter {
     ctx.font = '11px sans-serif';
     if (this.dazedTimer > 0) {
       ctx.fillText('ピヨ', this.x + this.w / 2, this.y - 22);
+    } else if (this.landingLag > 0) {
+      ctx.fillText('着地隙', this.x + this.w / 2, this.y - 22);
     } else if (this.grabbing) {
       ctx.fillText('掴み中', this.x + this.w / 2, this.y - 22);
     } else if (this.currentMove && this.attackTimer > 0) {

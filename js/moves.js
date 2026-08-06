@@ -23,12 +23,13 @@ const MOVES = {
   },
 
   // 空中技 (A + スティック方向、無入力はニュートラル)
+  // aerial:true の技は、出したまま着地すると landingLag フレームの着地隙が発生する。
   air: {
-    neutral: { name: '空N',  dmgBase: 5, kbBase: 4, angle: 35, duration: 16, active: [3, 8],  range: 40, h: 40, yOff: -6, statKey: 'power', endlag: 7 },
-    forward: { name: '空前', dmgBase: 7, kbBase: 5, angle: 35, duration: 18, active: [4, 9],  range: 46, h: 26, yOff: 0,  statKey: 'power', endlag: 10 },
-    back:    { name: '空後', dmgBase: 8, kbBase: 6, angle: 40, duration: 20, active: [5, 10], range: 46, h: 26, yOff: 0,  statKey: 'power', backHit: true, endlag: 12 },
-    up:      { name: '空上', dmgBase: 6, kbBase: 4, angle: 85, duration: 14, active: [3, 7],  range: 30, h: 36, yOff: -24, statKey: 'power', endlag: 8 },
-    down:    { name: '空下', dmgBase: 7, kbBase: 5, angle: -70, duration: 20, active: [4, 10], range: 30, h: 40, yOff: 20, statKey: 'power', meteor: true, endlag: 13 },
+    neutral: { name: '空N',  dmgBase: 5, kbBase: 4, angle: 35, duration: 16, active: [3, 8],  range: 40, h: 40, yOff: -6, statKey: 'power', endlag: 7, aerial: true, landingLag: 8 },
+    forward: { name: '空前', dmgBase: 7, kbBase: 5, angle: 35, duration: 18, active: [4, 9],  range: 46, h: 26, yOff: 0,  statKey: 'power', endlag: 10, aerial: true, landingLag: 11 },
+    back:    { name: '空後', dmgBase: 8, kbBase: 6, angle: 40, duration: 20, active: [5, 10], range: 46, h: 26, yOff: 0,  statKey: 'power', backHit: true, endlag: 12, aerial: true, landingLag: 12 },
+    up:      { name: '空上', dmgBase: 6, kbBase: 4, angle: 85, duration: 14, active: [3, 7],  range: 30, h: 36, yOff: -24, statKey: 'power', endlag: 8, aerial: true, landingLag: 8 },
+    down:    { name: '空下', dmgBase: 7, kbBase: 5, angle: -70, duration: 20, active: [4, 10], range: 30, h: 40, yOff: 20, statKey: 'power', meteor: true, endlag: 13, aerial: true, landingLag: 16 },
   },
   // スマッシュ攻撃（地上A系を溜めた場合に発動。上記tiltより威力・吹っ飛びが大きい）
   smash: {

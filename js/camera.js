@@ -7,12 +7,19 @@ const Camera = {
   x: CONFIG.CANVAS_W / 2,
   y: CONFIG.CANVAS_H / 2,
   zoom: CONFIG.CAMERA_MAX_ZOOM,
+  shakePower: 0,
+
+  // 強い一撃が入った時に画面を揺らす（takeHit等から呼ばれる）
+  shake(power) {
+    if (power > this.shakePower) this.shakePower = Math.min(CONFIG.SHAKE_MAX, power);
+  },
 
   // 新しいバトル開始時に呼ぶ（急にカメラが飛ばないよう中央に据え直す）
   reset(centerX, centerY) {
     this.x = centerX != null ? centerX : CONFIG.CANVAS_W / 2;
     this.y = centerY != null ? centerY : CONFIG.CANVAS_H / 2;
     this.zoom = CONFIG.CAMERA_MAX_ZOOM;
+    this.shakePower = 0;
   },
 
   // 毎フレーム、生存中のfighter達を基準にカメラの目標位置/ズームを計算し、なめらかに追従する
@@ -47,6 +54,7 @@ const Camera = {
     this.x += (targetX - this.x) * s;
     this.y += (targetY - this.y) * s;
     this.zoom += (targetZoom - this.zoom) * s;
+    if (this.shakePower > 0.1) this.shakePower *= 0.82; else this.shakePower = 0;
 
     this._clampToWorld();
   },
@@ -79,6 +87,9 @@ const Camera = {
   // 描画前に呼ぶ：以降の描画がカメラのズーム/位置に従うようctxを変換する（呼び出し側でsave/restoreすること）
   apply(ctx) {
     ctx.translate(CONFIG.CANVAS_W / 2, CONFIG.CANVAS_H / 2);
+    if (this.shakePower > 0) {
+      ctx.translate((Math.random() - 0.5) * this.shakePower * 2, (Math.random() - 0.5) * this.shakePower * 2);
+    }
     ctx.scale(this.zoom, this.zoom);
     ctx.translate(-this.x, -this.y);
   },

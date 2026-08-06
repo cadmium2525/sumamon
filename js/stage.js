@@ -55,7 +55,29 @@ const Stage = {
   daiImage: null,
   daiLoaded: false,
 
-  // ローディング画面などで事前読み込みしておけば、load()時は即座に反映される（キャッシュ利用）
+  // 読み込んだ画像はステージ単位でキャッシュする。
+  // 以前は対戦を始めるたびに Image を作り直しており、連戦のたびに
+  // デコードし直しが走って開始直後に足場が一瞬消えることがあった。
+  _imageCache: new Map(),
+
+  // 画像を取得する（既に読み込み済みなら即座に返す）。
+  // onReadyは「呼び出し側が参照を保持し終えた後」に呼ぶ必要があるため、
+  // 準備済みかどうかのフラグだけ返し、コールバックの実行は呼び出し側に委ねる。
+  _getImage(src) {
+    let image = this._imageCache.get(src);
+    if (!image) {
+      image = window.PreloadedImages?.get(src) || new Image();
+      if (!image.src) image.src = src;
+      this._imageCache.set(src, image);
+    }
+    return image;
+  },
+
+  _whenReady(image, onReady) {
+    if (image.complete && image.naturalWidth > 0) onReady();
+    else image.addEventListener('load', onReady, { once: true });
+  },
+
   load(stageKey) {
     const data = STAGES[stageKey];
     if (!data) return;
@@ -68,18 +90,16 @@ const Stage = {
     // 画像読み込み前の暫定値（万一これが使われる場合は従来通り画像上端を採用）
     for (const p of this.platforms) p.surfaceY = p.y;
 
-    this.background = new Image();
     this.backgroundLoaded = false;
-    this.background.onload = () => { this.backgroundLoaded = true; };
-    this.background.src = data.background;
+    this.background = this._getImage(data.background);
+    this._whenReady(this.background, () => { this.backgroundLoaded = true; });
 
-    this.daiImage = new Image();
     this.daiLoaded = false;
-    this.daiImage.onload = () => {
+    this.daiImage = this._getImage(data.platformImage);
+    this._whenReady(this.daiImage, () => {
       this.daiLoaded = true;
       this._computePlatformSurfaces();
-    };
-    this.daiImage.src = data.platformImage;
+    });
   },
 
   // 足場画像の実寸（アスペクト比を保って幅=p.wで描画した際の高さ）を基に、

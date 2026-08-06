@@ -33,6 +33,7 @@ class InputManager {
       shield: !!this.keys['ControlRight'],
       grab: !!this.keys['Backslash'],
       stickX,
+      stickY: this.keys['ArrowUp'] ? -1 : this.keys['ArrowDown'] ? 1 : 0,
     };
   }
 
@@ -56,6 +57,7 @@ class InputManager {
       shield: !!this.keys['KeyH'],
       grab: !!this.keys['KeyR'],
       stickX,
+      stickY: this.keys['KeyW'] ? -1 : this.keys['KeyS'] ? 1 : 0,
     };
   }
 }
@@ -73,6 +75,8 @@ function mergeInputs(a, b) {
     shield: a.shield || b.shield,
     grab: a.grab || b.grab,
     stickX: Math.abs(b.stickX) > Math.abs(a.stickX) ? b.stickX : a.stickX,
+    // stickYはベクトル変更(DI)で使うため、キーボード側に無い場合も落とさず引き継ぐ
+    stickY: Math.abs(b.stickY || 0) > Math.abs(a.stickY || 0) ? (b.stickY || 0) : (a.stickY || 0),
   };
 }
 

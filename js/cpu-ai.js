@@ -47,7 +47,18 @@ class CPUController {
 
   decide(blastBounds) {
     const self = this.fighter;
-    if (self.dead || this.opponent.dead) return this._blankInput();
+    if (!this.opponent || self.dead || this.opponent.dead) return this._blankInput();
+
+    // 吹っ飛び中は受け身を狙う（レベルが高いほど成功率が上がる）
+    if (self.tumbling && !self.onGround && self.techWindow <= 0 && self.techLockout <= 0) {
+      // 早く押しすぎると受付が切れてしまうため、地面が近づいてから入力する
+      const willLandSoon = self.vy > 0 && self.groundDistance < Math.max(60, self.vy * 12);
+      if (willLandSoon && Math.random() < this.params.edgeGuardSkill) {
+        const input = this._blankInput();
+        input.shield = true;
+        return input;
+      }
+    }
 
     // 崖つかまりは通常の意思決定間隔を待たず、毎フレーム最優先で復帰する。
     // 直前の空入力を保持して崖にぶら下がり続ける状態を防ぐ。
@@ -86,6 +97,7 @@ class CPUController {
     const self = this.fighter;
     const opp = this.opponent;
     if (self.hitstun > 0 || self.dodgeTimer > 0 || self.shielding) return null;
+    if (self.hitlag > 0 || self.landingLag > 0) return null;
     if (opp.attackTimer <= 0 || !opp.currentMove) return null;
 
     const dx = Math.abs(opp.x - self.x);
@@ -168,14 +180,21 @@ class CPUController {
     const input = this._blankInput();
     const centerX = (blastBounds.left + blastBounds.right) / 2;
     const towardCenter = centerX > self.x ? 1 : -1;
-    input.left = towardCenter < 0;
-    input.right = towardCenter > 0;
-    input.stickX = towardCenter;
 
     if (self.jumpsUsed < CONFIG.MAX_JUMPS) {
+      input.left = towardCenter < 0;
+      input.right = towardCenter > 0;
+      input.stickX = towardCenter;
       input.jump = true;
     } else if (Math.random() < this.params.edgeGuardSkill) {
-      input.special = true; // 上Bに相当する必殺技での復帰を試みる
+      // 上B（復帰技）を出す。左右を入れたままBを押すと横必殺が出てしまい、
+      // 復帰できずにそのまま落下していたため、上入力のみにして上必殺を確実に選ばせる。
+      input.up = true;
+      input.special = true;
+    } else {
+      input.left = towardCenter < 0;
+      input.right = towardCenter > 0;
+      input.stickX = towardCenter;
     }
     return input;
   }

@@ -8,31 +8,29 @@ const CONFIG = {
   GROUND_Y: 750,
   BLAST_MARGIN: 420, // 画面外どこまで飛んだらKOか（上下左右を広めに確保）
 
-  // 回避ステータス -> 落下速度への影響（ダッシュが速い代わりに落下も速い）
-  EVASION_FALL_SCALE: 0.003,
-  EVASION_FALL_BONUS_MAX: 0.3,
+  // ==== ステータス → バトルへの反映カーブ ====
+  // 以前は「一定値で頭打ち」だったため、ステータス上限999に対して
+  // 130前後で全ての効果がカンストし、それ以降の育成が完全に無意味になっていた。
+  // ここでは上限へ漸近するが決して到達しない曲線 bonus = MAX * g / (g + HALF) を使う。
+  //   g    = ステータス - 基準値(ライフ100 / その他10)
+  //   HALF = 上限の半分に届くのに必要な伸び幅
+  // これにより「伸びるほど効果は緩やかになるが、1ポイントも無駄にならない」形になる。
+  DAMAGE_STAT_MAX: 1.0,    DAMAGE_STAT_HALF: 190,   // ちから/かしこさ → 与ダメージ
+  KB_POWER_MAX: 0.55,      KB_POWER_HALF: 240,      // ちから/かしこさ → 吹っ飛ばし力
+  LIFE_DAMAGE_MAX: 0.40,   LIFE_DAMAGE_HALF: 260,   // ライフ → 被ダメージ軽減
+  DEFENSE_KB_MAX: 0.45,    DEFENSE_KB_HALF: 230,    // 丈夫さ → 吹っ飛びにくさ（重さ）
+  EVASION_SPEED_MAX: 0.70, EVASION_SPEED_HALF: 260, // 回避 → 移動速度
+  EVASION_FALL_MAX: 0.35,  EVASION_FALL_HALF: 260,  // 回避 → 落下速度（速い＝ハイリスク）
+  ACCURACY_CRIT_MAX: 0.22, ACCURACY_CRIT_HALF: 320, // 命中 → クリティカル率
 
   // 吹っ飛び計算共通係数（各技のkbBaseと組み合わせて使用）
   KB_BASE_MULTIPLIER: 0.82,
   KB_DAMAGE_SCALE: 0.07,
-  KB_POWER_SCALE: 0.006,
-  KB_STAT_BONUS_MAX: 0.65,
-  DEFENSE_SCALE: 0.003,
-  DEFENSE_REDUCTION_MAX: 0.35,
-
-  DAMAGE_STAT_SCALE: 0.01,
-  DAMAGE_STAT_BONUS_MAX: 1.2,
-  LIFE_DAMAGE_REDUCTION_SCALE: 0.002,
-  LIFE_DAMAGE_REDUCTION_MAX: 0.35,
   CRITICAL_CHANCE_BASE: 0.005,
-  ACCURACY_CRITICAL_SCALE: 0.0007,
-  CRITICAL_CHANCE_MAX: 0.12,
 
   // 移動（通常は遅め、ダッシュで倍速程度に）
   WALK_SPEED_BASE: 1.6,
   DASH_SPEED_BASE: 3.2,
-  EVASION_SPEED_SCALE: 0.006,
-  EVASION_SPEED_BONUS_MAX: 0.55,
 
   // 左スティックの倒し込み量(0〜1)による 歩き/ダッシュ/ステップ の判定
   // ・DASH_TILT_THRESHOLD以上倒す = ダッシュ判定（保持し続ければ走り、すぐ離せば結果的に短い「ステップ」になる）
@@ -69,6 +67,41 @@ const CONFIG = {
   // （platform.png は上部に空間があるため、画像の一番上ではなく少し下が実際の足場面になる）
   PLATFORM_SURFACE_RATIO: 0.25,
 
+  // ==== スマブラ的な手触りを出すための挙動 ====
+  // ヒットストップ（ヒットの瞬間に攻撃側・被弾側の双方が一瞬止まる）。
+  // 「当てた感触」を生む最も重要な要素で、ダメージが大きいほど長く止まる。
+  HITLAG_BASE: 3,
+  HITLAG_PER_DAMAGE: 0.5,
+  HITLAG_MAX: 20,
+  HITLAG_SHIELD_MULTIPLIER: 0.7,
+
+  // ヒットストップ（のけぞり）時間は吹っ飛び速度に比例
+  HITSTUN_PER_KB: 3.2,
+  HITSTUN_MIN: 8,
+  HITSTUN_MAX: 70,
+
+  // ベクトル変更（DI）：吹っ飛ばされる瞬間のスティック入力で軌道を最大何度ずらせるか
+  DI_MAX_ANGLE_SHIFT: 18,
+
+  // 急降下：落下中に下入力で落下速度を上げる
+  FAST_FALL_MULTIPLIER: 1.65,
+
+  // 着地隙：空中攻撃を出したまま着地すると硬直する
+  LANDING_LAG_DEFAULT: 10,
+
+  // 受け身：吹っ飛び中に地面へ叩きつけられる直前にシールドを押すと成立
+  TECH_WINDOW_FRAMES: 20,
+  TECH_INVINCIBLE_FRAMES: 24,
+  TECH_LOCKOUT_FRAMES: 40,
+
+  // ワンパターン相殺：同じ技を連発すると威力が落ちる
+  STALE_QUEUE_SIZE: 9,
+  STALE_MAX_REDUCTION: 0.45,
+
+  // 画面揺れ（強い一撃ほど大きく揺れる）
+  SHAKE_PER_KB: 0.55,
+  SHAKE_MAX: 13,
+
   STOCK_DEFAULT: 3,
   RESPAWN_INVINCIBLE_FRAMES: 90,
   TUMBLE_DAMAGE_THRESHOLD: 30,
@@ -79,6 +112,10 @@ const CONFIG = {
   SHIELD_DRAIN_PER_FRAME: 0.45,   // 押しっぱなしで約3.7秒で割れる
   SHIELD_REGEN_PER_FRAME: 0.3,
   SHIELD_BREAK_DAZE_FRAMES: 240, // 4秒 ピヨリ状態
+  SHIELD_STUN_BASE: 3,            // ガード硬直（与ダメージに比例して伸びる）
+  SHIELD_STUN_PER_DAMAGE: 0.4,
+  SHIELD_CHIP_SCALE: 1.15,        // 与ダメージに比例してシールドを削る量
+  SHIELD_PUSHBACK_MAX: 3.4,       // ガード時の後退速度上限
 
   // 回避（シールド+方向）
   DODGE_SPOT_FRAMES: 24,   // その場回避

@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.81</small>
+    <small class="home-version">Version 0.82</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.82</time><strong>バトルを大幅に強化・軽量化</strong><p>ヒットストップ、ベクトル変更（吹っ飛び中のスティック入力で軌道を変える）、受け身、急降下、着地隙、ワンパターン相殺、ダメージに比例したガード硬直と画面揺れを追加し、より本格的な対戦の手触りになりました。また、ステータス上昇の効果が途中で頭打ちにならないよう計算式を見直し、カンストまで育成が意味を持つようにしています。合わせて、CPUが復帰技を出せずに落下するバグ、乱闘で1回の攻撃が1人にしか当たらない問題、中断・再開やマルチでモーションが失われる問題を修正し、描画処理も軽量化しました。</p></article>
           <article><time>Version 0.81</time><strong>トレーニングの上昇値を適性入りで表示</strong><p>トレーニングの上昇値が、選択中のマスモンの適性を反映した実際の値で表示されるようになりました。例えばちから適性Aなら重り引きでちからが+20、適性Dなら猛勉強でかしこさが+10といった具合に伸び方が変わります。修行のコース選択でも、対象ステータスの適性を確認できるようにしました。</p></article>
           <article><time>Version 0.80</time><strong>適性の表示を変更</strong><p>適性ランクを、太い縁取りと立体的なグラデーションを付けたアルファベット表示に変更しました。A=赤／B=紫／C=緑／D=青緑／E=青とランクごとに色分けしています。</p></article>
           <article><time>Version 0.79</time><strong>トレーニング画面を2カラムに変更</strong><p>ステータス表示を画面左半分、トレーニング内容を右半分に並べ、圧迫感をなくしました。ステータスバーは最大値999を満タンとする表示に変更しています。</p></article>
@@ -477,23 +478,23 @@
 
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=3"></script>
+  <script src="js/config.js?v=4"></script>
   <script src="js/audio.js?v=5"></script>
-  <script src="js/moves.js?v=27"></script>
+  <script src="js/moves.js?v=28"></script>
   <script src="js/fighters/irumine-moves.js?v=34"></script>
   <script src="js/fighters/dullahan-moves.js?v=27"></script>
-  <script src="js/physics.js?v=31"></script>
-  <script src="js/fighter.js?v=41"></script>
+  <script src="js/physics.js?v=32"></script>
+  <script src="js/fighter.js?v=42"></script>
   <script src="js/fighters-data.js"></script>
   <script src="js/debug-mode.js?v=7"></script>
-  <script src="js/stage.js?v=31"></script>
-  <script src="js/camera.js?v=2"></script>
-  <script src="js/cpu-ai.js"></script>
+  <script src="js/stage.js?v=32"></script>
+  <script src="js/camera.js?v=3"></script>
+  <script src="js/cpu-ai.js?v=2"></script>
   <script src="js/growth-system.js?v=39"></script>
-  <script src="js/practice.js?v=6"></script>
-  <script src="js/input.js?v=5"></script>
+  <script src="js/practice.js?v=7"></script>
+  <script src="js/input.js?v=6"></script>
   <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=39"></script>
+  <script src="js/game.js?v=40"></script>
     <script src="js/flow.js?v=52"></script>
   <script src="js/pwa.js?v=11"></script>
 </body>
