@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=58">
+<link rel="stylesheet" href="css/style.css?v=59">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.87</small>
+    <small class="home-version">Version 0.88</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.88</time><strong>スタジオのURLを確認しやすく</strong><p>管理者モードのツールタブで、スタジオの完全なURLを表示・コピーできるようにしました。アドレスバーにはドメインしか表示されないため、履歴を消すとURLが分からなくなる問題への対策です。</p></article>
           <article><time>Version 0.87</time><strong>モンスター作成スタジオを独立したアプリに</strong><p>スタジオをゲームとは別のアプリとして開けるようにしました。共有ボタンから「ホーム画面に追加」すると専用アイコンで直接起動でき、ゲームを開く必要がありません。</p></article>
           <article><time>Version 0.86</time><strong>モンスター作成スタジオを追加</strong><p>管理者モードに「ツール」タブを追加しました。画像を選ぶだけで背景透過・コマ選択・表示位置の自動計算まで行い、そのままリポジトリへ登録できます。キャッシュ番号・バージョン・更新履歴も自動で更新されます。</p></article>
           <article><time>Version 0.85</time><strong>全モーションに対応</strong><p>待機・歩行・ダッシュ・ジャンプ・空中待機・しゃがみ・ガード・被弾・吹っ飛び・ダウン・崖つかまりの各状態に個別のモーションを設定できるようにしました。用意されていないモーションは自動的に別の状態（最終的には待機）へ切り替わるため、一部だけ用意した状態でも破綻しません。</p></article>
@@ -271,6 +272,11 @@
         <small>画像を選ぶ → 背景透過 → コマ選択 → 登録まで完結。位置合わせ・キャッシュ・バージョン・更新履歴も自動更新</small>
       </a>
       <p class="admin-tool-note">初回はGitHubのアクセストークン（fine-grained / Contents: Read and write）の登録が必要です。</p>
+      <div class="admin-tool-url">
+        <small>スタジオを直接開くURL（ホーム画面に追加しておくと確実です）</small>
+        <code id="admin-tool-url-text"></code>
+        <button id="admin-tool-url-copy" type="button">URLをコピー</button>
+      </div>
     </div>
     <div class="admin-pane hidden admin-battle-pane" data-admin-pane="battle">
       <p>実際のCPU戦を直接開始し、モーションや技の当たり判定を本番同様に確認します。</p>
@@ -495,7 +501,7 @@
   <script src="js/physics.js?v=33"></script>
   <script src="js/fighter.js?v=44"></script>
   <script src="js/fighters-data.js?v=3"></script>
-  <script src="js/debug-mode.js?v=8"></script>
+  <script src="js/debug-mode.js?v=9"></script>
   <script src="js/stage.js?v=32"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=3"></script>

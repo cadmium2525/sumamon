@@ -17,6 +17,7 @@ const DebugMotionViewer = {
       button.addEventListener('click', () => this.switchTab(button.dataset.adminTab));
     });
     this.buildAudioList();
+    this.setupToolLink();
     document.getElementById('admin-player-refresh').addEventListener('click', () => this.loadPlayerActivity());
 
     // 修行テスト：どのfighterで試すか選べるようにする
@@ -122,6 +123,25 @@ const DebugMotionViewer = {
         Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round(value)));
     });
     return overrides;
+  },
+
+  // スタジオの絶対URLを表示する。
+  // アドレスバーにはドメインしか出ないため、パスまで含めた形をここで確認・コピーできるようにする。
+  setupToolLink() {
+    const text = document.getElementById('admin-tool-url-text');
+    const copy = document.getElementById('admin-tool-url-copy');
+    if (!text || !copy) return;
+    const url = new URL('tools/', location.href).href;
+    text.textContent = url;
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        copy.textContent = 'コピーしました';
+      } catch (error) {
+        copy.textContent = '長押しで選択してコピーしてください';
+      }
+      setTimeout(() => { copy.textContent = 'URLをコピー'; }, 2200);
+    });
   },
 
   // BGM/SE確認：AudioManagerの登録内容から一覧を自動生成する。
