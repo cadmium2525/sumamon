@@ -82,7 +82,7 @@ const Studio = {
     });
     this.setStatus('gh-state', 'info', '接続を確認中…');
     try {
-      const name = await StudioGitHub.testConnection();
+      const repo = await StudioGitHub.testConnection();
       const [fighters, movesets] = await Promise.all([
         StudioGitHub.getFile('data/fighters.json'),
         StudioGitHub.getFile('data/movesets.json'),
@@ -90,7 +90,10 @@ const Studio = {
       this.fightersJson = JSON.parse(fighters || '{}');
       this.movesetsJson = JSON.parse(movesets || '{}');
       this.fillExisting();
-      this.setStatus('gh-state', 'ok', `接続OK: ${name}（登録済み ${Object.keys(this.fightersJson).length}体）`);
+      const note = repo.canPush ? ''
+        : '｜書き込み権限を確認できませんでした。コミットで失敗する場合はトークンの Contents を Read and write にしてください';
+      this.setStatus('gh-state', repo.canPush ? 'ok' : 'info',
+        `接続OK: ${repo.name}（登録済み ${Object.keys(this.fightersJson).length}体）${note}`);
     } catch (error) {
       this.setStatus('gh-state', 'ng', String(error.message || error));
     }

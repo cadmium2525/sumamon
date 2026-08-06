@@ -59,13 +59,15 @@ const StudioGitHub = {
     return response.status === 204 ? null : response.json();
   },
 
-  // 接続テスト：リポジトリが見え、書き込み権限があるかを確認する
+  // 接続テスト：リポジトリが見えるかを確認する。
+  // 書き込み権限の有無はここでは断定しない。fine-grainedトークンでは
+  // permissions.push が実際の権限を正しく反映しないことがあり、
+  // 実際にはコミットできるのに「権限がありません」と誤って弾いてしまうため、
+  // 判定できない場合は注意書きにとどめて先へ進ませる。
   async testConnection() {
     const repo = await this._request(`/repos/${this.repo}`);
-    if (!repo.permissions || !repo.permissions.push) {
-      throw new Error('このトークンには書き込み権限がありません。Contents を Read and write にしてください。');
-    }
-    return repo.full_name;
+    const canPush = !!(repo.permissions && repo.permissions.push);
+    return { name: repo.full_name, canPush };
   },
 
   async getFile(path) {
