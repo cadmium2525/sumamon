@@ -71,6 +71,7 @@ const StudioBuild = {
       hurtboxWidth: spec.hurtboxWidth,
       hurtboxHeight: spec.hurtboxHeight,
       fallSpeed: spec.fallSpeed,
+      proceduralMotion: spec.proceduralMotion,
     };
     if (spec.idleImage) fighter.idleImage = spec.idleImage;
     if (spec.stockIcon) fighter.stockIcon = spec.stockIcon;

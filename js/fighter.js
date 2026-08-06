@@ -88,6 +88,14 @@ class Fighter {
     // 大きいほど速く落ち、コンボは抜けやすいが復帰は難しくなる。
     this.fallSpeed = Physics.fallMultiplier(options.fallSpeed);
 
+    // 自動モーション：専用モーションが無い状態・技を、立ち絵の変形で動かす。
+    // モンスターごとに切ったり動きの強さを変えたりできる。
+    this.proceduralEnabled = options.proceduralMotion?.enabled !== false;
+    this.proceduralIntensity = Number.isFinite(options.proceduralMotion?.intensity)
+      ? Math.max(0, options.proceduralMotion.intensity) : 1;
+    this.proceduralClock = 0;
+    this.currentMoveSlot = null;
+
     // 見た目用スプライト（未指定の場合は色付き矩形のまま）
     this.sprite = null;
     this.spriteLoaded = false;
@@ -730,8 +738,34 @@ class Fighter {
     return false;
   }
 
+  // 自動モーションで技の種類ごとに動きを変えるため、どの技かを覚えておく
+  _slotForMove(move) {
+    if (!move) return null;
+    for (const table of [this.moveSet, typeof MOVES === 'object' ? MOVES : null]) {
+      if (!table) continue;
+      for (const [group, moves] of Object.entries(table)) {
+        if (!moves || typeof moves !== 'object') continue;
+        for (const [key, candidate] of Object.entries(moves)) {
+          if (candidate === move) return `${group}.${key}`;
+        }
+      }
+    }
+    // スマッシュは溜め量を反映した複製が渡るため、同じ名前の技から引き当てる
+    for (const table of [this.moveSet, typeof MOVES === 'object' ? MOVES : null]) {
+      if (!table) continue;
+      for (const [group, moves] of Object.entries(table)) {
+        if (!moves || typeof moves !== 'object') continue;
+        for (const [key, candidate] of Object.entries(moves)) {
+          if (candidate && candidate.name && candidate.name === move.name) return `${group}.${key}`;
+        }
+      }
+    }
+    return null;
+  }
+
   startAttack(move) {
     this.currentMove = move;
+    this.currentMoveSlot = this._slotForMove(move);
     this.attackTimer = move.duration;
     this.hasHitThisAttack = false;
     this._hitWindowIndex = -1;
@@ -863,14 +897,16 @@ class Fighter {
 
     for (const key of order) {
       const state = this.stateAnimations[key];
-      if (Fighter.animationReady(state)) return { key, state };
+      // wanted = 本来出したい状態。keyが違う場合は代替に落ちている＝専用モーションが無い。
+      if (Fighter.animationReady(state)) return { key, state, wanted: order[0] };
     }
-    return null;
+    return { key: null, state: null, wanted: order[0] };
   }
 
   // 状態アニメのコマ送りを進める（update()から毎フレーム呼ぶ）
   _advanceStateAnimation() {
-    const picked = this._pickStateAnimation();
+    const found = this._pickStateAnimation();
+    const picked = found && found.state ? found : null;
     const key = picked ? picked.key : null;
     if (key !== this.animState) {
       // 状態が変わったらコマを頭出しする
@@ -1138,6 +1174,7 @@ class Fighter {
     const wasAirborne = !this.onGround;
     // 足元から地面までの距離（受け身の判断や着地予測に使う）
     this.groundDistance = Physics.distanceToGround(this, platforms);
+    this.proceduralClock++;
     Physics.applyGravity(this, this.fallSpeed);
     this.x += this.vx;
     this.y += this.vy;
@@ -1338,9 +1375,36 @@ class Fighter {
     const moveAnimation = this.currentMove && this.attackTimer > 0
       ? this.moveAnimations.get(this.currentMove) : null;
     const useMoveFrame = Fighter.animationReady(moveAnimation);
-    const picked = useMoveFrame ? null : this._pickStateAnimation();
+    const found = useMoveFrame ? null : this._pickStateAnimation();
+    const picked = found && found.state ? found : null;
     const useWalkSheet = !useMoveFrame && !picked && this.walkSheet && this.walkSheetLoaded &&
       this.showWalkFrame && this.walkFrameContentBox;
+
+    // ---- 自動モーション ----
+    // 専用モーションが用意されていない状態・技だけ、立ち絵を変形させて動かす。
+    // 専用モーションを登録したスロットは上の分岐でそちらが使われるため、ここは通らない。
+    const attacking = !!(this.currentMove && this.attackTimer > 0);
+    const missingMoveMotion = attacking && !useMoveFrame;
+    // 代替の状態へ落ちている（wanted と key が違う）＝その状態の専用モーションが無い
+    const missingStateMotion = !attacking && !useWalkSheet &&
+      !!found && found.key !== found.wanted;
+    // しゃがみ・吹っ飛び・ダウンはエンジン側に専用の変形があるため二重に掛けない
+    const engineHandled = this.crouching || this.tumbling || this.downed;
+    if (!engineHandled && (missingMoveMotion || missingStateMotion) && window.ProceduralMotion) {
+      const transform = ProceduralMotion.transformFor(this, {
+        attacking: missingMoveMotion,
+        stateKey: missingStateMotion ? found.wanted : null,
+      });
+      if (transform) {
+        const pivotX = this.x + this.w / 2;
+        const pivotY = this.y + this.h;   // 足元中央を軸にすると地面から浮かない
+        const unit = this.h;
+        ctx.translate(pivotX + transform.dx * this.facing * unit, pivotY + transform.dy * unit);
+        ctx.rotate(this.facing * transform.rot * Math.PI / 180);
+        ctx.scale(transform.sx, transform.sy);
+        ctx.translate(-pivotX, -pivotY);
+      }
+    }
 
     if (useMoveFrame) {
       const moveElapsed = this.currentMove.duration - this.attackTimer;

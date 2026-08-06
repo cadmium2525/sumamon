@@ -30,6 +30,7 @@ const Studio = {
     this.el('spec-existing').addEventListener('change', () => this.loadExisting());
     this.el('spec-key').addEventListener('input', () => this.refreshExistingMotions());
     this.el('spec-fall').addEventListener('input', () => this.refreshFallLabel());
+    this.el('spec-proc-intensity').addEventListener('input', () => this.refreshProcLabel());
     this.el('btn-diff').addEventListener('click', () => this.showDiff());
     this.el('btn-commit').addEventListener('click', () => this.commit());
 
@@ -45,6 +46,11 @@ const Studio = {
   refreshFallLabel() {
     const value = (Number(this.el('spec-fall').value) || 100) / 100;
     this.el('spec-fall-value').textContent = value.toFixed(2);
+  },
+
+  // 自動モーションの強さ表示
+  refreshProcLabel() {
+    this.el('spec-proc-value').textContent = String(Number(this.el('spec-proc-intensity').value) || 0);
   },
 
   setStatus(id, kind, text) {
@@ -181,6 +187,10 @@ const Studio = {
     this.el('spec-hw').value = fighter.hurtboxWidth || 54;
     this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
     this.refreshFallLabel();
+    const proc = fighter.proceduralMotion || {};
+    this.el('spec-proc').checked = proc.enabled !== false;
+    this.el('spec-proc-intensity').value = Math.round((proc.intensity != null ? proc.intensity : 1) * 100);
+    this.refreshProcLabel();
     const stats = fighter.stats || {};
     ['life', 'power', 'intelligence', 'accuracy', 'evasion', 'defense'].forEach(stat => {
       this.el(`st-${stat}`).value = stats[stat] != null ? stats[stat] : (stat === 'life' ? 100 : 10);
@@ -935,6 +945,10 @@ const Studio = {
         hurtboxHeight: Number(this.el('spec-hh').value) || 124,
         hurtboxWidth: Number(this.el('spec-hw').value) || 54,
         fallSpeed: Number((Number(this.el('spec-fall').value) / 100).toFixed(2)) || 1,
+        proceduralMotion: {
+          enabled: this.el('spec-proc').checked,
+          intensity: Number((Number(this.el('spec-proc-intensity').value) / 100).toFixed(2)),
+        },
         idleImage, stockIcon, spriteContentBox,
         stats,
       },
@@ -981,6 +995,8 @@ const Studio = {
       const lines = [
         `■ モンスター: ${collected.displayName}（${collected.key}）`,
         `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth} / 落下速度 ${collected.spec.fallSpeed}倍`,
+        `■ 自動モーション: ${collected.spec.proceduralMotion.enabled
+          ? `使う（強さ ${Math.round(collected.spec.proceduralMotion.intensity * 100)}%）` : '使わない'}`,
         `■ 登録モーション: ${Object.keys(collected.animations).join('、') || 'なし'}`,
         `■ 技: ${Object.entries(collected.moveData).map(([k, v]) =>
           k + (v.animation ? '(モーション)' : '') + (v.projectile ? '(飛び道具)' : '')

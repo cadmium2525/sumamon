@@ -158,6 +158,12 @@ button:disabled { opacity: .45; }
   <input id="spec-fall" type="range" min="70" max="140" value="100">
   <p class="note" style="margin-top:6px">モンスターごとの個性で、育成では変わりません。
     速いほどコンボを抜けやすい反面、崖の外へ出ると復帰が難しくなります。</p>
+  <label class="check" style="margin-top:14px"><input id="spec-proc" type="checkbox" checked> 自動モーションを使う</label>
+  <label>動きの強さ <span id="spec-proc-value">100</span>%</label>
+  <input id="spec-proc-intensity" type="range" min="0" max="150" value="100">
+  <p class="note" style="margin-top:6px">専用モーションを登録していない状態や技を、立ち絵の変形（上下動・傾き・踏み込みなど）で
+    自動的に動かします。専用モーションを登録したものは、そちらが優先されて自動モーションは使われません。
+    動きが大げさに感じる場合は強さを下げてください。</p>
   <label>イメージカラー（HUDの枠色）</label>
   <input id="spec-color" type="color" value="#ff4757" style="height:44px">
 </section>
