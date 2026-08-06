@@ -60,10 +60,14 @@ button:disabled { opacity: .45; }
 .kept-note { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #10251a; border: 1px solid #2f8a52; color: #b8f5c8; font-size: 11px; line-height: 1.6; }
 .kept-note.hidden { display: none; }
 .chev { color: #5d7590; }
-.editor { position: fixed; inset: 0; z-index: 50; overflow-y: auto; padding-bottom: 40px; background: #0d1420; }
+/* 画面いっぱいに出すため body の safe-area 余白が効かない。
+   端末の時計やノッチに「戻る」が隠れないよう、ここで直接よける。 */
+.editor { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: #0d1420;
+  padding: 0 env(safe-area-inset-right) calc(40px + env(safe-area-inset-bottom)) env(safe-area-inset-left); }
 .editor.hidden { display: none; }
 .editor-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px;
-  padding: 12px 14px; background: #101b28; border-bottom: 1px solid #22344a; }
+  padding: 12px 14px; padding-top: calc(12px + env(safe-area-inset-top));
+  background: #101b28; border-bottom: 1px solid #22344a; }
 .editor-head strong { flex: 1; font-size: 16px; }
 .frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 6px; margin-top: 10px; }
 .frame { position: relative; border: 2px solid #2b3f57; border-radius: 8px; padding: 2px;
@@ -71,6 +75,8 @@ button:disabled { opacity: .45; }
 .frame.off { opacity: .35; border-style: dashed; }
 .frame.hit { border-color: #ff6b57; box-shadow: 0 0 0 2px rgba(255,107,87,.35) inset; }
 .frame .hitmark { position: absolute; right: 3px; bottom: 2px; color: #ff8f7d; font-size: 10px; font-weight: 900; text-shadow: 0 1px 2px #000; }
+/* 足元が地面から何px浮いているか（崖つかまりなど高さが変わるモーション用） */
+.frame .lift { position: absolute; right: 3px; top: 2px; color: #7ce0ff; font-size: 10px; font-weight: 900; font-style: normal; text-shadow: 0 1px 2px #000; }
 .seg button { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; }
 .seg button.seg-on { border-color: #ffd45e; color: #2a1c00; background: #ffd45e; }
 #atk-detail.hidden, #atk-fields.hidden { display: none; }

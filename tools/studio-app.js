@@ -533,6 +533,9 @@ const Studio = {
           message = `繰り返しが見つからなかったため、動画全体から${sources.length}コマを均等に使います`;
         }
       }
+      if (candidates.recovered) {
+        message += `（${candidates.recovered}コマは取り出せず、前後のコマで埋めました）`;
+      }
       state.textContent = message + '。うまくいかない時は枚数や範囲を変えて選び直してください。';
 
       delete this.attacks[this.editing.slot];
@@ -607,6 +610,9 @@ const Studio = {
       entry.canvases = canvases;
       // コマごとにbboxが違うと再生時にガタつくため、全コマの和集合を共通boxとして使う
       const boxes = canvases.map(canvas => StudioImage.contentBox(canvas));
+      // 崖つかまり→よじ登りのように足元が上下する技もあるため、
+      // コマごとの位置も残しておき、プレビューで軌跡として見せる
+      entry.frameBoxes = boxes;
       entry.footOffset = Number(this.el('ed-foot').value) || 0;
       entry.sizePercent = Number(this.el('ed-scale').value) || 100;
       const raw = StudioImage.nudgeBottom(StudioImage.unionContentBox(boxes), entry.footOffset);
@@ -642,13 +648,19 @@ const Studio = {
     // 「使うコマ」と「判定コマ」で、コマ一覧のタップの意味が変わる
     const attack = this.attacks[this.editing.slot];
     const hitFrames = new Set((attack && attack.hitFrames) || []);
+    // 足元が動くモーション（崖つかまりなど）は、コマごとの浮きをそのまま表示する
+    const travel = this.footTravel();
+    const showLift = !!(travel && travel.up >= 3) && entry.contentBox;
     let usableIndex = -1;
     container.innerHTML = entry.canvases.map((canvas, index) => {
       const used = entry.used[index];
       if (used) usableIndex++;
       const isHit = used && hitFrames.has(usableIndex);
+      const own = showLift && entry.frameBoxes && entry.frameBoxes[index];
+      const lift = own ? Math.round(entry.contentBox.bottom - own.bottom) : 0;
       return `<div class="frame${used ? '' : ' off'}${isHit ? ' hit' : ''}" data-index="${index}">
         <span>${index + 1}</span><img src="${StudioImage.toDataUrl(canvas)}" alt="">
+        ${lift >= 3 ? `<i class="lift">↑${lift}</i>` : ''}
         ${isHit ? '<i class="hitmark">判定</i>' : ''}
       </div>`;
     }).join('');
@@ -679,12 +691,30 @@ const Studio = {
     });
     const box = entry.contentBox;
     const usedCount = entry.used.filter(Boolean).length;
-    this.el('ed-box').textContent = box
+    let text = box
       ? `使用 ${usedCount}コマ／画像 ${entry.canvases[0].width}×${entry.canvases[0].height}px｜`
         + `本体の位置 contentBox = 左${box.left} 上${box.top} 右${box.right} 下${box.bottom}（影は自動で除外）`
       : `使用 ${usedCount}コマ`;
+    if (travel && travel.up >= 3) {
+      text += `｜足元が ${travel.up}px 上下します（崖つかまり→よじ登りのように高さが変わるモーション）`;
+    }
+    this.el('ed-box').textContent = text;
     this.playIndex = 0;
     this.showFrame();
+  },
+
+  // 使うコマだけのコマ別bbox。崖つかまりのように足元が動く技の確認に使う。
+  usableFrameBoxes() {
+    const entry = this.motions[this.editing.slot];
+    if (!entry || !Array.isArray(entry.frameBoxes)) return [];
+    return entry.frameBoxes.filter((_, i) => entry.used[i]);
+  },
+
+  // モーション全体で足元が何px上下するか
+  footTravel() {
+    const bottoms = this.usableFrameBoxes().filter(Boolean).map(box => box.bottom);
+    if (bottoms.length < 2) return null;
+    return { up: Math.round(Math.max(...bottoms) - Math.min(...bottoms)) };
   },
 
   // ゲーム本体と同じ計算（本体の高さ = 当たり判定の高さ になるスケール）でプレビューする。
@@ -721,6 +751,48 @@ const Studio = {
     }
     const currentIndex = this.playIndex % usable.length;
     drawWith(usable[currentIndex], entry.contentBox, 1);
+
+    // 崖つかまり→よじ登りのように足元が上下するモーションは、
+    // 共通の枠に収めて描くため見た目では気づきにくい。
+    // 各コマの足元を軌跡として重ね、今のコマの高さを線で示す。
+    const frameBoxes = this.usableFrameBoxes();
+    const travel = this.footTravel();
+    if (travel && travel.up >= 3 && frameBoxes.length === usable.length) {
+      const scale = unitHeight / (entry.contentBox.bottom - entry.contentBox.top);
+      const top = baseline - unitHeight;
+      const point = fb => ({
+        x: centerX + ((fb.left + fb.right) / 2 - (entry.contentBox.left + entry.contentBox.right) / 2) * scale,
+        y: top + (fb.bottom - entry.contentBox.top) * scale,
+      });
+      ctx.save();
+      ctx.strokeStyle = 'rgba(120,220,255,.55)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      frameBoxes.forEach((fb, index) => {
+        if (!fb) return;
+        const p = point(fb);
+        if (index === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      });
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(120,220,255,.5)';
+      frameBoxes.forEach(fb => { if (fb) { const p = point(fb); ctx.fillRect(p.x - 2, p.y - 2, 4, 4); } });
+
+      const own = frameBoxes[currentIndex];
+      if (own) {
+        const p = point(own);
+        ctx.strokeStyle = '#7ce0ff';
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.moveTo(14, p.y + .5); ctx.lineTo(canvas.width - 14, p.y + .5); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#7ce0ff';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+        const lift = Math.round(entry.contentBox.bottom - own.bottom);
+        ctx.font = 'bold 11px -apple-system, sans-serif';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(lift > 0 ? `地面から +${lift}px` : '接地', 14, Math.max(12, p.y - 4));
+      }
+      ctx.restore();
+    }
 
     // 攻撃判定をゲームと同じ相対座標で重ねて表示する
     const built = this.buildAttack(this.editing.slot);

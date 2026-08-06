@@ -17,6 +17,13 @@ const StudioVideo = {
     if (!video.videoWidth) {
       await new Promise(resolve => { video.onloadeddata = resolve; setTimeout(resolve, 1200); });
     }
+    // iOS Safariは一度も再生していない動画の絵をcanvasへ描けないことがある。
+    // 無音・即停止の再生で復号を始めさせておく（失敗しても致命的ではない）。
+    try {
+      await video.play();
+      video.pause();
+      video.currentTime = 0;
+    } catch (error) { /* 自動再生が拒否された場合はそのまま進む */ }
     return video;
   },
 
@@ -24,14 +31,58 @@ const StudioVideo = {
     if (video && video.src) URL.revokeObjectURL(video.src);
   },
 
+  // 指定時刻へ移動し、「その絵が本当に描ける状態」になるまで待つ。
+  // seeked が来た時点ではまだ復号が終わっておらず、そのまま drawImage すると
+  // 真っ透明のコマになる端末があるため、readyState と描画タイミングまで見る。
   _seek(video, time) {
-    return new Promise((resolve, reject) => {
-      const done = () => { video.removeEventListener('seeked', done); resolve(); };
-      video.addEventListener('seeked', done);
+    return new Promise(resolve => {
+      let finished = false;
+      let timer = null;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        video.removeEventListener('seeked', onSeeked);
+        resolve();
+      };
+      const whenDecoded = () => {
+        if (video.readyState >= 2) {
+          // 復号済みの絵が画面に用意されるまで1コマぶん待つ
+          if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => finish());
+          else finish();
+          return;
+        }
+        setTimeout(whenDecoded, 30);
+      };
+      const onSeeked = () => whenDecoded();
+      video.addEventListener('seeked', onSeeked);
       // シークが返らない端末があるため、一定時間で諦めて次へ進む
-      setTimeout(() => { video.removeEventListener('seeked', done); resolve(); }, 1500);
-      try { video.currentTime = time; } catch (error) { reject(error); }
+      timer = setTimeout(finish, 3000);
+      try { video.currentTime = time; } catch (error) { finish(); }
     });
+  },
+
+  _capture(video, width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    try {
+      canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+    } catch (error) { /* 描けなかった場合は空のまま返し、呼び出し側でやり直す */ }
+    return canvas;
+  },
+
+  // 何も描かれていない（＝取り出しに失敗した）コマかどうか。
+  // 背景透過より前の判定なので、透明ならそれは失敗を意味する。
+  _isBlank(canvas) {
+    const size = 32;
+    const small = document.createElement('canvas');
+    small.width = size; small.height = size;
+    const ctx = small.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(canvas, 0, 0, size, size);
+    const data = ctx.getImageData(0, 0, size, size).data;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 8) return false;
+    return true;
   },
 
   // 動画全体から等間隔でcount枚取り出す。
@@ -46,17 +97,39 @@ const StudioVideo = {
     const margin = Math.min(0.08 * duration, 0.25);
     const start = margin;
     const span = Math.max(0.01, duration - margin * 2);
+    const step = span / count;
     const frames = [];
     for (let i = 0; i < count; i++) {
-      const time = start + (span * i) / count;
-      await this._seek(video, time);
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext('2d').drawImage(video, 0, 0, width, height);
-      frames.push(canvas);
+      const time = start + step * i;
+      let got = null;
+      // 失敗（透明なコマ）は端末側の復号待ちが原因なので、少し時刻をずらして取り直す
+      for (let attempt = 0; attempt < 3 && !got; attempt++) {
+        const at = Math.min(Math.max(0, time + step * 0.15 * attempt), Math.max(0, duration - 0.05));
+        await this._seek(video, at);
+        const canvas = this._capture(video, width, height);
+        if (!this._isBlank(canvas)) got = canvas;
+      }
+      frames.push(got);
       if (onProgress) onProgress(i + 1, count);
     }
+
+    // それでも取れなかったコマは、透明のまま混ぜず一番近い成功コマで埋める
+    if (frames.every(frame => !frame)) {
+      throw new Error('動画からコマを取り出せませんでした。端末が対応していない形式の可能性があります（MP4/H.264をお試しください）');
+    }
+    let recovered = 0;
+    for (let i = 0; i < frames.length; i++) {
+      if (frames[i]) continue;
+      recovered++;
+      let nearest = null, best = Infinity;
+      for (let j = 0; j < frames.length; j++) {
+        if (!frames[j]) continue;
+        const distance = Math.abs(j - i);
+        if (distance < best) { best = distance; nearest = frames[j]; }
+      }
+      frames[i] = nearest;
+    }
+    frames.recovered = recovered;
     return frames;
   },
 

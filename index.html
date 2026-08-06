@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.93</small>
+    <small class="home-version">Version 0.94</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.94</time><strong>スタジオの不具合修正（動画の透明コマ・崖つかまりの確認・戻るボタン）</strong><p>動画からコマを切り出すと透明なコマが混ざることがあった問題を修正しました。端末が絵を用意し終える前に取り込んでいたのが原因で、取り出せるまで待ち直すようにしています。あわせて、崖つかまりのように足元の高さが変わるモーションで、各コマの浮き具合と足元の軌跡をプレビューに表示するようにしました。モーション編集画面の「戻る」が端末の時計と重なって押しづらかった点も直しています。</p></article>
           <article><time>Version 0.93</time><strong>技ごとの威力・攻撃判定をスタジオで設定可能に</strong><p>モンスターの技ごとに、ダメージや吹っ飛ばし、判定の発生タイミング・持続コマ・判定の軌道を設定できるようになりました。「素早い/標準/大ぶり」を選んで威力スライダーを動かすだけで各数値は自動で決まり、判定の位置と大きさもコマ画像から自動で抜き出します。斧を後方から頭上を通して前方へ振り下ろすような、コマごとに動く判定も作れます。細かく詰めたい場合は詳細設定から個別に上書きできます。</p></article>
           <article><time>Version 0.92</time><strong>イルミネ崖捕まり2</strong><p>デプロイ失敗</p></article>
           <article><time>Version 0.91</time><strong>イルミネのモーション追加</strong><p>イルミネの崖捕まりモーションの追加</p></article>
