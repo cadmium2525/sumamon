@@ -1,0 +1,188 @@
+{
+  "irumine": {
+    "ground": {
+      "neutral": {
+        "extends": "ground.neutral",
+        "animation": {
+          "frames": [
+            "assets/images/fighter/irumine/neutral_attack/frame_001.png",
+            "assets/images/fighter/irumine/neutral_attack/frame_002.png",
+            "assets/images/fighter/irumine/neutral_attack/frame_003.png",
+            "assets/images/fighter/irumine/neutral_attack/frame_004.png"
+          ],
+          "frameDuration": 2,
+          "contentBox": {
+            "left": 22,
+            "top": 3,
+            "right": 372,
+            "bottom": 264
+          }
+        }
+      }
+    },
+    "special": {
+      "neutral": {
+        "name": "ルミナスアロー",
+        "dmgBase": 8,
+        "kbBase": 4.5,
+        "angle": 32,
+        "duration": 24,
+        "active": [
+          9,
+          9
+        ],
+        "range": 0,
+        "h": 0,
+        "yOff": 0,
+        "statKey": "intelligence",
+        "endlag": 16,
+        "projectile": {
+          "speed": 12,
+          "width": 108,
+          "height": 30,
+          "lifetime": 95,
+          "spawnFrame": 9
+        },
+        "projectileSprite": "assets/images/fighter/irumine/projectiles/arrow.png",
+        "animation": {
+          "frames": [
+            "assets/images/fighter/irumine/neutral_special/frame_001.png",
+            "assets/images/fighter/irumine/neutral_special/frame_002.png",
+            "assets/images/fighter/irumine/neutral_special/frame_003.png",
+            "assets/images/fighter/irumine/neutral_special/frame_004.png",
+            "assets/images/fighter/irumine/neutral_special/frame_005.png",
+            "assets/images/fighter/irumine/neutral_special/frame_006.png"
+          ],
+          "frameDuration": 3,
+          "contentBox": {
+            "left": 0,
+            "top": 14,
+            "right": 324,
+            "bottom": 232
+          }
+        }
+      },
+      "side": {
+        "name": "バスターソード",
+        "dmgBase": 1.8,
+        "kbBase": 2,
+        "angle": 20,
+        "duration": 126,
+        "active": [
+          16,
+          25
+        ],
+        "range": 74,
+        "h": 54,
+        "yOff": 2,
+        "statKey": "intelligence",
+        "endlag": 14,
+        "travelSpeed": 1.6,
+        "multiHit": [
+          [
+            16,
+            25
+          ],
+          [
+            37,
+            46
+          ],
+          [
+            58,
+            67
+          ],
+          [
+            79,
+            88
+          ],
+          [
+            100,
+            109
+          ]
+        ],
+        "linkKbScale": 0.12,
+        "linkHitstun": 26,
+        "finalHit": {
+          "dmgBase": 6.5,
+          "kbBase": 6.5,
+          "angle": 38
+        },
+        "animation": {
+          "frames": [
+            "assets/images/fighter/irumine/side_special/frame_001.png",
+            "assets/images/fighter/irumine/side_special/frame_002.png",
+            "assets/images/fighter/irumine/side_special/frame_003.png",
+            "assets/images/fighter/irumine/side_special/frame_004.png",
+            "assets/images/fighter/irumine/side_special/frame_005.png",
+            "assets/images/fighter/irumine/side_special/frame_003.png",
+            "assets/images/fighter/irumine/side_special/frame_004.png",
+            "assets/images/fighter/irumine/side_special/frame_005.png",
+            "assets/images/fighter/irumine/side_special/frame_003.png",
+            "assets/images/fighter/irumine/side_special/frame_004.png",
+            "assets/images/fighter/irumine/side_special/frame_005.png",
+            "assets/images/fighter/irumine/side_special/frame_003.png",
+            "assets/images/fighter/irumine/side_special/frame_004.png",
+            "assets/images/fighter/irumine/side_special/frame_005.png",
+            "assets/images/fighter/irumine/side_special/frame_003.png",
+            "assets/images/fighter/irumine/side_special/frame_004.png",
+            "assets/images/fighter/irumine/side_special/frame_005.png",
+            "assets/images/fighter/irumine/side_special/frame_002.png"
+          ],
+          "frameDuration": 7,
+          "contentBox": {
+            "left": 81,
+            "top": 81,
+            "right": 391,
+            "bottom": 324
+          }
+        }
+      },
+      "down": {
+        "name": "ローリングボム",
+        "dmgBase": 10,
+        "kbBase": 6,
+        "angle": 58,
+        "duration": 25,
+        "active": [
+          9,
+          9
+        ],
+        "range": 0,
+        "h": 0,
+        "yOff": 0,
+        "statKey": "intelligence",
+        "endlag": 17,
+        "projectile": {
+          "type": "bomb",
+          "speed": 5.5,
+          "width": 34,
+          "height": 34,
+          "lifetime": 150,
+          "spawnFrame": 9,
+          "gravity": 0.28,
+          "groundFriction": 0.985,
+          "explosionRadius": 105
+        },
+        "projectileSprite": "assets/images/fighter/irumine/projectiles/bomb.png",
+        "animation": {
+          "frames": [
+            "assets/images/fighter/irumine/down_special/frame_001.png",
+            "assets/images/fighter/irumine/down_special/frame_002.png",
+            "assets/images/fighter/irumine/down_special/frame_003.png",
+            "assets/images/fighter/irumine/down_special/frame_004.png"
+          ],
+          "frameDuration": 6,
+          "contentBox": {
+            "left": 6,
+            "top": 6,
+            "right": 257,
+            "bottom": 333
+          }
+        }
+      }
+    }
+  },
+  "dullahan": {
+    "special": {}
+  }
+}

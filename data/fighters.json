@@ -1,0 +1,81 @@
+{
+  "irumine": {
+    "key": "irumine",
+    "displayName": "イルミネ",
+    "color": "#ff4757",
+    "idleImage": "assets/images/fighter/irumine/idle/frame_001.png",
+    "stockIcon": "assets/images/fighter/irumine/stock.png",
+    "spriteContentBox": {
+      "left": 0,
+      "top": 1,
+      "right": 209,
+      "bottom": 249
+    },
+    "hurtboxWidth": 54,
+    "hurtboxHeight": 124,
+    "idleFrameSrcs": [
+      "assets/images/fighter/irumine/idle/frame_001.png",
+      "assets/images/fighter/irumine/idle/frame_002.png",
+      "assets/images/fighter/irumine/idle/frame_003.png",
+      "assets/images/fighter/irumine/idle/frame_004.png"
+    ],
+    "idleFrameContentBox": {
+      "left": 0,
+      "top": 1,
+      "right": 209,
+      "bottom": 249
+    },
+    "idleFrameDuration": 8,
+    "jumpFrameSrcs": [
+      "assets/images/fighter/irumine/jump/frame_001.png",
+      "assets/images/fighter/irumine/jump/frame_002.png",
+      "assets/images/fighter/irumine/jump/frame_003.png"
+    ],
+    "jumpFrameContentBox": {
+      "left": 0,
+      "top": 30,
+      "right": 402,
+      "bottom": 520
+    },
+    "jumpFrameDuration": 5,
+    "airIdleSrc": "assets/images/fighter/irumine/jump/air_idle.png",
+    "airIdleContentBox": {
+      "left": 0,
+      "top": 12,
+      "right": 399,
+      "bottom": 502
+    },
+    "stats": null
+  },
+  "dullahan": {
+    "key": "dullahan",
+    "displayName": "デュラハン",
+    "color": "#f1c40f",
+    "idleImage": "assets/images/fighter/dullahan/idle.png",
+    "stockIcon": "assets/images/fighter/dullahan/stock.png",
+    "spriteContentBox": {
+      "left": 2,
+      "top": 1,
+      "right": 336,
+      "bottom": 517
+    },
+    "hurtboxWidth": 39,
+    "hurtboxHeight": 110,
+    "walkSheetSrc": "assets/images/fighter/dullahan/walk_sheet.png",
+    "walkSheetCols": 5,
+    "walkSheetRows": 5,
+    "walkFrameCount": 25,
+    "walkFrameDuration": 3,
+    "walkFrameContentBox": {
+      "left": 66,
+      "top": 32,
+      "right": 189,
+      "bottom": 222
+    },
+    "stats": {
+      "power": 14,
+      "defense": 16,
+      "evasion": 6
+    }
+  }
+}

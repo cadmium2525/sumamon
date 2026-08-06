@@ -46,3 +46,8 @@ const THROWS = {
   down:    { name: '下投げ', dmgBase: 5, kbBase: 4, angle: 20, statKey: 'power' },
   side:    { name: '横投げ', dmgBase: 6, kbBase: 5, angle: 35, statKey: 'power' }, // 押した左右方向へ直接
 };
+
+// data/movesets.json の "extends" 解決や他ファイルから参照するため、明示的にwindowへ公開する
+// （トップレベルの const 宣言は window のプロパティにはならない）
+window.MOVES = MOVES;
+window.THROWS = THROWS;

@@ -40,8 +40,14 @@ const AppFlow = {
 
   currentUser: null, // { uid, username }（ログイン中のみ）。Firestore連携（マスモン保存）はPhase2続きで実装予定
 
-  init() {
+  async init() {
     this.showScreen('loading');
+    // キャラクター/技データは外部JSONなので、他の初期化より先に読み込む
+    try {
+      await FighterData.load();
+    } catch (error) {
+      console.error('ファイター/技データを読み込めませんでした:', error);
+    }
     this.buildStageList();
     this.buildFighterList();
     this.buildCpuLevelList();

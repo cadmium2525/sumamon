@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v83';
+const CACHE_NAME = 'smamon-app-v84';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,8 +11,8 @@ const APP_SHELL = [
   './js/debug-mode.js',
   './js/fighter.js',
   './js/fighters-data.js',
-  './js/fighters/irumine-moves.js',
-  './js/fighters/dullahan-moves.js',
+  './data/fighters.json',
+  './data/movesets.json',
   './js/firebase-init.js',
   './js/flow.js',
   './js/game.js',
@@ -136,6 +136,22 @@ self.addEventListener('fetch', event => {
   // バージョン情報はキャッシュせず、常に公開中の最新版を取得する。
   if (url.pathname.endsWith('/version.json')) {
     event.respondWith(fetch(new Request(request, { cache: 'no-store' })));
+    return;
+  }
+
+  // ファイター/技データはツールから更新されるため、常に最新を取りに行く（オフライン時のみキャッシュ）。
+  if (url.pathname.includes('/data/') && url.pathname.endsWith('.json')) {
+    event.respondWith(
+      fetch(new Request(request, { cache: 'no-store' }))
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.open(CACHE_NAME).then(cache => cache.match(request, { ignoreSearch: true })))
+    );
     return;
   }
 
