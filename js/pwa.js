@@ -75,6 +75,13 @@ function isBootPhase() {
   });
 }
 
+// 起動時に始めた確認で見つかった更新かどうか。
+// Service Workerの入れ替えはアプリの中身を全部取り直すため数十秒かかることがあり、
+// 準備ができた頃には利用者はもうスタート画面を抜けている。
+// これを「遊んでいる最中に届いた更新」と扱ってお知らせを出すと、
+// 起動するたび更新を促されることになるので区別する。
+let launchPhase = true;
+
 function applyUpdate(worker) {
   if (!worker) return;
   worker.postMessage({ type: 'SKIP_WAITING' });
@@ -90,12 +97,19 @@ function handleReadyUpdate(worker) {
     applyUpdate(worker);
     return;
   }
+  if (launchPhase) {
+    // 起動時に始めた確認の結果が、遊び始めたあとに届いた場合。
+    // ここで割り込まず、次に起動した時へ回す（次回はスタート画面で黙って入れ替わる）。
+    return;
+  }
   updateNowButton.disabled = false;
   updateNowButton.textContent = '更新';
   updateModal?.classList.remove('hidden');
 }
 
-async function checkForAppUpdate(registration) {
+async function checkForAppUpdate(registration, { fromLaunch = false } = {}) {
+  // 起動時以外の確認が走った時点で、以降の更新は「遊んでいる最中に届いたもの」とみなす
+  if (!fromLaunch) launchPhase = false;
   if (updateCheckInProgress) return;
   updateCheckInProgress = true;
   try {
@@ -130,6 +144,7 @@ if ('serviceWorker' in navigator) {
         updateViaCache: 'none'
       });
 
+      // 前回の起動中に用意されていた更新は、ここで黙って適用される
       if (registration.waiting) handleReadyUpdate(registration.waiting);
 
       registration.addEventListener('updatefound', () => {
@@ -147,11 +162,15 @@ if ('serviceWorker' in navigator) {
       });
 
       // 起動時、PWAへ戻った時、起動後の一定間隔で更新を確認する。
-      await checkForAppUpdate(registration);
+      await checkForAppUpdate(registration, { fromLaunch: true });
+      // 一度アプリを離れて戻ってきた時は、そこから先の更新は「遊んでいる最中のもの」
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') checkForAppUpdate(registration);
       });
-      window.addEventListener('pageshow', () => checkForAppUpdate(registration));
+      window.addEventListener('pageshow', event => {
+        // 読み込み直後のpageshowは起動の一部なので、お知らせの対象にしない
+        checkForAppUpdate(registration, { fromLaunch: !event.persisted && launchPhase });
+      });
       window.setInterval(() => checkForAppUpdate(registration), 5 * 60 * 1000);
     } catch (error) {
       console.error('Service Workerの登録に失敗しました:', error);

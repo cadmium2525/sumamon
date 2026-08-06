@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v102';
+const CACHE_NAME = 'smamon-app-v103';
 const APP_SHELL = [
   './',
   './index.html',
@@ -90,34 +90,51 @@ const APP_SHELL = [
   './assets/images/fighter/irumine/ledge/frame_006.png'
 ];
 
+// 中核ファイル（HTML/CSS/JS/JSON）と、あとから取れば足りるメディアを分ける。
+// APP_SHELL全体は60MBを超えるため、全部そろうまで待つと更新の用意に数分かかり、
+// 「起動したのに更新が終わらない」状態になっていた。
+function isCoreAsset(url) {
+  return /\.(html|css|js|json|webmanifest)$/.test(url) || url === './';
+}
+
+// 取得は 'reload'（必ず全部ダウンロード）ではなく 'no-cache'（必ず問い合わせるが
+// 変わっていなければ本文を送り直さない）にする。
+// 変更のないファイルは304で済むため、更新のたびに全アセットを取り直さずに済む。
+async function cacheAsset(cache, url) {
+  const request = new Request(url, { cache: 'no-cache' });
+  const response = await fetch(request);
+  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+  await cache.put(request, response);
+}
+
 async function cacheFreshAppShell() {
   const cache = await caches.open(CACHE_NAME);
-  const results = await Promise.allSettled(APP_SHELL.map(async url => {
-    const request = new Request(url, { cache: 'reload' });
-    const response = await fetch(request);
-    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-    await cache.put(request, response);
-  }));
+  const core = APP_SHELL.filter(isCoreAsset);
+  const media = APP_SHELL.filter(url => !isCoreAsset(url));
 
+  // 中核ファイルだけは確実にそろえる。1つでも欠けたら不完全な更新を有効化しない。
+  const results = await Promise.allSettled(core.map(url => cacheAsset(cache, url)));
+  const missing = [];
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
-      console.warn('キャッシュできなかったファイル:', APP_SHELL[index], result.reason);
+      console.warn('キャッシュできなかったファイル:', core[index], result.reason);
+      missing.push(core[index]);
     }
   });
-
-  // 中核ファイル（HTML/CSS/JS）は1つでも取得できなければ不完全な更新を有効化しない。
-  // (画像・音声などのアセットは失敗しても致命的ではないため対象外)
-  const criticalAssets = APP_SHELL.filter(url => /\.(html|css|js)$/.test(url) || url === './');
-  const missing = [];
-  for (const url of criticalAssets) {
-    if (!await cache.match(url)) missing.push(url);
-  }
   if (missing.length) {
     throw new Error(`中核ファイルをキャッシュできませんでした: ${missing.join(', ')}`);
   }
+
+  // 画像・音声は待たずに裏で取る。ここで返してしまうと install が
+  // それらの完了まで待ってしまうため、意図的に投げっぱなしにする。
+  // 取り切れなくても、実際に使う時に fetch ハンドラ側でキャッシュされる。
+  Promise.allSettled(media.map(url => cacheAsset(cache, url).catch(error => {
+    console.warn('あとで取り直します:', url, error);
+  })));
 }
 
 self.addEventListener('install', event => {
+  // 中核ファイルがそろった時点でインストール完了とする（メディアは裏で続く）
   event.waitUntil(cacheFreshAppShell());
 });
 
