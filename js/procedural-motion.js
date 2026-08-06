@@ -141,3 +141,70 @@ const ProceduralMotion = {
 };
 
 window.ProceduralMotion = ProceduralMotion;
+
+// ==== 武器の振り ====
+// 立ち絵から武器の部分だけを切り出して、握りを軸に回すための角度を決める。
+// 体の踏み込み（上のATTACKS）と組み合わせると「振っている」ように見える。
+ProceduralMotion.WEAPON_SWING = {
+  // back: 構えで引く角度 / through: 振り切る角度（どちらも度・前方向が+）
+  // 元の武器が残像として残るため、振り幅は控えめにして違和感を抑える。
+  'ground.neutral':   { back: -10, through: 16 },
+  'ground.side':      { back: -20, through: 34 },
+  'ground.up':        { back: -14, through: -42 },  // 下から上へ振り上げる
+  'ground.down':      { back: -10, through: 26 },
+  'ground.dashAttack':{ back: -18, through: 32 },
+  'smash.side':       { back: -34, through: 48 },
+  'smash.up':         { back: -24, through: -52 },
+  'smash.down':       { back: -20, through: 38 },
+  'air.neutral':      { back: -18, through: 46 },
+  'air.forward':      { back: -28, through: 44 },
+  'air.back':         { back: 26,  through: -44 },
+  'air.up':           { back: -16, through: -46 },
+  'air.down':         { back: -22, through: 36 },
+  'special.neutral':  { back: -14, through: 22 },
+  'special.side':     { back: -26, through: 40 },
+  'special.up':       { back: -18, through: -50 },
+  'special.down':     { back: -16, through: 28 },
+};
+ProceduralMotion.DEFAULT_SWING = { back: -18, through: 32 };
+// 残像が二重に見えるのを防ぐための上限
+ProceduralMotion.MAX_SWING_ANGLE = 55;
+
+// 待機・歩行中の武器のわずかな揺れ
+ProceduralMotion.weaponIdleSway = function (fighter) {
+  return this._wave(fighter.proceduralClock, 110) * 2.5;
+};
+
+// この瞬間の武器の角度（度）。前方向が+。
+ProceduralMotion.weaponAngleFor = function (fighter, { attacking } = {}) {
+  if (!fighter.proceduralEnabled) return 0;
+  const gain = fighter.proceduralIntensity;
+  if (!attacking || !fighter.currentMove) return this.weaponIdleSway(fighter) * gain;
+
+  const move = fighter.currentMove;
+  const swing = this.WEAPON_SWING[fighter.currentMoveSlot] || this.DEFAULT_SWING;
+  const duration = Math.max(1, move.duration || 1);
+  const elapsed = duration - fighter.attackTimer;
+  const phase = Math.max(0, Math.min(1, elapsed / duration));
+  const active = Array.isArray(move.active) ? move.active : [duration * 0.3, duration * 0.6];
+  const start = Math.max(0, Math.min(0.95, active[0] / duration));
+  const end = Math.max(start + 0.01, Math.min(1, active[1] / duration));
+
+  let angle;
+  if (phase < start) {
+    // 構え：ゆっくり引く
+    const t = start > 0 ? phase / start : 1;
+    angle = swing.back * Math.sin(t * Math.PI / 2);
+  } else if (phase <= end) {
+    // 判定中：一気に振り切る
+    const t = (phase - start) / (end - start);
+    const eased = t * t * (3 - 2 * t);
+    angle = swing.back + (swing.through - swing.back) * eased;
+  } else {
+    // 後隙：構えへ戻す
+    const t = (phase - end) / Math.max(0.01, 1 - end);
+    angle = swing.through * (1 - t * t);
+  }
+  const scaled = angle * gain;
+  return Math.max(-this.MAX_SWING_ANGLE, Math.min(this.MAX_SWING_ANGLE, scaled));
+};

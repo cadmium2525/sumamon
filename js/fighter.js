@@ -96,6 +96,13 @@ class Fighter {
     this.proceduralClock = 0;
     this.currentMoveSlot = null;
 
+    // 武器レイヤー：立ち絵から武器の部分だけを切り出し、握りを軸に振る。
+    // rect/pivot は立ち絵のピクセル座標で指定する。
+    this.weaponSpec = options.weapon || null;
+    this.weaponLayer = null;      // { weapon: canvas, body: canvas, pivotX, pivotY }
+    // 斬撃の軌跡（攻撃判定の通り道）を数フレームぶん覚えておく
+    this._swingTrail = [];
+
     // 見た目用スプライト（未指定の場合は色付き矩形のまま）
     this.sprite = null;
     this.spriteLoaded = false;
@@ -763,6 +770,71 @@ class Fighter {
     return null;
   }
 
+  // 斬撃の軌跡：攻撃判定の通り道を数フレームぶん覚えておく。
+  // 飛び道具の技は体から判定が出ないため対象外。
+  _recordSwingTrail() {
+    const attacking = this.currentMove && this.attackTimer > 0 && !this.currentMove.projectile;
+    if (!attacking) {
+      if (this._swingTrail.length) this._swingTrail.length = 0;
+      return;
+    }
+    const hb = this.getHitbox();
+    if (hb) {
+      this._swingTrail.push({
+        x: hb.x + hb.w / 2,
+        y: hb.y + hb.h / 2,
+        // 帯の太さは判定の短い方を基準にする（長い方だと巨大な白い塊になる）
+        r: Math.min(hb.w, hb.h) / 2,
+        power: this.currentMove.kbBase || 5,
+      });
+      if (this._swingTrail.length > 9) this._swingTrail.shift();
+    }
+  }
+
+  // 覚えておいた通り道を、先細りの帯として描く
+  _drawSwingTrail(ctx) {
+    const trail = this._swingTrail;
+    if (trail.length < 2) return;
+    const power = Math.min(1.4, (trail[trail.length - 1].power || 5) / 9);
+    const maxWidth = this.h * 0.22;              // 体格に対して太くなりすぎないよう頭打ち
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 1; i < trail.length; i++) {
+      const t = i / (trail.length - 1);          // 新しいほど1に近い
+      const a = trail[i - 1], b = trail[i];
+      const width = Math.max(2, Math.min(maxWidth, b.r * 0.9 * t));
+      ctx.globalAlpha = 0.04 + 0.20 * t * power;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = width;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.globalAlpha = 0.05 + 0.26 * t * power;
+      ctx.strokeStyle = '#dff4ff';
+      ctx.lineWidth = Math.max(1, width * 0.35);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 立ち絵から武器の部分だけを取り出す。
+  // 元の絵からは抜かない：矩形で抜くと、武器が体に重なっているキャラでは
+  // 黒い長方形の穴が出てしまい、二重に見えるより遥かに目立つため。
+  // 元の武器は振ったぶんだけ残像のように見えるので、振り角は控えめに抑える。
+  _buildWeaponLayer() {
+    const spec = this.weaponSpec;
+    if (!spec || !spec.rect || !this.sprite || !this.spriteLoaded) return null;
+    if (typeof document === 'undefined') return null;
+    const { x, y, w, h } = spec.rect;
+    if (!(w > 0 && h > 0)) return null;
+
+    const weapon = document.createElement('canvas');
+    weapon.width = Math.round(w); weapon.height = Math.round(h);
+    weapon.getContext('2d').drawImage(this.sprite, x, y, w, h, 0, 0, weapon.width, weapon.height);
+
+    const pivot = spec.pivot || { x: x + w / 2, y: y + h / 2 };
+    return { weapon, pivotX: pivot.x, pivotY: pivot.y, rect: spec.rect };
+  }
+
   startAttack(move) {
     this.currentMove = move;
     this.currentMoveSlot = this._slotForMove(move);
@@ -1175,6 +1247,7 @@ class Fighter {
     // 足元から地面までの距離（受け身の判断や着地予測に使う）
     this.groundDistance = Physics.distanceToGround(this, platforms);
     this.proceduralClock++;
+    this._recordSwingTrail();
     Physics.applyGravity(this, this.fallSpeed);
     this.x += this.vx;
     this.y += this.vy;
@@ -1461,7 +1534,26 @@ class Fighter {
       if (this.facing === -1) {
         ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
       }
-      ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
+      // 武器レイヤーがあれば「武器を抜いた体」→「振った武器」の順に重ねる
+      if (this.weaponSpec && !this.weaponLayer) this.weaponLayer = this._buildWeaponLayer();
+      const layer = this.weaponLayer;
+      if (layer && window.ProceduralMotion) {
+        const scale = drawW / this.sprite.width;
+        ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
+        const angle = ProceduralMotion.weaponAngleFor(this, { attacking: missingMoveMotion });
+        const px = drawX + layer.pivotX * scale;
+        const py = drawY + layer.pivotY * scale;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(angle * Math.PI / 180);
+        ctx.translate(-px, -py);
+        ctx.drawImage(layer.weapon,
+          drawX + layer.rect.x * scale, drawY + layer.rect.y * scale,
+          layer.rect.w * scale, layer.rect.h * scale);
+        ctx.restore();
+      } else {
+        ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
+      }
       ctx.restore();
       this._drawStatusEllipse(ctx, bodyColor);
     } else {
@@ -1540,6 +1632,9 @@ class Fighter {
         ctx.fillRect(this.x, this.y, this.w, this.h);
       }
     }
+
+    // 斬撃の軌跡（攻撃判定の通り道）
+    this._drawSwingTrail(ctx);
 
     // 攻撃判定の可視化。動作確認用なので通常のプレイでは出さない。
     // 確認したい時はコンソールで window.SHOW_HITBOXES = true とする。

@@ -6,6 +6,8 @@ const Studio = {
   existing: {},          // 本番に既に登録済みのモーション
   attacks: {},           // slot -> { use, hitFrames, manual }
   frameMode: 'use',      // コマ一覧のタップが「使うコマ」か「判定コマ」か
+  weapon: {},            // 武器レイヤー { rect, pivot }
+  weaponMode: 'rect',    // プレビュー上のドラッグが「囲む」か「握り指定」か
   fightersJson: null,
   movesetsJson: null,
   editing: null,
@@ -31,6 +33,7 @@ const Studio = {
     this.el('spec-key').addEventListener('input', () => this.refreshExistingMotions());
     this.el('spec-fall').addEventListener('input', () => this.refreshFallLabel());
     this.el('spec-proc-intensity').addEventListener('input', () => this.refreshProcLabel());
+    this.bindWeapon();
     this.el('btn-diff').addEventListener('click', () => this.showDiff());
     this.el('btn-commit').addEventListener('click', () => this.commit());
 
@@ -46,6 +49,126 @@ const Studio = {
   refreshFallLabel() {
     const value = (Number(this.el('spec-fall').value) || 100) / 100;
     this.el('spec-fall-value').textContent = value.toFixed(2);
+  },
+
+  // ---- 武器レイヤー（剣・斧などを握りを軸に振る） ----
+  bindWeapon() {
+    const use = this.el('spec-weapon');
+    use.addEventListener('change', () => {
+      this.el('weapon-fields').classList.toggle('hidden', !use.checked);
+      if (use.checked) this.drawWeaponPreview();
+    });
+    this.el('weapon-mode-rect').addEventListener('click', () => this.setWeaponMode('rect'));
+    this.el('weapon-mode-pivot').addEventListener('click', () => this.setWeaponMode('pivot'));
+    this.el('weapon-angle').addEventListener('input', () => {
+      this.el('weapon-angle-value').textContent = String(this.el('weapon-angle').value);
+      this.drawWeaponPreview();
+    });
+
+    // プレビュー上のドラッグ／タップを画像のピクセル座標へ直す
+    const canvas = this.el('weapon-preview');
+    const toImage = event => {
+      const rect = canvas.getBoundingClientRect();
+      const view = this._weaponView;
+      if (!view) return null;
+      const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
+      const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+      return { x: (x - view.offsetX) / view.scale, y: (y - view.offsetY) / view.scale };
+    };
+    let start = null;
+    canvas.addEventListener('pointerdown', event => {
+      const point = toImage(event);
+      if (!point) return;
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      if (this.weaponMode === 'pivot') {
+        this.weapon.pivot = { x: Math.round(point.x), y: Math.round(point.y) };
+        this.drawWeaponPreview();
+        return;
+      }
+      start = point;
+    });
+    canvas.addEventListener('pointermove', event => {
+      if (!start || this.weaponMode === 'pivot') return;
+      const point = toImage(event);
+      if (!point) return;
+      this.weapon.rect = {
+        x: Math.round(Math.min(start.x, point.x)), y: Math.round(Math.min(start.y, point.y)),
+        w: Math.round(Math.abs(point.x - start.x)), h: Math.round(Math.abs(point.y - start.y)),
+      };
+      this.drawWeaponPreview();
+    });
+    const end = () => {
+      if (start && this.weapon.rect && !this.weapon.pivot) {
+        // 囲んだ直後は、握り側（前方から見て手前）を仮の軸にしておく
+        const r = this.weapon.rect;
+        this.weapon.pivot = { x: Math.round(r.x + r.w * 0.1), y: Math.round(r.y + r.h / 2) };
+      }
+      start = null;
+      this.drawWeaponPreview();
+    };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+  },
+
+  setWeaponMode(mode) {
+    this.weaponMode = mode;
+    this.el('weapon-mode-rect').classList.toggle('seg-on', mode === 'rect');
+    this.el('weapon-mode-pivot').classList.toggle('seg-on', mode === 'pivot');
+  },
+
+  // 立ち絵（待機モーションの1コマ目）を土台に、囲んだ範囲と振りを重ねて見せる
+  drawWeaponPreview() {
+    const canvas = this.el('weapon-preview');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const idle = this.motions.idle;
+    const source = idle && idle.canvases.length ? idle.canvases[0] : null;
+    this._weaponView = null;
+    if (!source) {
+      this.el('weapon-info').textContent = '先に「待機」モーションを登録してください（その1コマ目を土台にします）';
+      return;
+    }
+    const scale = Math.min(canvas.width / source.width, canvas.height / source.height);
+    const offsetX = (canvas.width - source.width * scale) / 2;
+    const offsetY = (canvas.height - source.height * scale) / 2;
+    this._weaponView = { scale, offsetX, offsetY };
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    ctx.drawImage(source, 0, 0);
+
+    const rect = this.weapon.rect;
+    const pivot = this.weapon.pivot;
+    if (rect && rect.w > 2 && rect.h > 2) {
+      // 振った武器を重ねて、残像がどれくらい見えるか確かめられるようにする
+      const angle = Number(this.el('weapon-angle').value) || 0;
+      const px = pivot ? pivot.x : rect.x + rect.w / 2;
+      const py = pivot ? pivot.y : rect.y + rect.h / 2;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(angle * Math.PI / 180);
+      ctx.translate(-px, -py);
+      ctx.drawImage(source, rect.x, rect.y, rect.w, rect.h, rect.x, rect.y, rect.w, rect.h);
+      ctx.restore();
+
+      ctx.strokeStyle = '#ffd45e';
+      ctx.lineWidth = 2 / scale;
+      ctx.setLineDash([6 / scale, 4 / scale]);
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.setLineDash([]);
+    }
+    if (pivot) {
+      ctx.fillStyle = '#ff6b57';
+      ctx.beginPath(); ctx.arc(pivot.x, pivot.y, 5 / scale, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 / scale; ctx.stroke();
+    }
+    ctx.restore();
+
+    this.el('weapon-info').textContent = rect
+      ? `武器の範囲 ${rect.w}×${rect.h}px（左${rect.x} 上${rect.y}）｜握り ${pivot ? `${pivot.x},${pivot.y}` : '未指定'}`
+      : '武器を囲むようにドラッグしてください';
   },
 
   // 自動モーションの強さ表示
@@ -187,6 +310,10 @@ const Studio = {
     this.el('spec-hw').value = fighter.hurtboxWidth || 54;
     this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
     this.refreshFallLabel();
+    this.weapon = fighter.weapon ? { rect: { ...fighter.weapon.rect }, pivot: fighter.weapon.pivot ? { ...fighter.weapon.pivot } : null } : {};
+    this.el('spec-weapon').checked = !!fighter.weapon;
+    this.el('weapon-fields').classList.toggle('hidden', !fighter.weapon);
+    this.drawWeaponPreview();
     const proc = fighter.proceduralMotion || {};
     this.el('spec-proc').checked = proc.enabled !== false;
     this.el('spec-proc-intensity').value = Math.round((proc.intensity != null ? proc.intensity : 1) * 100);
@@ -945,6 +1072,8 @@ const Studio = {
         hurtboxHeight: Number(this.el('spec-hh').value) || 124,
         hurtboxWidth: Number(this.el('spec-hw').value) || 54,
         fallSpeed: Number((Number(this.el('spec-fall').value) / 100).toFixed(2)) || 1,
+        weapon: (this.el('spec-weapon').checked && this.weapon.rect && this.weapon.rect.w > 2)
+          ? { rect: this.weapon.rect, pivot: this.weapon.pivot || null } : null,
         proceduralMotion: {
           enabled: this.el('spec-proc').checked,
           intensity: Number((Number(this.el('spec-proc-intensity').value) / 100).toFixed(2)),
@@ -995,6 +1124,8 @@ const Studio = {
       const lines = [
         `■ モンスター: ${collected.displayName}（${collected.key}）`,
         `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth} / 落下速度 ${collected.spec.fallSpeed}倍`,
+        `■ 武器レイヤー: ${collected.spec.weapon
+          ? `あり（${collected.spec.weapon.rect.w}×${collected.spec.weapon.rect.h}px）` : 'なし'}`,
         `■ 自動モーション: ${collected.spec.proceduralMotion.enabled
           ? `使う（強さ ${Math.round(collected.spec.proceduralMotion.intensity * 100)}%）` : '使わない'}`,
         `■ 登録モーション: ${Object.keys(collected.animations).join('、') || 'なし'}`,

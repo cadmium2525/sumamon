@@ -37,9 +37,15 @@ const StudioBuild = {
   },
 
   // index.html のバージョン表記と更新履歴を更新する
+  // 表示用のバージョン文字列。99までは 0.99、100以降は 1.00 のように繰り上げる。
+  versionLabel(version) {
+    const n = Number(version) || 0;
+    return `${Math.floor(n / 100)}.${String(n % 100).padStart(2, '0')}`;
+  },
+
   updateIndexHtml(source, version, title, body) {
     let out = source;
-    const label = `0.${version}`;
+    const label = this.versionLabel(version);
     const versionMatch = out.match(/<small class="home-version">Version [\d.]+<\/small>/);
     if (versionMatch) {
       out = out.replace(versionMatch[0], `<small class="home-version">Version ${label}</small>`);
@@ -73,6 +79,7 @@ const StudioBuild = {
       fallSpeed: spec.fallSpeed,
       proceduralMotion: spec.proceduralMotion,
     };
+    if (spec.weapon) fighter.weapon = spec.weapon; else delete fighter.weapon;
     if (spec.idleImage) fighter.idleImage = spec.idleImage;
     if (spec.stockIcon) fighter.stockIcon = spec.stockIcon;
     if (spec.spriteContentBox) fighter.spriteContentBox = spec.spriteContentBox;
