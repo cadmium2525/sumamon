@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.96</small>
+    <small class="home-version">Version 0.97</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.97</time><strong>崖つかまりモーションが反映されない不具合を修正</strong><p>スタジオから待機・歩行・崖つかまりなどの状態モーションを登録しても、画像だけがアップロードされ、ゲーム側の登録（data/fighters.json）には書き込まれていませんでした。このため崖つかまりのモーションを登録しても反映されない状態になっていました。スタジオを修正し、あわせて登録済みだったイルミネの崖つかまりモーションを有効にしています。</p></article>
           <article><time>Version 0.96</time><strong>起動時の自動更新・ポーズからのバトル終了・タップの取りこぼし修正</strong><p>起動したときに新しいバージョンがあれば、確認を出さずそのまま最新版で始まるようにしました。更新のお知らせは、遊んでいる最中に新しいバージョンが届いた場合だけ表示されます。ポーズ中に「つづける」「バトルを終了する」を選べるようにしました（終了は確認をはさみます）。また、ファイター選択で1P・CPUの玉やFIGHT!ボタンが1回のタップで反応しなかった問題を修正しました。横向きのままアプリを起動すると画面が上にずれることがあった問題も、表示領域が確定してから画面を組むように直しています。</p></article>
           <article><time>Version 0.95</time><strong>育成がバトルに効くよう調整・バトルテストのUI改善</strong><p>育てたステータスの手応えを強くしました。ちから／かしこさによる威力と吹っ飛ばしを引き上げ、カンストしたマスモンなら育成前の約半分の蓄積%で相手を撃墜できます。また、落下速度を回避ステータスから切り離してモンスターごとの固定値にしました。これまでは育てるほど落下が速くなって復帰が難しくなり、強くしたはずが自滅しやすいという逆転が起きていました。回避は横方向の移動速度と、技の後隙・着地隙の短縮に効くようになります。あわせてトレーニング画面の適性アルファベットがマスモン管理画面より暗く見えていた点を直し、管理者モードのバトルテストに ±100／±10 ボタンと「全999／全最低／既定」のまとめ変更を追加しました。</p></article>
           <article><time>Version 0.94</time><strong>スタジオの不具合修正（動画の透明コマ・崖つかまりの確認・戻るボタン）</strong><p>動画からコマを切り出すと透明なコマが混ざることがあった問題を修正しました。端末が絵を用意し終える前に取り込んでいたのが原因で、取り出せるまで待ち直すようにしています。あわせて、崖つかまりのように足元の高さが変わるモーションで、各コマの浮き具合と足元の軌跡をプレビューに表示するようにしました。モーション編集画面の「戻る」が端末の時計と重なって押しづらかった点も直しています。</p></article>

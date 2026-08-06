@@ -948,7 +948,11 @@ const Studio = {
       files.push({ path: image.path, bytes: await StudioImage.toPngBytes(image.canvas) });
     }
 
-    const fighters = StudioBuild.applyFighter(this.fightersJson, collected.spec);
+    // animations は collect() の戻り値の直下にあるため、spec へ載せ替えてから渡す。
+    // （これを忘れると画像だけがコミットされ、待機・歩行・崖つかまりなどの
+    //   状態モーションが fighters.json に登録されないまま終わる）
+    const fighters = StudioBuild.applyFighter(this.fightersJson,
+      { ...collected.spec, animations: collected.animations });
     files.push({ path: 'data/fighters.json', text: JSON.stringify(fighters, null, 2) + '\n' });
 
     if (Object.keys(collected.moveData).length) {

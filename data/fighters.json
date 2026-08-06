@@ -63,6 +63,23 @@
           "right": 399,
           "bottom": 502
         }
+      },
+      "ledge": {
+        "frames": [
+          "assets/images/fighter/irumine/ledge/frame_001.png",
+          "assets/images/fighter/irumine/ledge/frame_002.png",
+          "assets/images/fighter/irumine/ledge/frame_003.png",
+          "assets/images/fighter/irumine/ledge/frame_004.png",
+          "assets/images/fighter/irumine/ledge/frame_005.png",
+          "assets/images/fighter/irumine/ledge/frame_006.png"
+        ],
+        "frameDuration": 10,
+        "contentBox": {
+          "left": 0,
+          "top": 1,
+          "right": 221,
+          "bottom": 283
+        }
       }
     }
   },
