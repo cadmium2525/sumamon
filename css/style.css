@@ -257,6 +257,13 @@ body.layout-pending .screen { visibility: hidden; }
 .admin-stat-grid .admin-stat-col { color: #65d7ff; font-size: 11px; font-weight: 800; text-align: center; }
 .admin-stat-grid label { color: #eefaff; font-size: 12px; }
 .admin-stat-grid input { width: 100%; padding: 5px 6px; border: 1px solid rgba(255,255,255,.3); border-radius: 5px; color: #fff; background: #142232; font-size: 12px; text-align: center; }
+.admin-tools-pane { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.admin-tools-pane > p { color: #ffe49a; font-size: 11px; }
+.admin-tool-link { display: block; width: min(460px, 88vw); padding: 16px 18px; border: 1px solid #65d7ff;
+  border-radius: 10px; background: #10283a; color: #dff8ff; text-decoration: none; }
+.admin-tool-link strong { display: block; font-size: 16px; }
+.admin-tool-link small { display: block; margin-top: 5px; color: #9fb6c7; font-size: 10px; line-height: 1.6; }
+.admin-tool-note { color: #9fb6c7; font-size: 10px; }
 .admin-player-pane { max-height: 64vh; overflow-y: auto; padding: 0 5px; touch-action: pan-y; }
 .admin-player-toolbar { position: sticky; z-index: 2; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 5px; color: #bceeff; background: #111c29; }
 .admin-player-toolbar button { padding: 6px 18px; }

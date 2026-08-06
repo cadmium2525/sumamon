@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v85';
+const CACHE_NAME = 'smamon-app-v86';
 const APP_SHELL = [
   './',
   './index.html',
@@ -42,6 +42,11 @@ const APP_SHELL = [
   './assets/images/items/dye-kit.png',
   './assets/images/field/cosmo/background.png',
   './assets/images/field/cosmo/platform.png',
+  './assets/images/fighter/irumine/idle/frame_001.png',
+  './assets/images/fighter/irumine/idle/frame_002.png',
+  './assets/images/fighter/irumine/idle/frame_003.png',
+  './assets/images/fighter/irumine/idle/frame_004.png',
+  './assets/images/fighter/irumine/stock.png',
   './assets/images/fighter/irumine/jump/frame_001.png',
   './assets/images/fighter/irumine/jump/frame_002.png',
   './assets/images/fighter/irumine/jump/frame_003.png',
@@ -152,6 +157,12 @@ self.addEventListener('fetch', event => {
         })
         .catch(() => caches.open(CACHE_NAME).then(cache => cache.match(request, { ignoreSearch: true })))
     );
+    return;
+  }
+
+  // 制作ツール(tools/)はキャッシュしない。古い版を掴むとコミット処理が食い違うため。
+  if (url.pathname.includes('/tools/')) {
+    event.respondWith(fetch(new Request(request, { cache: 'no-store' })));
     return;
   }
 
