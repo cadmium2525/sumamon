@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v90';
+const CACHE_NAME = 'smamon-app-v91';
 const APP_SHELL = [
   './',
   './index.html',
@@ -80,7 +80,13 @@ const APP_SHELL = [
   './assets/audio/battlemode.mp3',
   './assets/audio/Pain%20the%20Universe.mp3',
   './assets/audio/arrow.mp3',
-  './assets/audio/bomb.mp3'
+  './assets/audio/bomb.mp3',
+  './assets/images/fighter/irumine/ledge/frame_001.png',
+  './assets/images/fighter/irumine/ledge/frame_002.png',
+  './assets/images/fighter/irumine/ledge/frame_003.png',
+  './assets/images/fighter/irumine/ledge/frame_004.png',
+  './assets/images/fighter/irumine/ledge/frame_005.png',
+  './assets/images/fighter/irumine/ledge/frame_006.png'
 ];
 
 async function cacheFreshAppShell() {

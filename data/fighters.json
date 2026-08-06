@@ -13,7 +13,14 @@
     },
     "hurtboxWidth": 54,
     "hurtboxHeight": 124,
-    "stats": null,
+    "stats": {
+      "life": 100,
+      "power": 10,
+      "intelligence": 10,
+      "accuracy": 10,
+      "evasion": 10,
+      "defense": 10
+    },
     "animations": {
       "idle": {
         "frames": [
