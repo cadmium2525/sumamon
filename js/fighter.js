@@ -1541,11 +1541,17 @@ class Fighter {
       }
     }
 
-    // 攻撃ヒットボックス（専用モーションが無い技のみのデバッグ表示）
-    const hb = this.getHitbox();
-    if (hb && !useMoveFrame) {
-      ctx.fillStyle = 'rgba(255,255,0,0.6)';
-      ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
+    // 攻撃判定の可視化。動作確認用なので通常のプレイでは出さない。
+    // 確認したい時はコンソールで window.SHOW_HITBOXES = true とする。
+    if (window.SHOW_HITBOXES) {
+      const hb = this.getHitbox();
+      if (hb) {
+        ctx.fillStyle = 'rgba(255,255,0,0.35)';
+        ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
+        ctx.strokeStyle = 'rgba(255,220,0,0.9)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(hb.x, hb.y, hb.w, hb.h);
+      }
     }
     ctx.restore();
 

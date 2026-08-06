@@ -222,7 +222,13 @@ body.layout-pending .screen { visibility: hidden; }
 
 .debug-entry { position: absolute; right: 14px; bottom: 12px; padding: 7px 13px; border: 1px solid #65d7ff; border-radius: 6px; color: #65d7ff; background: rgba(0,12,24,.8); font-size: 11px; font-weight: 800; }
 .debug-entry.hidden { display: none; }
-.debug-screen { gap: 9px; background: radial-gradient(circle at 50% 35%, #26384d, #080d14); }
+/* 中身が画面より高くなることがあるため、上詰め＋縦スクロールにする。
+   （中央寄せのままだと、はみ出した「開始」「戻る」に手が届かなくなる） */
+.debug-screen { gap: 9px; background: radial-gradient(circle at 50% 35%, #26384d, #080d14);
+  justify-content: flex-start; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch;
+  padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+           max(18px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.debug-screen > * { flex-shrink: 0; }
 .debug-tabs { display: flex; gap: 6px; }
 .debug-tabs button { padding: 6px 14px; border: 1px solid rgba(255,255,255,.25); border-radius: 5px; color: #fff; background: rgba(255,255,255,.06); }
 .debug-tabs button.active { color: #08131d; background: #65d7ff; font-weight: 800; }
