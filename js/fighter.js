@@ -782,10 +782,44 @@ class Fighter {
     this.hasHitThisAttack = true; // 単発判定しか見ない箇所（修行ミニゲーム等）との互換用
   }
 
+  // 技に hitboxes（コマごとの判定）がある場合、今のコマに対応する判定を返す。
+  // 値は「足元中央を原点、当たり判定の高さを1」とした相対座標なので、
+  // キャラの大きさが違っても同じ振り方になる。
+  //   x: 前方向が+（向きに応じて自動で反転）／ y: 上が-（足元が0）
+  _pathHitbox(m, framesElapsed) {
+    if (!Array.isArray(m.hitboxes) || !m.hitboxes.length) return null;
+    let found = null;
+    for (const box of m.hitboxes) {
+      const range = box.frames;
+      if (!Array.isArray(range)) continue;
+      if (framesElapsed >= range[0] && framesElapsed <= range[1]) { found = box; break; }
+    }
+    // 判定コマの隙間に落ちた場合は直近のものを使い、途切れて見えないようにする
+    if (!found) {
+      for (const box of m.hitboxes) {
+        if (Array.isArray(box.frames) && framesElapsed > box.frames[1]) found = box;
+      }
+    }
+    if (!found) return null;
+    const unit = this.h;
+    const originX = this.x + this.w / 2;
+    const originY = this.y + this.h;
+    const w = Math.max(1, found.w * unit);
+    const h = Math.max(1, found.h * unit);
+    const x = this.facing === 1 ? originX + found.x * unit : originX - found.x * unit - w;
+    return { x, y: originY + found.y * unit, w, h };
+  }
+
   getHitbox() {
     const m = this.currentMove;
     if (this.attackTimer <= 0 || !m || m.projectile) return null;
-    if (this._activeWindowIndex(m, m.duration - this.attackTimer) < 0) return null;
+    const framesElapsed = m.duration - this.attackTimer;
+    if (this._activeWindowIndex(m, framesElapsed) < 0) return null;
+    const path = this._pathHitbox(m, framesElapsed);
+    if (path) return path;
+    // コマごとの判定を持つ技は、対応する判定が無ければ「判定なし」。
+    // range等の固定値へ落とすと、消したはずの旧設定で判定が出てしまう。
+    if (Array.isArray(m.hitboxes) && m.hitboxes.length) return null;
     const scale = this.attackScale || 1;
     const range = m.range * scale;
     const boxH = m.h * scale;

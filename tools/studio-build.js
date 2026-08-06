@@ -97,6 +97,17 @@ const StudioBuild = {
       // （付けると意図しない既定値が混ざり込む）。
       const next = existing ? { ...existing } : { extends: `${group}.${moveKey}` };
       if (update.animation) next.animation = update.animation;
+      if (update.attack) {
+        // 攻撃判定の設定。hitboxes があるコマ送りの判定は range/h/yOff を使わないため、
+        // 古い固定judgeが残って二重にならないよう取り除く。
+        const { hitboxes, multiHit, ...rest } = update.attack;
+        Object.assign(next, rest);
+        next.hitboxes = hitboxes;
+        if (multiHit) next.multiHit = multiHit; else delete next.multiHit;
+        delete next.range;
+        delete next.h;
+        delete next.yOff;
+      }
       if (update.projectile) {
         next.projectile = update.projectile;
         if (update.projectileSprite) next.projectileSprite = update.projectileSprite;

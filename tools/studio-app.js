@@ -4,6 +4,8 @@ const Studio = {
   projectiles: {},       // slot -> 飛び道具の設定
   projectileImages: {},  // slot -> 飛び道具の画像
   existing: {},          // 本番に既に登録済みのモーション
+  attacks: {},           // slot -> { use, hitFrames, manual }
+  frameMode: 'use',      // コマ一覧のタップが「使うコマ」か「判定コマ」か
   fightersJson: null,
   movesetsJson: null,
   editing: null,
@@ -34,6 +36,7 @@ const Studio = {
     this.buildMotionList();
     this.bindEditor();
     this.bindProjectile();
+    this.bindAttack();
     if (settings.token) this.connect();
   },
 
@@ -191,6 +194,7 @@ const Studio = {
     this.el('ed-done').addEventListener('click', () => this.closeEditor());
     this.el('ed-clear').addEventListener('click', () => {
       delete this.motions[this.editing.slot];
+      delete this.attacks[this.editing.slot];
       delete this.projectiles[this.editing.slot];
       delete this.projectileImages[this.editing.slot];
       this.refreshMotionList();
@@ -214,6 +218,156 @@ const Studio = {
       const entry = this.motions[this.editing.slot];
       if (entry) entry.frameDuration = Number(event.target.value);
     });
+  },
+
+  // 攻撃タイプの既定値。判定コマの数やモーション長から後隙まで自動で決めるため、
+  // 利用者が触るのは「タイプ」と「威力」だけで済む。
+  ATTACK_PRESETS: {
+    quick:  { dmgBase: 4,  kbBase: 3.5, angle: 30, endlagRatio: 0.5 },
+    normal: { dmgBase: 8,  kbBase: 5.5, angle: 35, endlagRatio: 0.85 },
+    heavy:  { dmgBase: 14, kbBase: 9,   angle: 40, endlagRatio: 1.4 },
+  },
+
+  bindAttack() {
+    this.el('atk-use').addEventListener('change', () => {
+      this.el('atk-fields').classList.toggle('hidden', !this.el('atk-use').checked);
+      this.refreshAttack();
+    });
+    this.el('atk-mode-frames').addEventListener('click', () => this.setFrameMode('use'));
+    this.el('atk-mode-hit').addEventListener('click', () => this.setFrameMode('hit'));
+    ['atk-type', 'atk-power', 'atk-size'].forEach(id => {
+      this.el(id).addEventListener('input', () => {
+        if (id === 'atk-power') this.el('atk-power-value').textContent = this.el('atk-power').value;
+        if (id === 'atk-size') this.el('atk-size-value').textContent = this.el('atk-size').value;
+        const attack = this.attacks[this.editing.slot];
+        if (attack) attack.manual = null; // 自動計算へ戻す
+        this.refreshAttack();
+      });
+    });
+    this.el('atk-detail-toggle').addEventListener('click', () => {
+      const detail = this.el('atk-detail');
+      detail.classList.toggle('hidden');
+      this.el('atk-detail-toggle').textContent =
+        detail.classList.contains('hidden') ? '詳細設定を開く' : '詳細設定を閉じる';
+    });
+    ['atk-dmg', 'atk-kb', 'atk-angle', 'atk-endlag', 'atk-stat'].forEach(id => {
+      this.el(id).addEventListener('change', () => {
+        const attack = this.attacks[this.editing.slot];
+        if (!attack) return;
+        // 直接編集した値は自動計算より優先する
+        attack.manual = {
+          dmgBase: Number(this.el('atk-dmg').value),
+          kbBase: Number(this.el('atk-kb').value),
+          angle: Number(this.el('atk-angle').value),
+          endlag: Number(this.el('atk-endlag').value),
+          statKey: this.el('atk-stat').value,
+        };
+        this.refreshAttack();
+      });
+    });
+    this.el('atk-detail-reset').addEventListener('click', () => {
+      const attack = this.attacks[this.editing.slot];
+      if (attack) attack.manual = null;
+      this.refreshAttack();
+    });
+  },
+
+  setFrameMode(mode) {
+    this.frameMode = mode;
+    this.el('atk-mode-frames').classList.toggle('seg-on', mode === 'use');
+    this.el('atk-mode-hit').classList.toggle('seg-on', mode === 'hit');
+    this.renderFrames();
+  },
+
+  // 判定コマから、発生・持続・ヒット数・判定の軌道・威力をまとめて算出する
+  buildAttack(slot) {
+    const motion = STUDIO_MOTIONS.find(m => m.slot === slot);
+    const entry = this.motions[slot];
+    const attack = this.attacks[slot];
+    if (!motion || !motion.slot.startsWith('move:') || !attack || !attack.use) return null;
+    if (!entry || !entry.contentBox) return null;
+    const usable = entry.canvases.filter((_, i) => entry.used[i]);
+    if (!usable.length) return null;
+    const duration = entry.frameDuration || 6;
+    const hitFrames = (attack.hitFrames || []).filter(i => i < usable.length).sort((a, b) => a - b);
+    if (!hitFrames.length) return null;
+
+    // 連続したコマは1回の攻撃（判定が動く）、離れていれば別のヒットとして扱う
+    const groups = [];
+    for (const index of hitFrames) {
+      const last = groups[groups.length - 1];
+      if (last && index === last[last.length - 1] + 1) last.push(index);
+      else groups.push([index]);
+    }
+
+    const sizeScale = (Number(this.el('atk-size').value) || 100) / 100;
+    const base = usable[0];
+    const hitboxes = [];
+    for (const index of hitFrames) {
+      const region = StudioImage.weaponRegion(usable[index], base);
+      const rect = region || {
+        // 差分が取れなかったコマは体の前方に標準的な判定を置く
+        left: entry.contentBox.right, top: entry.contentBox.top + (entry.contentBox.bottom - entry.contentBox.top) * 0.3,
+        right: entry.contentBox.right + (entry.contentBox.bottom - entry.contentBox.top) * 0.5,
+        bottom: entry.contentBox.top + (entry.contentBox.bottom - entry.contentBox.top) * 0.75,
+      };
+      const relative = StudioImage.toRelativeBox(rect, entry.contentBox, sizeScale);
+      if (!relative) continue;
+      hitboxes.push({ frames: [index * duration, (index + 1) * duration - 1], ...relative,
+        auto: !!region });
+    }
+    if (!hitboxes.length) return null;
+
+    const windows = groups.map(group => [group[0] * duration, (group[group.length - 1] + 1) * duration - 1]);
+    const totalFrames = usable.length * duration;
+    const lastActive = windows[windows.length - 1][1];
+    const preset = this.ATTACK_PRESETS[this.el('atk-type').value] || this.ATTACK_PRESETS.normal;
+    const power = (Number(this.el('atk-power').value) || 100) / 100;
+    const isSpecial = slot.startsWith('move:special');
+    const auto = {
+      dmgBase: Number((preset.dmgBase * power / (groups.length > 1 ? groups.length * 0.75 : 1)).toFixed(1)),
+      kbBase: Number((preset.kbBase * power).toFixed(1)),
+      angle: preset.angle,
+      // 後隙はモーションの残り尺から決める（数値入力を減らすため）
+      endlag: Math.max(4, Math.round((totalFrames - lastActive) * preset.endlagRatio)),
+      statKey: isSpecial ? 'intelligence' : 'power',
+    };
+    const values = attack.manual ? { ...auto, ...attack.manual } : auto;
+
+    return {
+      duration: totalFrames,
+      active: windows[0],
+      multiHit: windows.length > 1 ? windows : null,
+      hitboxes,
+      values,
+      summary: { startup: windows[0][0], hits: windows.length,
+        activeFrames: windows.reduce((sum, w) => sum + (w[1] - w[0] + 1), 0),
+        totalFrames, autoBoxes: hitboxes.filter(b => b.auto).length },
+    };
+  },
+
+  refreshAttack() {
+    if (!this.editing) return;
+    const built = this.buildAttack(this.editing.slot);
+    const summary = this.el('atk-summary');
+    if (!built) {
+      summary.textContent = this.el('atk-use').checked
+        ? '「判定コマを選ぶ」に切り替えて、攻撃が当たるコマをタップしてください'
+        : '';
+      return;
+    }
+    const s = built.summary;
+    summary.textContent = `発生 ${s.startup}F ／ 持続 ${s.activeFrames}F ／ 全体 ${s.totalFrames}F`
+      + ` ／ ヒット ${s.hits}回 ／ 判定 ${built.hitboxes.length}個（うち自動抽出 ${s.autoBoxes}個）`
+      + ` ／ ダメージ ${built.values.dmgBase} ・ 吹っ飛ばし ${built.values.kbBase} ・ 後隙 ${built.values.endlag}F`;
+    if (!this.attacks[this.editing.slot].manual) {
+      this.el('atk-dmg').value = built.values.dmgBase;
+      this.el('atk-kb').value = built.values.kbBase;
+      this.el('atk-angle').value = built.values.angle;
+      this.el('atk-endlag').value = built.values.endlag;
+      this.el('atk-stat').value = built.values.statKey;
+    }
+    this.showFrame();
   },
 
   bindProjectile() {
@@ -264,6 +418,20 @@ const Studio = {
     this.el('pj-life').value = source.lifetime != null ? source.lifetime : 95;
     this.el('pj-gravity').value = source.gravity != null ? source.gravity : 0.28;
     this.el('pj-radius').value = source.explosionRadius != null ? source.explosionRadius : 105;
+  },
+
+  loadAttackForm(slot) {
+    const box = this.el('ed-attack');
+    const isMove = slot.startsWith('move:');
+    box.classList.toggle('hidden', !isMove);
+    this.setFrameMode('use');
+    if (!isMove) return;
+    const attack = this.attacks[slot];
+    this.el('atk-use').checked = !!(attack && attack.use);
+    this.el('atk-fields').classList.toggle('hidden', !(attack && attack.use));
+    this.el('atk-detail').classList.add('hidden');
+    this.el('atk-detail-toggle').textContent = '詳細設定を開く';
+    this.refreshAttack();
   },
 
   readProjectileForm(slot) {
@@ -321,6 +489,7 @@ const Studio = {
     } else {
       kept.classList.add('hidden');
     }
+    this.loadAttackForm(slot);
     this.loadProjectileForm(slot);
     this.el('editor').classList.remove('hidden');
     window.scrollTo(0, 0);
@@ -366,6 +535,7 @@ const Studio = {
       }
       state.textContent = message + '。うまくいかない時は枚数や範囲を変えて選び直してください。';
 
+      delete this.attacks[this.editing.slot];
       this.motions[this.editing.slot] = {
         sources,
         canvases: [],
@@ -394,6 +564,7 @@ const Studio = {
       if (StudioImage.hasTransparentCorners(sources[0]) && this.el('ed-bgmode').value === 'corner') {
         this.el('ed-bgmode').value = 'none';
       }
+      delete this.attacks[this.editing.slot];
       this.motions[this.editing.slot] = {
         sources,
         canvases: [],
@@ -468,17 +639,42 @@ const Studio = {
       this.el('ed-box').textContent = '画像が未選択です';
       return;
     }
-    container.innerHTML = entry.canvases.map((canvas, index) => `
-      <div class="frame${entry.used[index] ? '' : ' off'}" data-index="${index}">
+    // 「使うコマ」と「判定コマ」で、コマ一覧のタップの意味が変わる
+    const attack = this.attacks[this.editing.slot];
+    const hitFrames = new Set((attack && attack.hitFrames) || []);
+    let usableIndex = -1;
+    container.innerHTML = entry.canvases.map((canvas, index) => {
+      const used = entry.used[index];
+      if (used) usableIndex++;
+      const isHit = used && hitFrames.has(usableIndex);
+      return `<div class="frame${used ? '' : ' off'}${isHit ? ' hit' : ''}" data-index="${index}">
         <span>${index + 1}</span><img src="${StudioImage.toDataUrl(canvas)}" alt="">
-      </div>`).join('');
+        ${isHit ? '<i class="hitmark">判定</i>' : ''}
+      </div>`;
+    }).join('');
     container.querySelectorAll('[data-index]').forEach(node => {
       node.addEventListener('click', () => {
         const index = Number(node.dataset.index);
+        if (this.frameMode === 'hit') {
+          if (!entry.used[index]) return; // 使わないコマには判定を置けない
+          const order = entry.canvases.map((_, i) => i).filter(i => entry.used[i]).indexOf(index);
+          const current = this.attacks[this.editing.slot] || { use: true, hitFrames: [] };
+          const set = new Set(current.hitFrames || []);
+          if (set.has(order)) set.delete(order); else set.add(order);
+          current.hitFrames = [...set].sort((a, b) => a - b);
+          current.use = true;
+          this.attacks[this.editing.slot] = current;
+          this.el('atk-use').checked = true;
+          this.el('atk-fields').classList.remove('hidden');
+          this.renderFrames();
+          this.refreshAttack();
+          return;
+        }
         entry.used[index] = !entry.used[index];
         // 全部外すと登録できなくなるため、最低1コマは残す
         if (!entry.used.some(Boolean)) entry.used[index] = true;
         this.renderFrames();
+        this.refreshAttack();
       });
     });
     const box = entry.contentBox;
@@ -523,7 +719,27 @@ const Studio = {
     if (idle && idle.contentBox && this.editing.slot !== 'idle' && idle.canvases.length) {
       drawWith(idle.canvases[0], idle.contentBox, 0.25);
     }
-    drawWith(usable[this.playIndex % usable.length], entry.contentBox, 1);
+    const currentIndex = this.playIndex % usable.length;
+    drawWith(usable[currentIndex], entry.contentBox, 1);
+
+    // 攻撃判定をゲームと同じ相対座標で重ねて表示する
+    const built = this.buildAttack(this.editing.slot);
+    if (built) {
+      const duration = entry.frameDuration || 6;
+      const elapsed = currentIndex * duration;
+      const box = built.hitboxes.find(b => elapsed >= b.frames[0] && elapsed <= b.frames[1]);
+      if (box) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,90,70,.28)';
+        ctx.strokeStyle = 'rgba(255,130,110,.95)';
+        ctx.lineWidth = 2;
+        const x = centerX + box.x * unitHeight;
+        const y = baseline + box.y * unitHeight;
+        ctx.fillRect(x, y, box.w * unitHeight, box.h * unitHeight);
+        ctx.strokeRect(x, y, box.w * unitHeight, box.h * unitHeight);
+        ctx.restore();
+      }
+    }
 
     // 地面のガイド線
     ctx.strokeStyle = 'rgba(255,212,94,.5)';
@@ -599,6 +815,17 @@ const Studio = {
         const slot = motion.slot.slice(5);
         moveData[slot] = moveData[slot] || {};
         moveData[slot].animation = animation;
+        // 攻撃判定（発生・持続・軌道・威力）
+        const built = this.buildAttack(motion.slot);
+        if (built) {
+          moveData[slot].attack = {
+            duration: built.duration,
+            active: built.active,
+            multiHit: built.multiHit,
+            hitboxes: built.hitboxes.map(({ auto, ...box }) => box),
+            ...built.values,
+          };
+        }
       } else animations[motion.slot] = animation;
       if (motion.slot === 'idle') {
         idleImage = frames[0];
@@ -670,7 +897,9 @@ const Studio = {
         `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth}`,
         `■ 登録モーション: ${Object.keys(collected.animations).join('、') || 'なし'}`,
         `■ 技: ${Object.entries(collected.moveData).map(([k, v]) =>
-          k + (v.animation ? '(モーション)' : '') + (v.projectile ? '(飛び道具)' : '')).join('、') || 'なし'}`,
+          k + (v.animation ? '(モーション)' : '') + (v.projectile ? '(飛び道具)' : '')
+          + (v.attack ? `(判定${v.attack.hitboxes.length}個・発生${v.attack.active[0]}F・ダメージ${v.attack.dmgBase})` : '')
+        ).join('、') || 'なし'}`,
         `■ 画像: ${collected.images.length}枚`,
         `■ 新バージョン: 0.${built.version}（Service Workerへ${built.swAdded}件追加）`,
         '',

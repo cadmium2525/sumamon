@@ -69,6 +69,11 @@ button:disabled { opacity: .45; }
 .frame { position: relative; border: 2px solid #2b3f57; border-radius: 8px; padding: 2px;
   background: repeating-conic-gradient(#20303f 0 25%, #182634 0 50%) 0 0/14px 14px; }
 .frame.off { opacity: .35; border-style: dashed; }
+.frame.hit { border-color: #ff6b57; box-shadow: 0 0 0 2px rgba(255,107,87,.35) inset; }
+.frame .hitmark { position: absolute; right: 3px; bottom: 2px; color: #ff8f7d; font-size: 10px; font-weight: 900; text-shadow: 0 1px 2px #000; }
+.seg button { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; }
+.seg button.seg-on { border-color: #ffd45e; color: #2a1c00; background: #ffd45e; }
+#atk-detail.hidden, #atk-fields.hidden { display: none; }
 .frame img { display: block; width: 100%; height: 68px; object-fit: contain; }
 .frame span { position: absolute; top: 2px; left: 4px; color: #fff; font-size: 10px; font-weight: 800; text-shadow: 0 1px 2px #000; }
 .preview { display: flex; align-items: flex-end; justify-content: center; height: 210px; margin-top: 10px;
@@ -238,6 +243,47 @@ button:disabled { opacity: .45; }
     <div class="preview"><canvas id="ed-preview" width="360" height="200"></canvas></div>
     <div id="ed-box" class="box-info"></div>
     <div id="ed-frames" class="frames"></div>
+    <div id="ed-attack" class="projectile-box hidden">
+      <label class="check"><input id="atk-use" type="checkbox"> 攻撃判定を設定する</label>
+      <div id="atk-fields" class="hidden">
+        <p class="note" style="margin-top:8px">下のコマ一覧で<b>判定が出るコマ</b>をタップして選びます。
+          位置・大きさ・軌道は画像から自動で読み取ります。</p>
+        <div class="row seg">
+          <button id="atk-mode-frames" class="seg-on" type="button">使うコマを選ぶ</button>
+          <button id="atk-mode-hit" type="button">判定コマを選ぶ</button>
+        </div>
+        <label>攻撃タイプ</label>
+        <select id="atk-type">
+          <option value="quick">素早い（威力小・隙が少ない）</option>
+          <option value="normal" selected>標準</option>
+          <option value="heavy">大ぶり（威力大・隙が大きい）</option>
+        </select>
+        <label>威力 <span id="atk-power-value">100</span>%</label>
+        <input id="atk-power" type="range" min="50" max="180" value="100">
+        <label>判定の大きさ <span id="atk-size-value">100</span>%</label>
+        <input id="atk-size" type="range" min="50" max="160" value="100">
+        <div id="atk-summary" class="box-info"></div>
+        <button id="atk-detail-toggle" type="button" style="margin-top:10px">詳細設定を開く</button>
+        <div id="atk-detail" class="hidden">
+          <div class="row">
+            <div><label>ダメージ</label><input id="atk-dmg" type="number" step="0.5"></div>
+            <div><label>吹っ飛ばし</label><input id="atk-kb" type="number" step="0.5"></div>
+          </div>
+          <div class="row">
+            <div><label>吹っ飛ぶ角度</label><input id="atk-angle" type="number"></div>
+            <div><label>後隙</label><input id="atk-endlag" type="number"></div>
+          </div>
+          <label>威力に反映するステータス</label>
+          <select id="atk-stat">
+            <option value="power">ちから（打撃技）</option>
+            <option value="intelligence">かしこさ（必殺技）</option>
+          </select>
+          <p class="note">ここを直接編集すると、以降は攻撃タイプ・威力スライダーの自動計算より
+            この数値が優先されます。「自動に戻す」で元に戻せます。</p>
+          <button id="atk-detail-reset" type="button">自動計算に戻す</button>
+        </div>
+      </div>
+    </div>
     <div id="ed-projectile" class="projectile-box hidden">
       <label class="check"><input id="pj-use" type="checkbox"> 飛び道具を出す（矢・弾など）</label>
       <div id="pj-fields" class="hidden">

@@ -227,6 +227,61 @@ const StudioImage = {
     return { medianWidth: widths[Math.floor(widths.length / 2)] };
   },
 
+  // 攻撃コマと待機（構え）コマの差分から「武器・エフェクトの領域」を求める。
+  // 体はほぼ同じ位置にあるので、増えた部分＝振っている武器やエフェクトになる。
+  // これを当たり判定に使うことで、斧が後方→頭上→前方と動けば判定も一緒に動く。
+  weaponRegion(frameCanvas, baseCanvas, { alphaMin = 110, colorDelta = 60 } = {}) {
+    const w = Math.min(frameCanvas.width, baseCanvas.width);
+    const h = Math.min(frameCanvas.height, baseCanvas.height);
+    const frame = this._ctx(frameCanvas).getImageData(0, 0, frameCanvas.width, frameCanvas.height).data;
+    const base = this._ctx(baseCanvas).getImageData(0, 0, baseCanvas.width, baseCanvas.height).data;
+    const fw = frameCanvas.width, bw = baseCanvas.width;
+    let left = w, top = h, right = -1, bottom = -1, count = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const fi = (y * fw + x) * 4;
+        if (frame[fi + 3] < alphaMin) continue;
+        const bi = (y * bw + x) * 4;
+        const baseOpaque = base[bi + 3] >= alphaMin;
+        // 構えコマで透明だった場所に何か現れた or 同じ場所の色が大きく変わった
+        let changed = !baseOpaque;
+        if (!changed) {
+          const diff = Math.abs(frame[fi] - base[bi]) + Math.abs(frame[fi + 1] - base[bi + 1])
+            + Math.abs(frame[fi + 2] - base[bi + 2]);
+          changed = diff > colorDelta * 3;
+        }
+        if (!changed) continue;
+        count++;
+        if (x < left) left = x;
+        if (x > right) right = x;
+        if (y < top) top = y;
+        if (y > bottom) bottom = y;
+      }
+    }
+    // 差分が小さすぎる（ほぼ同じ絵）場合は判定を作らない
+    if (right < 0 || count < 40) return null;
+    return { left, top, right: right + 1, bottom: bottom + 1, pixels: count };
+  },
+
+  // 画像座標の矩形を「足元中央を原点・当たり判定の高さを1」とした相対座標へ変換する。
+  // ゲーム側はこの相対値をキャラの大きさに掛けるので、体格が違っても同じ振り方になる。
+  toRelativeBox(rect, contentBox, scale = 1) {
+    const unit = contentBox.bottom - contentBox.top;
+    if (!unit) return null;
+    const originX = (contentBox.left + contentBox.right) / 2;
+    const originY = contentBox.bottom;
+    const cx = (rect.left + rect.right) / 2;
+    const cy = (rect.top + rect.bottom) / 2;
+    const width = ((rect.right - rect.left) / unit) * scale;
+    const height = ((rect.bottom - rect.top) / unit) * scale;
+    return {
+      x: Number((((cx - originX) / unit) - width / 2).toFixed(3)),
+      y: Number((((cy - originY) / unit) - height / 2).toFixed(3)),
+      w: Number(width.toFixed(3)),
+      h: Number(height.toFixed(3)),
+    };
+  },
+
   async toPngBytes(canvas) {
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     return new Uint8Array(await blob.arrayBuffer());
