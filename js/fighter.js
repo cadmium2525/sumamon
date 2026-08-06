@@ -1,5 +1,43 @@
 // ==== ファイタークラス ====
 class Fighter {
+  // 技モーション・状態モーション共通のローダー。
+  // 同じ画像を何枚も生成しないよう共有し、事前読み込み済みがあればそれを使う。
+  // 1枚でも読み込みに失敗したアニメーションは使わず、別の状態へフォールバックさせる（透明化を防ぐ）。
+  static createAnimationState(config) {
+    if (!config || !Array.isArray(config.frames) || !config.frames.length) return null;
+    const state = { images: [], loaded: 0, failed: 0, config };
+    const perSource = new Map();
+    state.images = config.frames.map(src => {
+      if (perSource.has(src)) {
+        state.loaded++;
+        return perSource.get(src);
+      }
+      const preloaded = window.PreloadedImages && window.PreloadedImages.get(src);
+      if (preloaded && preloaded.complete) {
+        state.loaded++;
+        if (!preloaded.naturalWidth) state.failed++;
+        perSource.set(src, preloaded);
+        return preloaded;
+      }
+      const image = preloaded || new Image();
+      image.addEventListener('load', () => { state.loaded++; }, { once: true });
+      image.addEventListener('error', () => {
+        state.loaded++;
+        state.failed++;
+        console.warn('[Fighter] モーション画像の読み込みに失敗しました:', src);
+      }, { once: true });
+      if (!image.src) image.src = src;
+      perSource.set(src, image);
+      return image;
+    });
+    return state;
+  }
+
+  // そのアニメーションが表示可能な状態か（全コマ読み込み済み・失敗なし・contentBoxあり）
+  static animationReady(state) {
+    return !!(state && state.config.contentBox && state.failed === 0 && state.loaded >= state.images.length);
+  }
+
   // options: { grabRange, name, spriteSrc, hurtboxWidth, hurtboxHeight, spriteContentBox }
   // hurtboxWidth/hurtboxHeight: 画像を解析して算出した「実際のキャラクター本体」のサイズ（世界座標単位）
   // spriteContentBox: 元画像ピクセル座標での本体bbox（影・余白を除く）。{left, top, right, bottom}
@@ -15,41 +53,28 @@ class Fighter {
     this.knockbackTakenMultiplier = Math.max(0.1, Number(options.knockbackTakenMultiplier) || 1);
     this.fighterKey = options.fighterKey || null;
     this.moveSet = (window.FIGHTER_MOVESETS && window.FIGHTER_MOVESETS[this.fighterKey]) || {};
+
+    // 技ごとのモーション
     this.moveAnimations = new Map();
     for (const moveGroup of Object.values(this.moveSet)) {
       for (const move of Object.values(moveGroup || {})) {
-        const animation = move && move.animation;
-        if (!animation || !animation.frames || !animation.frames.length) continue;
-        // 多段技はコマを使い回すため、同じパスに対して何枚もImageを作らないよう共有する。
-        // 事前読み込み済み(PreloadedImages)があればそれをそのまま使い、再ダウンロード/再デコードを避ける。
-        const state = { images: [], loaded: 0, failed: 0, config: animation };
-        const perSource = new Map();
-        state.images = animation.frames.map(src => {
-          if (perSource.has(src)) {
-            state.loaded++; // 同じ画像の2回目以降は読み込み結果を共有する
-            return perSource.get(src);
-          }
-          const preloaded = window.PreloadedImages && window.PreloadedImages.get(src);
-          if (preloaded && preloaded.complete) {
-            state.loaded++;
-            if (!preloaded.naturalWidth) state.failed++;
-            perSource.set(src, preloaded);
-            return preloaded;
-          }
-          const image = preloaded || new Image();
-          image.addEventListener('load', () => { state.loaded++; }, { once: true });
-          image.addEventListener('error', () => {
-            state.loaded++; // 読み込み失敗も「決着した」扱いにし、他のコマが無期限にブロックされないようにする
-            state.failed++; // 1枚でも失敗したらこの技のアニメは使わず、待機コマにフォールバック（透明化を防ぐ）
-            console.warn('[Fighter] モーション画像の読み込みに失敗しました:', src);
-          }, { once: true });
-          if (!image.src) image.src = src;
-          perSource.set(src, image);
-          return image;
-        });
-        this.moveAnimations.set(move, state);
+        const state = Fighter.createAnimationState(move && move.animation);
+        if (state) this.moveAnimations.set(move, state);
       }
     }
+
+    // ---- 状態ごとのモーション ----
+    // options.animations = { idle, walk, dash, jump, airIdle, crouch, shield, hurt, tumble, downed, ledge }
+    // 各値は { frames:[...], frameDuration, contentBox }。未登録の状態は優先順に別の状態→最後はidleへ落ちる。
+    // これにより「用意したモーションだけ差し込む」ことができ、全部揃っていなくても破綻しない。
+    this.stateAnimations = {};
+    for (const [key, config] of Object.entries(options.animations || {})) {
+      const state = Fighter.createAnimationState(config);
+      if (state) this.stateAnimations[key] = state;
+    }
+    this.animState = null;   // 現在再生中の状態キー
+    this.animTimer = 0;      // 状態アニメの経過フレーム
+    this.animFrame = 0;
 
     // 当たり判定サイズ：画像を解析した実寸。未指定時は基準サイズにフォールバック。
     this.w = options.hurtboxWidth || CONFIG.BASE_HURTBOX_W;
@@ -69,44 +94,6 @@ class Fighter {
       this.sprite.src = options.spriteSrc;
     }
 
-    // 待機コマ送りアニメーション（複数枚の静止画をループ再生）。無い場合は従来通りの静止画表示。
-    this.idleFrames = [];
-    this.idleFramesLoadedCount = 0;
-    this.idleFrameContentBox = options.idleFrameContentBox || options.spriteContentBox || null;
-    this.idleFrameDuration = options.idleFrameDuration || 8;
-    this.idleAnimTimer = 0;
-    this.idleAnimFrame = 0;
-    if (options.idleFrameSrcs && options.idleFrameSrcs.length) {
-      this.idleFrames = options.idleFrameSrcs.map(src => {
-        const img = new Image();
-        img.onload = () => { this.idleFramesLoadedCount++; };
-        img.src = src;
-        return img;
-      });
-    }
-
-    // ジャンプ開始のコマ送りと、ジャンプモーション終了後の空中待機画像
-    this.jumpAnimFrames = [];
-    this.jumpAnimFramesLoadedCount = 0;
-    this.jumpFrameContentBox = options.jumpFrameContentBox || null;
-    this.jumpFrameDuration = options.jumpFrameDuration || 5;
-    if (options.jumpFrameSrcs && options.jumpFrameSrcs.length) {
-      this.jumpAnimFrames = options.jumpFrameSrcs.map(src => {
-        const img = new Image();
-        img.onload = () => { this.jumpAnimFramesLoadedCount++; };
-        img.src = src;
-        return img;
-      });
-    }
-    this.airIdle = null;
-    this.airIdleLoaded = false;
-    this.airIdleContentBox = options.airIdleContentBox || this.jumpFrameContentBox;
-    if (options.airIdleSrc) {
-      this.airIdle = new Image();
-      this.airIdle.onload = () => { this.airIdleLoaded = true; };
-      this.airIdle.src = options.airIdleSrc;
-    }
-
     // 歩行アニメーション（スプライトシート）。無い場合は静止画のまま表示される。
     this.walkSheet = null;
     this.walkSheetLoaded = false;
@@ -115,8 +102,8 @@ class Fighter {
     this.walkFrameCount = options.walkFrameCount || 1;
     this.walkFrameContentBox = options.walkFrameContentBox || null;
     this.walkFrameDuration = options.walkFrameDuration || 4; // 1コマ何フレーム表示するか
-    this.animFrame = 0;
-    this.animTimer = 0;
+    this.sheetFrame = 0;
+    this.sheetTimer = 0;
     if (options.walkSheetSrc) {
       this.walkSheet = new Image();
       this.walkSheet.onload = () => {
@@ -818,6 +805,54 @@ class Fighter {
     return box;
   }
 
+  // 現在の状態に対応するモーションを優先順に探す。
+  // 用意されていない状態は次の候補へ落ち、最終的には待機モーションになる。
+  _pickStateAnimation() {
+    let order;
+    if (this.onLedge) order = ['ledge', 'airIdle', 'idle'];
+    else if (this.downed) order = ['downed', 'tumble', 'hurt', 'idle'];
+    else if (this.tumbling) order = ['tumble', 'hurt', 'airIdle', 'idle'];
+    else if (this.hitstun > 0 && this.attackTimer <= 0 && !this.shielding) order = ['hurt', 'idle'];
+    else if (this.shielding) order = ['shield', 'idle'];
+    else if (this.crouching) order = ['crouch', 'idle'];
+    else if (!this.onGround) {
+      const jump = this.stateAnimations.jump;
+      const jumpLength = jump ? jump.images.length * (jump.config.frameDuration || 5) : 0;
+      const inJumpMotion = this.jumpAnimTimer >= 0 && this.jumpAnimTimer < jumpLength;
+      order = inJumpMotion ? ['jump', 'airIdle', 'idle'] : ['airIdle', 'jump', 'idle'];
+    } else if (this.isMoving) order = this.isDashing ? ['dash', 'walk', 'idle'] : ['walk', 'idle'];
+    else order = ['idle'];
+
+    for (const key of order) {
+      const state = this.stateAnimations[key];
+      if (Fighter.animationReady(state)) return { key, state };
+    }
+    return null;
+  }
+
+  // 状態アニメのコマ送りを進める（update()から毎フレーム呼ぶ）
+  _advanceStateAnimation() {
+    const picked = this._pickStateAnimation();
+    const key = picked ? picked.key : null;
+    if (key !== this.animState) {
+      // 状態が変わったらコマを頭出しする
+      this.animState = key;
+      this.animTimer = 0;
+      this.animFrame = 0;
+      return;
+    }
+    if (!picked) return;
+    this.animTimer++;
+    const duration = picked.state.config.frameDuration || 6;
+    if (key === 'jump') {
+      // ジャンプはループさせず、モーションが終わったら空中待機へ移る
+      this.animFrame = Math.min(picked.state.images.length - 1, Math.floor(this.jumpAnimTimer / duration));
+    } else if (this.animTimer >= duration) {
+      this.animTimer = 0;
+      this.animFrame = (this.animFrame + 1) % picked.state.images.length;
+    }
+  }
+
   // 被弾時に進行中の行動をすべて打ち切る。
   // 技の突進(travelSpeed)や溜め・掴み要求が残っていると、
   // 吹っ飛びに余計な慣性が乗ったり、のけぞり明けに技が暴発したりするため必ずここで消す。
@@ -1112,27 +1147,21 @@ class Fighter {
       this.attackTimer <= 0 && this.hitstun <= 0 && !this.shielding && !this.smashCandidate;
     this.motionTimer = this.isMoving ? this.motionTimer + 1 : 0;
 
-    // 待機コマ送りアニメーション：移動の有無に関わらず常にループ再生する
-    if (this.idleFrames.length) {
-      this.idleAnimTimer++;
-      if (this.idleAnimTimer >= this.idleFrameDuration) {
-        this.idleAnimTimer = 0;
-        this.idleAnimFrame = (this.idleAnimFrame + 1) % this.idleFrames.length;
-      }
-    }
+    // 状態（待機/歩行/ジャンプ/しゃがみ/被弾…）に応じたモーションのコマ送り
+    this._advanceStateAnimation();
 
-    // 歩行アニメーション（スプライトシートを持つキャラのみ。移動中だけコマを進める）
+    // 歩行スプライトシート（シート形式のキャラのみ。個別コマのwalkが登録されていればそちらが優先される）
     if (this.walkSheet) {
-      this.showWalkFrame = this.isMoving;
-      if (this.isMoving) {
-        this.animTimer++;
-        if (this.animTimer >= this.walkFrameDuration) {
-          this.animTimer = 0;
-          this.animFrame = (this.animFrame + 1) % this.walkFrameCount;
+      this.showWalkFrame = this.isMoving && !Fighter.animationReady(this.stateAnimations.walk);
+      if (this.showWalkFrame) {
+        this.sheetTimer++;
+        if (this.sheetTimer >= this.walkFrameDuration) {
+          this.sheetTimer = 0;
+          this.sheetFrame = (this.sheetFrame + 1) % this.walkFrameCount;
         }
       } else {
-        this.animFrame = 0;
-        this.animTimer = 0;
+        this.sheetFrame = 0;
+        this.sheetTimer = 0;
       }
     }
 
@@ -1188,6 +1217,19 @@ class Fighter {
     this.currentMove = null;
     this.recoveryTimer = 0;
     this._hitTargets.clear();
+  }
+
+  // 状態がわかるよう、足元に色付きの薄いインジケーターを重ねる
+  _drawStatusEllipse(ctx, bodyColor) {
+    if (!(this.dazedTimer > 0 || this.shielding || this.grabbedBy)) return;
+    const cx = this.x + this.w / 2;
+    ctx.fillStyle = bodyColor;
+    const alpha = ctx.globalAlpha;
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.beginPath();
+    ctx.ellipse(cx, this.y + this.h, this.w * 0.6, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = alpha;
   }
 
   _drawAnimationImage(ctx, image, box, nextImage, blend) {
@@ -1249,115 +1291,63 @@ class Fighter {
     else if (this.shielding) bodyColor = 'rgba(120,200,255,0.9)';
     else if (this.grabbedBy) bodyColor = 'rgba(200,200,200,0.9)';
 
-    const useWalkFrame = this.walkSheet && this.walkSheetLoaded && this.showWalkFrame && this.walkFrameContentBox;
-    const moveAnimation = this.currentMove && this.attackTimer > 0
-      ? this.moveAnimations.get(this.currentMove)
-      : null;
-    const useMoveFrame = !!(moveAnimation && moveAnimation.config.contentBox &&
-      moveAnimation.loaded >= moveAnimation.images.length && moveAnimation.failed === 0);
-    const moveElapsed = this.currentMove ? this.currentMove.duration - this.attackTimer : 0;
-    const moveFrameIndex = useMoveFrame
-      ? Math.min(moveAnimation.images.length - 1, Math.floor(moveElapsed / (moveAnimation.config.frameDuration || 6)))
-      : -1;
     const crossfadeAmount = phase => {
       const t = Math.max(0, Math.min(1, (phase - 0.45) / 0.55));
       return t * t * (3 - 2 * t);
     };
-    const airborne = !this.onGround && !this.onLedge;
-    const jumpAnimLength = this.jumpAnimFrames.length * this.jumpFrameDuration;
-    const useJumpSequence = airborne && this.jumpAnimTimer >= 0 && this.jumpAnimTimer < jumpAnimLength &&
-      this.jumpAnimFramesLoadedCount >= this.jumpAnimFrames.length && this.jumpFrameContentBox;
-    const jumpFrameIndex = useJumpSequence
-      ? Math.min(this.jumpAnimFrames.length - 1, Math.floor(this.jumpAnimTimer / this.jumpFrameDuration))
-      : -1;
-    const airFrameImg = useJumpSequence ? this.jumpAnimFrames[jumpFrameIndex] : (airborne && this.airIdleLoaded ? this.airIdle : null);
-    const airFrameBox = useJumpSequence ? this.jumpFrameContentBox : this.airIdleContentBox;
-    const useAirFrame = !!(airFrameImg && airFrameBox);
-    const idleFrameImg = this.idleFrames.length ? this.idleFrames[this.idleAnimFrame] : null;
-    const useIdleFrame = !useMoveFrame && !useAirFrame && !useWalkFrame && idleFrameImg && idleFrameImg.complete &&
-      this.idleFramesLoadedCount >= this.idleFrames.length && this.idleFrameContentBox;
+
+    // 攻撃中は技のモーション、それ以外は状態モーション（待機/歩行/ジャンプ/しゃがみ/被弾…）を描く
+    const moveAnimation = this.currentMove && this.attackTimer > 0
+      ? this.moveAnimations.get(this.currentMove) : null;
+    const useMoveFrame = Fighter.animationReady(moveAnimation);
+    const picked = useMoveFrame ? null : this._pickStateAnimation();
+    const useWalkSheet = !useMoveFrame && !picked && this.walkSheet && this.walkSheetLoaded &&
+      this.showWalkFrame && this.walkFrameContentBox;
 
     if (useMoveFrame) {
-      const frame = moveAnimation.images[moveFrameIndex];
-      const box = moveAnimation.config.contentBox;
+      const moveElapsed = this.currentMove.duration - this.attackTimer;
       const duration = moveAnimation.config.frameDuration || 6;
-      const nextFrame = moveAnimation.images[Math.min(moveFrameIndex + 1, moveAnimation.images.length - 1)];
-      this._drawAnimationImage(ctx, frame, box, nextFrame,
+      const index = Math.min(moveAnimation.images.length - 1, Math.floor(moveElapsed / duration));
+      const next = moveAnimation.images[Math.min(index + 1, moveAnimation.images.length - 1)];
+      this._drawAnimationImage(ctx, moveAnimation.images[index], moveAnimation.config.contentBox, next,
         crossfadeAmount((moveElapsed % duration) / duration));
-    } else if (useAirFrame) {
-      const cx = this.x + this.w / 2;
-      const contentH = airFrameBox.bottom - airFrameBox.top;
-      const scale = this.h / contentH;
-      const drawW = airFrameImg.width * scale;
-      const drawH = airFrameImg.height * scale;
-      const contentCenterX = ((airFrameBox.left + airFrameBox.right) / 2) * scale;
-      const drawX = cx - contentCenterX;
-      const drawY = this.y - airFrameBox.top * scale;
-      ctx.save();
-      if (this.facing === -1) {
-        ctx.translate(cx, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-cx, 0);
-      }
-      ctx.drawImage(airFrameImg, drawX, drawY, drawW, drawH);
-      ctx.restore();
-    } else if (useIdleFrame) {
-      // 待機コマ送りアニメーション（移動中も含め常にこのループを表示する）
-      const cx = this.x + this.w / 2;
-      const box = this.idleFrameContentBox;
-      const nextIdleFrame = this.idleFrames[(this.idleAnimFrame + 1) % this.idleFrames.length];
-      this._drawAnimationImage(ctx, idleFrameImg, box, nextIdleFrame,
-        crossfadeAmount(this.idleAnimTimer / this.idleFrameDuration));
-
-      if (this.dazedTimer > 0 || this.shielding || this.grabbedBy) {
-        const bottomY = this.y + this.h;
-        ctx.fillStyle = bodyColor;
-        ctx.globalAlpha *= 0.35;
-        ctx.beginPath();
-        ctx.ellipse(cx, bottomY, this.w * 0.6, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha /= 0.35;
-      }
-    } else if (useWalkFrame) {
+    } else if (picked) {
+      const state = picked.state;
+      const duration = state.config.frameDuration || 6;
+      const index = Math.min(state.images.length - 1, this.animFrame);
+      // ジャンプは繰り返さないため次コマへの合成もしない
+      const next = picked.key === 'jump'
+        ? state.images[Math.min(index + 1, state.images.length - 1)]
+        : state.images[(index + 1) % state.images.length];
+      this._drawAnimationImage(ctx, state.images[index], state.config.contentBox, next,
+        state.images.length > 1 ? crossfadeAmount(this.animTimer / duration) : 0);
+      this._drawStatusEllipse(ctx, bodyColor);
+    } else if (useWalkSheet) {
       const cx = this.x + this.w / 2;
       const box = this.walkFrameContentBox;
-      const contentH = box.bottom - box.top;
-      const scale = this.h / contentH;
-      const drawW = this.walkFrameW * scale;
-      const drawH = this.walkFrameH * scale;
-      const contentCenterX = ((box.left + box.right) / 2) * scale;
-      const contentTopScaled = box.top * scale;
-      const drawX = cx - contentCenterX;
-      const drawY = this.y - contentTopScaled;
-
-      const col = this.animFrame % this.walkSheetCols;
-      const row = Math.floor(this.animFrame / this.walkSheetCols);
-      const sx = col * this.walkFrameW;
-      const sy = row * this.walkFrameH;
-
+      const scale = this.h / (box.bottom - box.top);
+      const drawX = cx - ((box.left + box.right) / 2) * scale;
+      const drawY = this.y - box.top * scale;
+      const col = this.sheetFrame % this.walkSheetCols;
+      const row = Math.floor(this.sheetFrame / this.walkSheetCols);
       ctx.save();
       if (this.facing === -1) {
-        ctx.translate(cx, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-cx, 0);
+        ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
       }
-      ctx.drawImage(this.walkSheet, sx, sy, this.walkFrameW, this.walkFrameH, drawX, drawY, drawW, drawH);
+      ctx.drawImage(this.walkSheet, col * this.walkFrameW, row * this.walkFrameH,
+        this.walkFrameW, this.walkFrameH, drawX, drawY, this.walkFrameW * scale, this.walkFrameH * scale);
       ctx.restore();
     } else if (this.sprite && this.spriteLoaded) {
       const cx = this.x + this.w / 2;
       let drawX, drawY, drawW, drawH;
-
       if (this.spriteContentBox) {
         // 画像解析済み：本体bbox(影・余白を除く)の高さが、ちょうどhurtboxの高さ(this.h)に一致するスケールで描画
         const box = this.spriteContentBox;
-        const contentH = box.bottom - box.top;
-        const scale = this.h / contentH;
+        const scale = this.h / (box.bottom - box.top);
         drawW = this.sprite.width * scale;
         drawH = this.sprite.height * scale;
-        const contentCenterX = ((box.left + box.right) / 2) * scale;
-        const contentTopScaled = box.top * scale;
-        drawX = cx - contentCenterX;
-        drawY = this.y - contentTopScaled;
+        drawX = cx - ((box.left + box.right) / 2) * scale;
+        drawY = this.y - box.top * scale;
       } else {
         // フォールバック（bbox未解析のスプライト）：hurtbox高さ基準の簡易表示
         drawH = this.h * 2.2;
@@ -1365,26 +1355,13 @@ class Fighter {
         drawX = cx - drawW / 2;
         drawY = (this.y + this.h) - drawH;
       }
-
       ctx.save();
       if (this.facing === -1) {
-        ctx.translate(cx, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-cx, 0);
+        ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
       }
       ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
       ctx.restore();
-
-      // 状態がわかるよう、足元に色付きの薄いインジケーターを重ねる
-      if (this.dazedTimer > 0 || this.shielding || this.grabbedBy) {
-        const bottomY = this.y + this.h;
-        ctx.fillStyle = bodyColor;
-        ctx.globalAlpha *= 0.35;
-        ctx.beginPath();
-        ctx.ellipse(cx, bottomY, this.w * 0.6, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha /= 0.35;
-      }
+      this._drawStatusEllipse(ctx, bodyColor);
     } else {
       ctx.fillStyle = bodyColor;
       ctx.fillRect(this.x, this.y, this.w, this.h);

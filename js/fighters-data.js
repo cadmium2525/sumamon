@@ -69,3 +69,26 @@ const FighterData = {
 };
 
 window.FighterData = FighterData;
+
+// Fighter生成時のオプションを組み立てる共通処理。
+// game.js（バトル）と practice.js（修行）で同じ定義を使うため、ここ1か所にまとめる。
+function buildFighterOptions(def, masmon) {
+  return {
+    fighterKey: def.key,
+    grabRange: def.grabRange,
+    name: masmon ? masmon.name : def.displayName,
+    stockIconSrc: def.stockIcon,
+    spriteSrc: def.idleImage,
+    hurtboxWidth: def.hurtboxWidth,
+    hurtboxHeight: def.hurtboxHeight,
+    spriteContentBox: def.spriteContentBox,
+    animations: def.animations,
+    walkSheetSrc: def.walkSheetSrc,
+    walkSheetCols: def.walkSheetCols,
+    walkSheetRows: def.walkSheetRows,
+    walkFrameCount: def.walkFrameCount,
+    walkFrameDuration: def.walkFrameDuration,
+    walkFrameContentBox: def.walkFrameContentBox,
+  };
+}
+window.buildFighterOptions = buildFighterOptions;

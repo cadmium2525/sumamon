@@ -741,32 +741,7 @@ window.startBattle = function startBattle(options) {
     ? MasmonStore.loadAll().find(m => m.id === options.p1MasmonId)
     : null;
 
-  function buildOptions(def, masmon) {
-    return {
-      fighterKey: def.key,
-      grabRange: def.grabRange,
-      name: masmon ? masmon.name : def.displayName,
-      stockIconSrc: def.stockIcon,
-      spriteSrc: def.idleImage,
-      hurtboxWidth: def.hurtboxWidth,
-      hurtboxHeight: def.hurtboxHeight,
-      spriteContentBox: def.spriteContentBox,
-      walkSheetSrc: def.walkSheetSrc,
-      walkSheetCols: def.walkSheetCols,
-      walkSheetRows: def.walkSheetRows,
-      walkFrameCount: def.walkFrameCount,
-      walkFrameDuration: def.walkFrameDuration,
-      walkFrameContentBox: def.walkFrameContentBox,
-      idleFrameSrcs: def.idleFrameSrcs,
-      idleFrameContentBox: def.idleFrameContentBox,
-      idleFrameDuration: def.idleFrameDuration,
-      jumpFrameSrcs: def.jumpFrameSrcs,
-      jumpFrameContentBox: def.jumpFrameContentBox,
-      jumpFrameDuration: def.jumpFrameDuration,
-      airIdleSrc: def.airIdleSrc,
-      airIdleContentBox: def.airIdleContentBox,
-    };
-  }
+  const buildOptions = buildFighterOptions;
 
   function resolveStats(def, masmon) {
     if (masmon) {

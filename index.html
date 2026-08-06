@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 0.84</small>
+    <small class="home-version">Version 0.85</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 0.85</time><strong>全モーションに対応</strong><p>待機・歩行・ダッシュ・ジャンプ・空中待機・しゃがみ・ガード・被弾・吹っ飛び・ダウン・崖つかまりの各状態に個別のモーションを設定できるようにしました。用意されていないモーションは自動的に別の状態（最終的には待機）へ切り替わるため、一部だけ用意した状態でも破綻しません。</p></article>
           <article><time>Version 0.84</time><strong>キャラクター・技データを外部ファイル化</strong><p>これまでプログラム内に直接書かれていたキャラクターと技の定義を、data/fighters.json と data/movesets.json に分離しました。モンスターやモーションの追加をツールから安全に行えるようにするための準備です。ゲームの内容に変更はありません。</p></article>
           <article><time>Version 0.83</time><strong>操作パッドのカスタマイズとバトルの改善</strong><p>設定画面に「操作パッド」タブを追加し、ボタンの大きさ・濃さ・左右反転に加えて、ドラッグでボタン位置を自由に配置できるようにしました。また、ジャストガード（ガードした直後に攻撃を受けると完全に無効化して反撃できる）としゃがみを追加し、空中では慣性が働くよう本家準拠の空中制御に変更しています。崖つかまりは崖の縁にぶら下がる表示になり、掴んでいる手・残り時間ゲージが見えるようになりました。そのほか、技の発動中に攻撃を受けると技が確実に中断されるように修正し、吹っ飛び後に減速するようにして低%でも大きく流されてしまう問題を解消。画面上部中央に出ていた不要な四角も撤去しました。管理者モードでは登録済みのBGM・SEを一覧から再生できます。</p></article>
           <article><time>Version 0.82</time><strong>バトルを大幅に強化・軽量化</strong><p>ヒットストップ、ベクトル変更（吹っ飛び中のスティック入力で軌道を変える）、受け身、急降下、着地隙、ワンパターン相殺、ダメージに比例したガード硬直と画面揺れを追加し、より本格的な対戦の手触りになりました。また、ステータス上昇の効果が途中で頭打ちにならないよう計算式を見直し、カンストまで育成が意味を持つようにしています。合わせて、CPUが復帰技を出せずに落下するバグ、乱闘で1回の攻撃が1人にしか当たらない問題、中断・再開やマルチでモーションが失われる問題を修正し、描画処理も軽量化しました。</p></article>
@@ -481,17 +482,17 @@
   <script src="js/audio.js?v=6"></script>
   <script src="js/moves.js?v=29"></script>
   <script src="js/physics.js?v=33"></script>
-  <script src="js/fighter.js?v=43"></script>
-  <script src="js/fighters-data.js?v=2"></script>
+  <script src="js/fighter.js?v=44"></script>
+  <script src="js/fighters-data.js?v=3"></script>
   <script src="js/debug-mode.js?v=8"></script>
   <script src="js/stage.js?v=32"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=3"></script>
   <script src="js/growth-system.js?v=39"></script>
-  <script src="js/practice.js?v=7"></script>
+  <script src="js/practice.js?v=8"></script>
   <script src="js/input.js?v=7"></script>
   <script src="js/multiplayer.js?v=2"></script>
-  <script src="js/game.js?v=41"></script>
+  <script src="js/game.js?v=42"></script>
     <script src="js/flow.js?v=53"></script>
   <script src="js/pwa.js?v=11"></script>
 </body>

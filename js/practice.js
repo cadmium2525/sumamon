@@ -35,32 +35,7 @@ const PRACTICE_CONTROL_HELP = [
 
 // バトル本番(game.js内 buildOptions/resolveStats)と同じロジックの練習用簡易版。
 // 練習用Fighterの見た目・当たり判定サイズをfighters-data.jsの定義から組み立てる。
-function buildPracticeFighterOptions(def, monster) {
-  return {
-    fighterKey: def.key,
-    grabRange: def.grabRange,
-    name: monster ? monster.name : def.displayName,
-    stockIconSrc: def.stockIcon,
-    spriteSrc: def.idleImage,
-    hurtboxWidth: def.hurtboxWidth,
-    hurtboxHeight: def.hurtboxHeight,
-    spriteContentBox: def.spriteContentBox,
-    walkSheetSrc: def.walkSheetSrc,
-    walkSheetCols: def.walkSheetCols,
-    walkSheetRows: def.walkSheetRows,
-    walkFrameCount: def.walkFrameCount,
-    walkFrameDuration: def.walkFrameDuration,
-    walkFrameContentBox: def.walkFrameContentBox,
-    idleFrameSrcs: def.idleFrameSrcs,
-    idleFrameContentBox: def.idleFrameContentBox,
-    idleFrameDuration: def.idleFrameDuration,
-    jumpFrameSrcs: def.jumpFrameSrcs,
-    jumpFrameContentBox: def.jumpFrameContentBox,
-    jumpFrameDuration: def.jumpFrameDuration,
-    airIdleSrc: def.airIdleSrc,
-    airIdleContentBox: def.airIdleContentBox,
-  };
-}
+// Fighter生成オプションはバトルと共通（fighters-data.js の buildFighterOptions）
 
 function resolvePracticeStats(def, monster) {
   if (monster && monster.id) {
@@ -166,7 +141,7 @@ const PracticeGame = {
     // バトルで使える操作・モーションがそのまま修行でも使える。
     const def = FIGHTERS[monster.baseFighterKey] || FIGHTERS.irumine;
     const stats = resolvePracticeStats(def, monster);
-    this.fighter = new Fighter('practice', stats, def.color, { x: 70, y: 485 - (def.hurtboxHeight || CONFIG.BASE_HURTBOX_H) }, buildPracticeFighterOptions(def, monster));
+    this.fighter = new Fighter('practice', stats, def.color, { x: 70, y: 485 - (def.hurtboxHeight || CONFIG.BASE_HURTBOX_H) }, buildFighterOptions(def, monster));
     this.fighter.stocks = 999; // 場外/撃墜処理は使わない（穴はコース側で個別に処理する）
     // ブラストラインは実質無効化：Fighter標準のKO処理を発火させない
     this.blastBounds = { left: -1e6, right: 1e6, top: -1e6, bottom: 1e6 };
