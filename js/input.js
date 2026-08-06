@@ -554,3 +554,55 @@ class VirtualPad {
     this.container = container;
   }
 }
+
+// ==== タップの取りこぼし対策 ====
+// iOSではポインタ操作のあとに合成されるclickが届かないことがあり、
+// 「1回押しても反応せず、2回押すと進む」という症状の原因になる。
+// pointerupの時点で確定させ、直後に来るclickは二重発火しないよう無視する。
+function bindTap(element, handler) {
+  if (!element) return;
+  let lastFired = 0;
+  let activePointer = null;
+  let startX = 0;
+  let startY = 0;
+
+  // pointerupで画面を切り替えると、直後に合成されるclickが
+  // 新しい画面のボタンへ落ちて勝手に押されてしまう（いわゆるゴーストクリック）。
+  // 一定時間だけ全てのclickを捕まえて止める。
+  // ゴーストクリックは指を離した位置とほぼ同じ座標に届く。
+  // 別の場所を続けて押した時まで止めないよう、位置が近いものだけを弾く。
+  const swallowGhostClick = (x, y) => {
+    const blocker = event => {
+      if (Math.hypot(event.clientX - x, event.clientY - y) > 25) return;
+      event.stopPropagation();
+      event.preventDefault();
+    };
+    document.addEventListener('click', blocker, true);
+    setTimeout(() => document.removeEventListener('click', blocker, true), 350);
+  };
+
+  const fire = (event, fromPointer) => {
+    const now = Date.now();
+    if (now - lastFired < 400) return;   // pointerupとclickの二重発火を防ぐ
+    lastFired = now;
+    if (fromPointer) swallowGhostClick(event.clientX, event.clientY);
+    handler(event);
+  };
+
+  element.addEventListener('pointerdown', event => {
+    if (event.button != null && event.button !== 0) return;
+    activePointer = event.pointerId;
+    startX = event.clientX;
+    startY = event.clientY;
+  });
+  element.addEventListener('pointerup', event => {
+    if (activePointer !== event.pointerId) return;
+    activePointer = null;
+    // 押した位置から大きく動いていたらスクロール等とみなして反応しない
+    if (Math.hypot(event.clientX - startX, event.clientY - startY) > 16) return;
+    fire(event, true);
+  });
+  element.addEventListener('pointercancel', () => { activePointer = null; });
+  element.addEventListener('click', event => fire(event, false));
+}
+window.bindTap = bindTap;

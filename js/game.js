@@ -122,16 +122,38 @@ window.addEventListener('pagehide', () => saveSurvivalCheckpoint(true));
 
 const pauseButton = document.getElementById('battle-pause-btn');
 const pauseOverlay = document.getElementById('battle-pause-overlay');
-pauseButton.addEventListener('click', () => {
+const pauseMenu = document.getElementById('battle-pause-menu');
+const quitConfirm = document.getElementById('battle-quit-confirm');
+
+function setPaused(paused) {
+  battlePaused = paused;
+  pauseButton.textContent = paused ? '▶' : 'Ⅱ';
+  pauseOverlay.classList.toggle('hidden', !paused);
+  // 開き直した時に確認画面が残っていると誤操作のもとになるため、必ずメニューへ戻す
+  pauseMenu?.classList.remove('hidden');
+  quitConfirm?.classList.add('hidden');
+}
+
+bindTap(pauseButton, () => {
   if (window._matchOver || battleInputLocked) return;
-  battlePaused = !battlePaused;
-  pauseButton.textContent = battlePaused ? '▶' : 'Ⅱ';
-  pauseOverlay.classList.toggle('hidden', !battlePaused);
+  setPaused(!battlePaused);
 });
-suspendButton.addEventListener('click', event => {
-  event.stopPropagation();
-  if (!survivalBattle) return;
-  saveSurvivalCheckpoint(true);
+bindTap(document.getElementById('battle-resume-btn'), () => setPaused(false));
+
+// バトルを途中で終了してホームへ戻る。誤操作で進行中の対戦が消えないよう確認を挟む。
+bindTap(document.getElementById('battle-quit-btn'), () => {
+  pauseMenu?.classList.add('hidden');
+  quitConfirm?.classList.remove('hidden');
+});
+bindTap(document.getElementById('battle-quit-cancel'), () => {
+  quitConfirm?.classList.add('hidden');
+  pauseMenu?.classList.remove('hidden');
+});
+bindTap(document.getElementById('battle-quit-yes'), () => leaveBattle({ saveSurvival: false }));
+
+// 進行中のバトルを畳んでホームへ戻る共通処理
+function leaveBattle({ saveSurvival }) {
+  if (saveSurvival && survivalBattle) saveSurvivalCheckpoint(true);
   battlePaused = true;
   window._matchOver = true;
   players = [];
@@ -141,7 +163,15 @@ suspendButton.addEventListener('click', event => {
   spawnSurvivalCpu = null;
   survivalCounter?.classList.add('hidden');
   pauseOverlay.classList.add('hidden');
+  pauseMenu?.classList.remove('hidden');
+  quitConfirm?.classList.add('hidden');
+  pauseButton.textContent = 'Ⅱ';
   AppFlow.showScreen('home');
+}
+
+bindTap(suspendButton, () => {
+  if (!survivalBattle) return;
+  leaveBattle({ saveSurvival: true });
 });
 
 window.setBattleInputLocked = locked => { battleInputLocked = !!locked; };
@@ -796,6 +826,8 @@ window.startBattle = function startBattle(options) {
   lastLoopTime = performance.now();
   pauseButton.textContent = 'Ⅱ';
   pauseOverlay.classList.add('hidden');
+  pauseMenu?.classList.remove('hidden');
+  quitConfirm?.classList.add('hidden');
   suspendButton.classList.add('hidden');
   if (options.mode === 'multi' && Array.isArray(options.multiplayerRoster)) {
     players = options.multiplayerRoster.slice(0, 4).map((entry, index) => {

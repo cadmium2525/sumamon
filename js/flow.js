@@ -525,7 +525,7 @@ const AppFlow = {
       if (event.target.id === 'fighter-status-modal') this.closeFighterStatus();
     });
 
-    document.getElementById('btn-fight-start').addEventListener('click', () => {
+    bindTap(document.getElementById('btn-fight-start'), () => {
       if (this.selectedCpuMode === 'normal') this.showScreen('cpu-level');
       else this._startFromTokens();
     });
@@ -1093,6 +1093,9 @@ const AppFlow = {
         }
         token.setPointerCapture(e.pointerId);
         if (!isPlacedToken) token.classList.add('dragging');
+        // ドラッグ中は掴んでいるトークンを選択状態にしておく。
+        // 単なるタップだった場合は指を離す時に「元が選択中なら解除」へ戻す。
+        const wasActive = this.activeTokenId === tokenId;
         this.activeTokenId = tokenId;
         this._renderTokenBar();
 
@@ -1134,8 +1137,14 @@ const AppFlow = {
           if (isPlacedToken) dragVisual.remove();
           if (dropCard) {
             this._placeTokenOnCard(tokenId, dropCard);
-            this.suppressTokenClickUntil = Date.now() + 350;
+          } else if (!moved) {
+            // タップのみ：選択のオン/オフを切り替える
+            this.activeTokenId = wasActive ? null : tokenId;
+            this._renderTokenBar();
           }
+          // 直後に届くclickで同じ切り替えがもう一度走ると、
+          // 1回のタップが選択→解除で打ち消されてしまうため無視する
+          this.suppressTokenClickUntil = Date.now() + 400;
         };
 
         token.addEventListener('pointermove', onMove);
