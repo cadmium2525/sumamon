@@ -86,7 +86,7 @@ button:disabled { opacity: .45; }
 <body>
 <header>
   <h1>モンスター作成スタジオ</h1>
-  <p>画像を選ぶ → 背景透過 → コマ選択 → 登録 まで、スマホだけで完結します。<br>
+  <p>画像や動画を選ぶ → 背景透過 → コマ選択 → 登録 まで、スマホだけで完結します。<br>
      位置合わせ(contentBox)・Service Worker・バージョン・更新履歴も自動で更新されます。</p>
   <p class="install-hint">共有ボタン →「ホーム画面に追加」で、ゲームを開かずに直接起動できます。</p>
 </header>
@@ -187,8 +187,34 @@ button:disabled { opacity: .45; }
   </div>
   <section>
     <div id="ed-hint" class="note" style="margin:0 0 10px"></div>
-    <label>画像を選ぶ（複数選択できます。順番がそのままコマ順になります）</label>
-    <input id="ed-files" type="file" accept="image/*" multiple>
+    <label>素材の種類</label>
+    <select id="ed-source">
+      <option value="images">画像から作る（複数選択・順番がコマ順になります）</option>
+      <option value="video">動画から作る（自動でコマに切り出します）</option>
+    </select>
+    <div id="ed-source-images">
+      <label>画像を選ぶ</label>
+      <input id="ed-files" type="file" accept="image/*" multiple>
+    </div>
+    <div id="ed-source-video" class="hidden">
+      <label>動画を選ぶ</label>
+      <input id="ed-video" type="file" accept="video/*">
+      <div class="row">
+        <div><label>切り出す枚数</label>
+          <select id="ed-video-count">
+            <option>4</option><option>6</option><option selected>8</option>
+            <option>10</option><option>12</option><option>16</option>
+          </select></div>
+        <div><label>切り出す範囲</label>
+          <select id="ed-video-cycle">
+            <option value="auto" selected>自動（見つけた周期のぶん）</option>
+            <option value="all">動画全体から均等に</option>
+          </select></div>
+      </div>
+      <div id="ed-video-state" class="note"></div>
+      <p class="note" style="margin-top:6px">歩行のように同じ動きを繰り返す動画は「自動」が向いています。
+        1回きりの動作（攻撃など）は「動画全体から均等に」を選んでください。</p>
+    </div>
     <label>背景の抜き方</label>
     <select id="ed-bgmode">
       <option value="corner">四隅の色を自動で抜く</option>
@@ -254,7 +280,7 @@ button:disabled { opacity: .45; }
 // ブラウザのHTTPキャッシュを毎回回避する（ファイルは小さく、体感差は無い）。
 (async () => {
   const stamp = Date.now();
-  const files = ['studio-motions', 'studio-image', 'studio-github', 'studio-build', 'studio-app'];
+  const files = ['studio-motions', 'studio-image', 'studio-video', 'studio-github', 'studio-build', 'studio-app'];
   for (const name of files) {
     try {
       await new Promise((resolve, reject) => {

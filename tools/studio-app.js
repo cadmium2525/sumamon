@@ -180,6 +180,12 @@ const Studio = {
   bindEditor() {
     this.el('ed-close').addEventListener('click', () => this.closeEditor());
     this.el('ed-files').addEventListener('change', event => this.loadFiles(event.target.files));
+    this.el('ed-source').addEventListener('change', () => {
+      const isVideo = this.el('ed-source').value === 'video';
+      this.el('ed-source-images').classList.toggle('hidden', isVideo);
+      this.el('ed-source-video').classList.toggle('hidden', !isVideo);
+    });
+    this.el('ed-video').addEventListener('change', event => this.loadVideo(event.target.files[0]));
     this.el('ed-apply').addEventListener('click', () => this.processFrames());
     this.el('ed-play').addEventListener('click', () => this.togglePlay());
     this.el('ed-done').addEventListener('click', () => this.closeEditor());
@@ -288,6 +294,8 @@ const Studio = {
     this.el('ed-hint').textContent = motion.hint ||
       (motion.single ? '1枚だけ使います。' : '選んだ順にコマが再生されます。使わないコマはタップで外せます。');
     this.el('ed-files').value = '';
+    this.el('ed-video').value = '';
+    this.el('ed-video-state').textContent = '';
     const entry = this.motions[slot];
     this.el('ed-duration').value = entry ? entry.frameDuration : motion.duration;
     this.el('ed-dur-value').textContent = this.el('ed-duration').value;
@@ -325,6 +333,52 @@ const Studio = {
     this.el('editor').classList.add('hidden');
     this.refreshMotionList();
     this.editing = null;
+  },
+
+  // 動画からコマを切り出す。
+  // 繰り返し動作は周期を自動検出し、その1周ぶんだけを使うことで
+  // 「途中で動きが飛ぶ」「片足しか上がらない」といった不自然さを避ける。
+  async loadVideo(file) {
+    if (!file) return;
+    const state = this.el('ed-video-state');
+    const wanted = Number(this.el('ed-video-count').value) || 8;
+    const useCycle = this.el('ed-video-cycle').value === 'auto';
+    let video = null;
+    try {
+      state.textContent = '動画を読み込み中…';
+      video = await StudioVideo.load(file);
+      // 周期を探すため、必要枚数より多めに候補を取る
+      const sampleCount = useCycle ? Math.min(32, Math.max(wanted * 3, 18)) : wanted;
+      const candidates = await StudioVideo.extractFrames(video, sampleCount,
+        (done, total) => { state.textContent = `コマを取り出し中… ${done}/${total}`; });
+
+      let sources = candidates;
+      let message = `${candidates.length}コマから${wanted}コマを使います`;
+      if (useCycle) {
+        const period = StudioVideo.detectCycle(candidates);
+        if (period) {
+          sources = StudioVideo.pickCycleFrames(candidates, period, wanted);
+          message = `繰り返しを検出しました（${period}コマで1周）。その1周から${sources.length}コマを使います`;
+        } else {
+          sources = StudioVideo.pickCycleFrames(candidates, candidates.length, wanted);
+          message = `繰り返しが見つからなかったため、動画全体から${sources.length}コマを均等に使います`;
+        }
+      }
+      state.textContent = message + '。うまくいかない時は枚数や範囲を変えて選び直してください。';
+
+      this.motions[this.editing.slot] = {
+        sources,
+        canvases: [],
+        used: sources.map(() => true),
+        frameDuration: Number(this.el('ed-duration').value),
+        options: { mode: this.el('ed-bgmode').value, threshold: Number(this.el('ed-threshold').value) },
+      };
+      this.processFrames();
+    } catch (error) {
+      state.textContent = String(error.message || error);
+    } finally {
+      StudioVideo.release(video);
+    }
   },
 
   async loadFiles(fileList) {
