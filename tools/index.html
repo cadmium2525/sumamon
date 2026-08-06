@@ -50,6 +50,15 @@ button:disabled { opacity: .45; }
 .motion-row b { display: block; color: #e7f1fa; font-size: 14px; }
 .motion-row small { color: #8fa6ba; font-size: 10px; }
 .motion-row .count { color: #ffd45e; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.motion-row .count.kept { color: #7fd6a0; }
+.projectile-box { margin-top: 14px; padding: 12px; border: 1px solid #2b3f57; border-radius: 10px; background: #0f1a27; }
+.projectile-box.hidden, #pj-fields.hidden, #pj-bomb.hidden { display: none; }
+.check { display: flex !important; align-items: center; gap: 8px; margin: 0 !important; color: #e7f1fa !important; font-size: 14px !important; }
+.check input { width: auto; }
+.preview.small { height: 90px; }
+.preview.small img { max-height: 80px; max-width: 90%; object-fit: contain; }
+.kept-note { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #10251a; border: 1px solid #2f8a52; color: #b8f5c8; font-size: 11px; line-height: 1.6; }
+.kept-note.hidden { display: none; }
 .chev { color: #5d7590; }
 .editor { position: fixed; inset: 0; z-index: 50; overflow-y: auto; padding-bottom: 40px; background: #0d1420; }
 .editor.hidden { display: none; }
@@ -199,9 +208,39 @@ button:disabled { opacity: .45; }
     </div>
     <label>表示サイズ <span id="ed-scale-value">100</span>% — 待機モーション（薄い影）と体の大きさが揃うように調整します</label>
     <input id="ed-scale" type="range" min="55" max="185" value="100">
+    <div id="ed-kept" class="kept-note hidden"></div>
     <div class="preview"><canvas id="ed-preview" width="360" height="200"></canvas></div>
     <div id="ed-box" class="box-info"></div>
     <div id="ed-frames" class="frames"></div>
+    <div id="ed-projectile" class="projectile-box hidden">
+      <label class="check"><input id="pj-use" type="checkbox"> 飛び道具を出す（矢・弾など）</label>
+      <div id="pj-fields" class="hidden">
+        <label>種類</label>
+        <select id="pj-type">
+          <option value="straight">まっすぐ飛ぶ（矢・弾）</option>
+          <option value="bomb">放物線を描いて落ちる（爆弾）</option>
+        </select>
+        <label>飛び道具の画像（1枚）</label>
+        <input id="pj-file" type="file" accept="image/*">
+        <div class="preview small"><img id="pj-preview" alt=""></div>
+        <div class="row">
+          <div><label>速さ</label><input id="pj-speed" type="number" value="12" step="0.5"></div>
+          <div><label>発射コマ</label><input id="pj-spawn" type="number" value="9"></div>
+        </div>
+        <div class="row">
+          <div><label>幅</label><input id="pj-width" type="number" value="108"></div>
+          <div><label>高さ</label><input id="pj-height" type="number" value="30"></div>
+        </div>
+        <label>飛ぶ長さ（フレーム。60で約1秒）</label>
+        <input id="pj-life" type="number" value="95">
+        <div id="pj-bomb" class="row hidden">
+          <div><label>落ちる速さ</label><input id="pj-gravity" type="number" value="0.28" step="0.02"></div>
+          <div><label>爆発の範囲</label><input id="pj-radius" type="number" value="105"></div>
+        </div>
+        <p class="note">発射コマは「何フレーム目で飛び出すか」です。モーションのどのコマで手を離すかに合わせてください。
+          飛び道具を出す技は、体から出る攻撃判定は無くなります。</p>
+      </div>
+    </div>
     <div class="row" style="margin-top:14px">
       <button id="ed-clear" class="danger">このモーションを空にする</button>
       <button id="ed-done" class="primary">確定する</button>

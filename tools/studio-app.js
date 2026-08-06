@@ -1,6 +1,9 @@
 // ==== モンスター作成スタジオ：画面制御 ====
 const Studio = {
-  motions: {},        // slot -> { canvases, used, contentBox, frameDuration, options }
+  motions: {},           // slot -> { canvases, used, contentBox, frameDuration, options }
+  projectiles: {},       // slot -> 飛び道具の設定
+  projectileImages: {},  // slot -> 飛び道具の画像
+  existing: {},          // 本番に既に登録済みのモーション
   fightersJson: null,
   movesetsJson: null,
   editing: null,
@@ -23,12 +26,14 @@ const Studio = {
     });
     this.el('spec-mode').addEventListener('change', () => this.onModeChange());
     this.el('spec-existing').addEventListener('change', () => this.loadExisting());
+    this.el('spec-key').addEventListener('input', () => this.refreshExistingMotions());
     this.el('btn-diff').addEventListener('click', () => this.showDiff());
     this.el('btn-commit').addEventListener('click', () => this.commit());
 
     this.buildAptitudes();
     this.buildMotionList();
     this.bindEditor();
+    this.bindProjectile();
     if (settings.token) this.connect();
   },
 
@@ -63,13 +68,28 @@ const Studio = {
   },
 
   refreshMotionList() {
+    const existing = this.existing || {};
     STUDIO_MOTIONS.forEach(motion => {
       const entry = this.motions[motion.slot];
       const count = entry ? entry.canvases.filter((_, i) => entry.used[i]).length : 0;
+      const already = existing[motion.slot];
       const label = document.querySelector(`[data-count="${motion.slot}"]`);
       const row = document.querySelector(`[data-slot="${motion.slot}"]`);
-      if (label) label.textContent = count ? `${count}コマ` : '未登録';
-      if (row) row.classList.toggle('done', count > 0);
+      if (!label || !row) return;
+      if (count) {
+        label.textContent = already ? `${count}コマ（差し替え）` : `${count}コマ`;
+        label.classList.remove('kept');
+      } else if (already) {
+        const parts = [];
+        if (already.frames) parts.push(`${already.frames}コマ`);
+        if (already.projectile) parts.push('飛び道具');
+        label.textContent = `登録済み ${parts.join('・')}`;
+        label.classList.add('kept');
+      } else {
+        label.textContent = '未登録';
+        label.classList.remove('kept');
+      }
+      row.classList.toggle('done', count > 0 || !!already);
     });
   },
 
@@ -90,6 +110,7 @@ const Studio = {
       this.fightersJson = JSON.parse(fighters || '{}');
       this.movesetsJson = JSON.parse(movesets || '{}');
       this.fillExisting();
+      this.refreshExistingMotions();
       const note = repo.canPush ? ''
         : '｜書き込み権限を確認できませんでした。コミットで失敗する場合はトークンの Contents を Read and write にしてください';
       this.setStatus('gh-state', repo.canPush ? 'ok' : 'info',
@@ -97,6 +118,33 @@ const Studio = {
     } catch (error) {
       this.setStatus('gh-state', 'ng', String(error.message || error));
     }
+  },
+
+  // サーバー上に既に登録されているモーションを把握する。
+  // 「未登録」と表示され続けると、既にあるモーションまで作り直す必要があると誤解させてしまう。
+  refreshExistingMotions() {
+    this.existing = {};
+    const key = (this.el('spec-key').value || '').trim();
+    const fighter = this.fightersJson && this.fightersJson[key];
+    const moveset = this.movesetsJson && this.movesetsJson[key];
+    if (fighter && fighter.animations) {
+      for (const [slot, animation] of Object.entries(fighter.animations)) {
+        this.existing[slot] = { frames: (animation.frames || []).length };
+      }
+    }
+    if (fighter && fighter.stockIcon) this.existing.stock = { frames: 1 };
+    if (moveset) {
+      for (const [group, moves] of Object.entries(moveset)) {
+        for (const [moveKey, move] of Object.entries(moves || {})) {
+          const slot = `move:${group}.${moveKey}`;
+          const info = {};
+          if (move.animation) info.frames = (move.animation.frames || []).length;
+          if (move.projectile) info.projectile = { ...move.projectile, sprite: move.projectileSprite };
+          if (Object.keys(info).length) this.existing[slot] = info;
+        }
+      }
+    }
+    this.refreshMotionList();
   },
 
   fillExisting() {
@@ -125,6 +173,7 @@ const Studio = {
     ['life', 'power', 'intelligence', 'accuracy', 'evasion', 'defense'].forEach(stat => {
       this.el(`st-${stat}`).value = stats[stat] != null ? stats[stat] : (stat === 'life' ? 100 : 10);
     });
+    this.refreshExistingMotions();
   },
 
   // ---- モーション編集 ----
@@ -136,6 +185,8 @@ const Studio = {
     this.el('ed-done').addEventListener('click', () => this.closeEditor());
     this.el('ed-clear').addEventListener('click', () => {
       delete this.motions[this.editing.slot];
+      delete this.projectiles[this.editing.slot];
+      delete this.projectileImages[this.editing.slot];
       this.refreshMotionList();
       this.closeEditor();
     });
@@ -159,6 +210,77 @@ const Studio = {
     });
   },
 
+  bindProjectile() {
+    this.el('pj-use').addEventListener('change', () => {
+      this.el('pj-fields').classList.toggle('hidden', !this.el('pj-use').checked);
+    });
+    this.el('pj-type').addEventListener('change', () => {
+      this.el('pj-bomb').classList.toggle('hidden', this.el('pj-type').value !== 'bomb');
+    });
+    this.el('pj-file').addEventListener('change', async event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const canvas = await StudioImage.load(file);
+      // 飛び道具も背景透過して余白を落とす（そのまま貼ると余白ぶん当たり判定がずれて見える）
+      if (!StudioImage.hasTransparentCorners(canvas)) StudioImage.removeBackground(canvas, { mode: 'corner', threshold: 30 });
+      const { canvases } = StudioImage.cropAll([canvas], 2);
+      const trimmed = StudioImage.limitSize(canvases[0], 256);
+      this.projectileImages[this.editing.slot] = trimmed;
+      this.el('pj-preview').src = StudioImage.toDataUrl(trimmed);
+      // 画像の縦横比から幅・高さの目安を入れる
+      const width = Number(this.el('pj-width').value) || 100;
+      this.el('pj-height').value = Math.max(6, Math.round(width * trimmed.height / trimmed.width));
+    });
+  },
+
+  // 既存の飛び道具設定をフォームへ復元する
+  loadProjectileForm(slot) {
+    const box = this.el('ed-projectile');
+    const motion = STUDIO_MOTIONS.find(m => m.slot === slot);
+    box.classList.toggle('hidden', !motion.projectile);
+    if (!motion.projectile) return;
+    const saved = this.projectiles[slot];
+    const already = (this.existing || {})[slot];
+    const source = saved || (already && already.projectile) || null;
+    this.el('pj-use').checked = !!source;
+    this.el('pj-fields').classList.toggle('hidden', !source);
+    this.el('pj-file').value = '';
+    const image = this.projectileImages[slot];
+    if (image) this.el('pj-preview').src = StudioImage.toDataUrl(image);
+    else this.el('pj-preview').removeAttribute('src');
+    if (!source) return;
+    this.el('pj-type').value = source.type === 'bomb' ? 'bomb' : 'straight';
+    this.el('pj-bomb').classList.toggle('hidden', source.type !== 'bomb');
+    this.el('pj-speed').value = source.speed != null ? source.speed : 12;
+    this.el('pj-spawn').value = source.spawnFrame != null ? source.spawnFrame : 9;
+    this.el('pj-width').value = source.width != null ? source.width : 108;
+    this.el('pj-height').value = source.height != null ? source.height : 30;
+    this.el('pj-life').value = source.lifetime != null ? source.lifetime : 95;
+    this.el('pj-gravity').value = source.gravity != null ? source.gravity : 0.28;
+    this.el('pj-radius').value = source.explosionRadius != null ? source.explosionRadius : 105;
+  },
+
+  readProjectileForm(slot) {
+    const motion = STUDIO_MOTIONS.find(m => m.slot === slot);
+    if (!motion.projectile) return;
+    if (!this.el('pj-use').checked) { delete this.projectiles[slot]; return; }
+    const type = this.el('pj-type').value;
+    const config = {
+      speed: Number(this.el('pj-speed').value) || 12,
+      width: Number(this.el('pj-width').value) || 100,
+      height: Number(this.el('pj-height').value) || 30,
+      lifetime: Number(this.el('pj-life').value) || 95,
+      spawnFrame: Number(this.el('pj-spawn').value) || 9,
+    };
+    if (type === 'bomb') {
+      config.type = 'bomb';
+      config.gravity = Number(this.el('pj-gravity').value) || 0.28;
+      config.groundFriction = 0.985;
+      config.explosionRadius = Number(this.el('pj-radius').value) || 105;
+    }
+    this.projectiles[slot] = config;
+  },
+
   openEditor(slot) {
     const motion = STUDIO_MOTIONS.find(m => m.slot === slot);
     this.editing = motion;
@@ -178,12 +300,27 @@ const Studio = {
       this.el('ed-threshold').value = entry.options.threshold;
       this.el('ed-threshold-value').textContent = entry.options.threshold;
     }
+    // 既に本番へ登録済みのモーションがあることを伝える（触らなければそのまま残る）
+    const already = (this.existing || {})[slot];
+    const kept = this.el('ed-kept');
+    if (already && !this.motions[slot]) {
+      const parts = [];
+      if (already.frames) parts.push(`${already.frames}コマのモーション`);
+      if (already.projectile) parts.push('飛び道具の設定');
+      kept.textContent = `このモーションは既に登録されています（${parts.join('・')}）。`
+        + '画像を選ばなければ今のまま残ります。差し替えたい時だけ選び直してください。';
+      kept.classList.remove('hidden');
+    } else {
+      kept.classList.add('hidden');
+    }
+    this.loadProjectileForm(slot);
     this.el('editor').classList.remove('hidden');
     window.scrollTo(0, 0);
     this.renderFrames();
   },
 
   closeEditor() {
+    if (this.editing) this.readProjectileForm(this.editing.slot);
     this.stopPlay();
     this.el('editor').classList.add('hidden');
     this.refreshMotionList();
@@ -362,8 +499,25 @@ const Studio = {
 
     const images = [];
     const animations = {};
-    const moveAnimations = {};
+    const moveData = {};
     let idleImage = null, stockIcon = null, spriteContentBox = null;
+
+    // 飛び道具の設定（モーション画像を差し替えなくても単独で登録できる）
+    for (const motion of STUDIO_MOTIONS) {
+      if (!motion.projectile) continue;
+      const config = this.projectiles[motion.slot];
+      if (!config) continue;
+      const slot = motion.slot.slice(5);
+      moveData[slot] = moveData[slot] || {};
+      moveData[slot].projectile = config;
+      const image = this.projectileImages[motion.slot];
+      if (image) {
+        const name = `${motion.dir || slot.replace('.', '_')}.png`;
+        const path = `assets/images/fighter/${key}/projectiles/${name}`;
+        images.push({ path, canvas: image });
+        moveData[slot].projectileSprite = path;
+      }
+    }
 
     for (const motion of STUDIO_MOTIONS) {
       const entry = this.motions[motion.slot];
@@ -387,15 +541,20 @@ const Studio = {
         return path;
       });
       const animation = { frames, frameDuration: entry.frameDuration, contentBox: entry.contentBox };
-      if (motion.slot.startsWith('move:')) moveAnimations[motion.slot.slice(5)] = animation;
-      else animations[motion.slot] = animation;
+      if (motion.slot.startsWith('move:')) {
+        const slot = motion.slot.slice(5);
+        moveData[slot] = moveData[slot] || {};
+        moveData[slot].animation = animation;
+      } else animations[motion.slot] = animation;
       if (motion.slot === 'idle') {
         idleImage = frames[0];
         spriteContentBox = entry.contentBox;
       }
     }
 
-    if (!images.length) throw new Error('モーションが1つも登録されていません');
+    if (!images.length && !Object.keys(moveData).length) {
+      throw new Error('登録する内容がありません。モーションを1つ以上選ぶか、飛び道具を設定してください');
+    }
 
     const stats = {};
     ['life', 'power', 'intelligence', 'accuracy', 'evasion', 'defense'].forEach(stat => {
@@ -407,7 +566,7 @@ const Studio = {
     });
 
     return {
-      key, displayName, images, animations, moveAnimations, aptitudes,
+      key, displayName, images, animations, moveData, aptitudes,
       spec: {
         key, displayName,
         color: this.el('spec-color').value,
@@ -429,8 +588,8 @@ const Studio = {
     const fighters = StudioBuild.applyFighter(this.fightersJson, collected.spec);
     files.push({ path: 'data/fighters.json', text: JSON.stringify(fighters, null, 2) + '\n' });
 
-    if (Object.keys(collected.moveAnimations).length) {
-      const movesets = StudioBuild.applyMoveset(this.movesetsJson, collected.key, collected.moveAnimations);
+    if (Object.keys(collected.moveData).length) {
+      const movesets = StudioBuild.applyMoveset(this.movesetsJson, collected.key, collected.moveData);
       files.push({ path: 'data/movesets.json', text: JSON.stringify(movesets, null, 2) + '\n' });
     }
 
@@ -455,7 +614,9 @@ const Studio = {
       const lines = [
         `■ モンスター: ${collected.displayName}（${collected.key}）`,
         `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth}`,
-        `■ 登録モーション: ${Object.keys(collected.animations).concat(Object.keys(collected.moveAnimations)).join('、') || 'なし'}`,
+        `■ 登録モーション: ${Object.keys(collected.animations).join('、') || 'なし'}`,
+        `■ 技: ${Object.entries(collected.moveData).map(([k, v]) =>
+          k + (v.animation ? '(モーション)' : '') + (v.projectile ? '(飛び道具)' : '')).join('、') || 'なし'}`,
         `■ 画像: ${collected.images.length}枚`,
         `■ 新バージョン: 0.${built.version}（Service Workerへ${built.swAdded}件追加）`,
         '',

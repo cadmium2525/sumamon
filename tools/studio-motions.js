@@ -1,6 +1,7 @@
 // ==== モンスター作成スタジオ：モーション定義 ====
 // ここに1行足すだけでスタジオの入力欄が増える。
 // slot: data/fighters.json の animations キー、または "move:<グループ>.<技キー>"（技モーション）
+// projectile: true の技は、モーションに加えて飛び道具（矢・弾など）の設定ができる
 window.STUDIO_MOTIONS = [
   { slot: 'idle',    name: '待機',       dir: 'idle',            duration: 8,  required: true,
     hint: 'ゲーム中いちばん長く映るモーション。最優先で用意してください' },
@@ -29,10 +30,10 @@ window.STUDIO_MOTIONS = [
   { slot: 'move:air.back',        name: '空後',      dir: 'air_back',       duration: 3 },
   { slot: 'move:air.up',          name: '空上',      dir: 'air_up',         duration: 3 },
   { slot: 'move:air.down',        name: '空下',      dir: 'air_down',       duration: 3 },
-  { slot: 'move:special.neutral', name: 'NB（通常必殺）', dir: 'neutral_special', duration: 3 },
-  { slot: 'move:special.side',    name: '横B',       dir: 'side_special',   duration: 6 },
-  { slot: 'move:special.up',      name: '上B',       dir: 'up_special',     duration: 4 },
-  { slot: 'move:special.down',    name: '下B',       dir: 'down_special',   duration: 6 },
+  { projectile: true, slot: 'move:special.neutral', name: 'NB（通常必殺）', dir: 'neutral_special', duration: 3 },
+  { projectile: true, slot: 'move:special.side',    name: '横B',       dir: 'side_special',   duration: 6 },
+  { projectile: true, slot: 'move:special.up',      name: '上B',       dir: 'up_special',     duration: 4 },
+  { projectile: true, slot: 'move:special.down',    name: '下B',       dir: 'down_special',   duration: 6 },
   { slot: 'stock',   name: 'ストックアイコン', dir: '',        duration: 0, single: true, filePrefix: 'stock',
     hint: 'HUDの残機表示に使う1枚。正方形に切り取られます' },
 ];

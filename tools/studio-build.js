@@ -83,15 +83,28 @@ const StudioBuild = {
     return data;
   },
 
-  // movesets.json へ技モーションを追加/更新する（バランス値は共通テーブルを継承したまま）
-  applyMoveset(movesetsJson, key, moveAnimations) {
+  // movesets.json へ技モーション/飛び道具を追加・更新する。
+  // moveData[slot] = { animation?, projectile?, projectileSprite? }
+  applyMoveset(movesetsJson, key, moveData) {
     const data = { ...movesetsJson };
     const fighter = { ...(data[key] || {}) };
-    for (const [slot, animation] of Object.entries(moveAnimations)) {
+    for (const [slot, update] of Object.entries(moveData)) {
       const [group, moveKey] = slot.split('.');
       const groupData = { ...(fighter[group] || {}) };
-      const existing = groupData[moveKey] || {};
-      groupData[moveKey] = { ...existing, extends: `${group}.${moveKey}`, animation };
+      const existing = groupData[moveKey];
+      // 新規の技は共通テーブル(MOVES)を継承する。
+      // 既にその技が独自のバランス値を持っている場合はそのまま活かし、extendsを付け足さない
+      // （付けると意図しない既定値が混ざり込む）。
+      const next = existing ? { ...existing } : { extends: `${group}.${moveKey}` };
+      if (update.animation) next.animation = update.animation;
+      if (update.projectile) {
+        next.projectile = update.projectile;
+        if (update.projectileSprite) next.projectileSprite = update.projectileSprite;
+      } else if (update.removeProjectile) {
+        delete next.projectile;
+        delete next.projectileSprite;
+      }
+      groupData[moveKey] = next;
       fighter[group] = groupData;
     }
     data[key] = fighter;
