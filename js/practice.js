@@ -2,7 +2,7 @@ const PRACTICE_COURSES = {
   desert: { name: 'マンディー砂漠', stat: 'power', statLabel: 'ちから', color: '#d79b43', duration: 60, description: '1分間の横スクロール障害物走。3種のモノリスを正しい攻撃で破壊してゴールを目指す' },
   jungle: { name: 'パレパレジャングル', stat: 'intelligence', statLabel: 'かしこさ', color: '#4eaa56', duration: 65, description: '仕掛けを解いて最深部へ進む' },
   coast: { name: 'トーブル海岸', stat: 'accuracy', statLabel: '命中', color: '#42b7dd', duration: 50, description: '動くターゲットを正確に狙う' },
-  snow: { name: 'パパス雪山', stat: 'evasion', statLabel: '回避', color: '#a9dcf2', duration: 65, description: '崩れる足場を登り山頂を目指す' },
+  snow: { name: 'パパス雪山', stat: 'evasion', statLabel: '回避', color: '#a9dcf2', duration: 60, description: '強制スクロールする雪山を、落ちないよう登り続けろ' },
   volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 50, description: '火山弾と溶岩から生き残る', level: 10 },
 };
 
@@ -24,6 +24,43 @@ const DESERT_RANK_TIMES = [
 ];
 // Sランク報酬「ちから+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
 const DESERT_REWARD_BASE = { stat: 20, life: 8 };
+
+// 「パパス雪山」専用パラメータ。強制縦スクロールで追い立てられながら、
+// 左右に揺れる足場を渡り、後半はツララを避けて少しでも高く登る。
+// ここに挙げた数値は初速の目安（実測での再調整を前提とした初期案）。
+const SNOW_CONFIG = {
+  scrollDelay: 1.4,        // 開始から何秒は不動か（最初の足場を確認する猶予）
+  scrollBaseSpeed: 0.85,   // スクロール速度の初速(px/フレーム)
+  scrollMaxSpeed: 1.9,     // duration経過時点のスクロール速度上限(px/フレーム)
+  killMargin: 34,          // 画面下端からこのぶん出たらゲームオーバー
+  platformGapMin: 100,     // 足場の縦間隔(px)の最小値
+  platformGapMax: 150,     // 足場の縦間隔(px)の最大値
+  platformWidth: [110, 150], // 足場の横幅の範囲(px)
+  swayAmpRange: [10, 34],  // 足場が左右に揺れる振幅(px)
+  swayPeriodRange: [70, 160], // 揺れの周期(フレーム)
+  icicleStartTime: 24,     // 何秒経過からツララが降り始めるか
+  icicleIntervalStart: 100, // ツララの出現間隔(フレーム)の初期値
+  icicleIntervalEnd: 36,   // durationに達する頃の出現間隔(フレーム)
+  icicleWarnFrames: 24,    // 落下前の予告（影が伸びる）フレーム数
+  icicleFallSpeed: 8.5,    // ツララの落下速度(px/フレーム)
+  icicleWidth: 22, icicleHeight: 46,
+  icicleStunFrames: 22,    // 被弾時のノックバック硬直(フレーム)
+};
+
+// 到達標高(m。HUD表示と同じ「10px=1m」換算)→ランクのしきい値。これ未満はEランク。
+// Playwrightの疑似プレイで実測して決めた値（感覚ではなく実際の到達可能範囲から逆算）：
+// ノーミスで登り続けるボットは60秒で700m超に到達する一方、時々ミスをする
+// ボットは1回の判断ミスで序盤の即死（1桁m）〜終盤までしのいで800m超まで大きくばらつく。
+// Sは「ほぼノーミスで登り切る」水準、Eはごく序盤で振り落とされる水準に合わせている。
+const SNOW_RANK_ALTITUDE = [
+  { grade: 'S', min: 650 },
+  { grade: 'A', min: 480 },
+  { grade: 'B', min: 320 },
+  { grade: 'C', min: 180 },
+  { grade: 'D', min: 80 },
+];
+// Sランク報酬「回避+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
+const SNOW_REWARD_BASE = { stat: 20, life: 8 };
 
 const PRACTICE_CONTROL_HELP = [
   '移動: 左スティック（左右）／ジャンプ: JUMPボタン（2段ジャンプ対応）',
@@ -176,10 +213,14 @@ const PracticeGame = {
     let text = course.description;
     if (this.courseKey === 'desert') {
       text = '灼熱の砂漠を制限時間1分以内に駆け抜けろ！\n行く手を阻む3種のモノリス（壁）は、見た目ごとに弱点となる攻撃が異なる。よく観察して正しい攻撃で打ち破ろう。\n頭上は塞がっているため、ジャンプで飛び越えることはできない。\n落とし穴に落ちてもゲームオーバーにはならない。直前のチェックポイントからやり直しになるだけなので、あきらめずゴールを目指そう。';
+    } else if (this.courseKey === 'snow') {
+      text = '画面は少し待つと自動で上へスクロールを始める。追いつかれて画面の下にはみ出すと、その時点で即ゲームオーバー！\n足場は氷でできており、左右にゆっくり揺れる。乗ったまま油断すると滑り落ちるので、揺れに合わせて足場の中心をキープしよう。\n残り時間が半分を切ると、画面上からダメージ判定のある「ツララ」が降ってくる。影が伸びたら落下の合図、回避（ジャンプ・回避行動）でかわそう。\n評価は生き残った時間ではなく「どれだけ高く登ったか」で決まる。ゲームオーバーになっても、そこまでの最高到達点で採点される。';
     }
     document.getElementById('practice-intro-text').textContent = text;
     const hints = this.courseKey === 'desert'
       ? Object.values(DESERT_WALL_WEAKNESS).map(w => `<li><b>■</b>${this.escape(w.label)}</li>`)
+      : this.courseKey === 'snow'
+      ? ['強制スクロール：一定時間後、画面が自動で上へ進み続ける', '揺れる足場：周期も振幅もランダムで、乗るたびに揺れ方が変わる', 'ツララ：影の予告後に落下。当たるとノックバックして怯む', '評価：制限時間中に到達した最高標高でS〜Eを判定'].map(text2 => `<li><b>❄</b>${this.escape(text2)}</li>`)
       : [];
     const controls = PRACTICE_CONTROL_HELP.map(line => `<li><b>▶</b>${this.escape(line)}</li>`);
     document.getElementById('practice-intro-controls').innerHTML = [...hints, ...controls].join('');
@@ -242,11 +283,28 @@ const PracticeGame = {
       this.platforms.push({ x: 360, y: 415, w: 240, h: 16 });
       for (let i = 0; i < 5; i++) this._spawnCoastTarget(i);
     } else if (this.courseKey === 'snow') {
-      this.platforms = [{ x: 20, y: 500, w: 230, h: 20 }];
-      const climbPath = [80, 240, 400, 560, 720, 560, 400, 240];
-      for (let i = 1; i <= 18; i++) this.platforms.push({ x: climbPath[(i - 1) % climbPath.length], y: 500 - i * 92, w: 145, h: 15, crumbles: i % 4 === 0, touched: 0 });
-      this.goalY = 500 - 18 * 92;
-      this.avalancheY = 620;
+      this._snowGroundY = groundY;
+      this.platforms = [{ x: 20, y: groundY, w: 230, h: 20 }];
+      // ジグザグに登る氷の足場を生成。縦間隔・横位置・揺れの振幅/周期はすべてランダムで、
+      // 毎プレイ違う登り方になる（強制スクロールに追われるので覚えゲーにはしない）。
+      let px = 90, py = groundY, dir = Math.random() < .5 ? 1 : -1;
+      for (let i = 1; i <= 60; i++) {
+        py -= SNOW_CONFIG.platformGapMin + Math.random() * (SNOW_CONFIG.platformGapMax - SNOW_CONFIG.platformGapMin);
+        px += dir * (70 + Math.random() * 210);
+        if (px < 60) { px = 60; dir = 1; }
+        if (px > 760) { px = 760; dir = -1; }
+        if (Math.random() < 0.25) dir *= -1;
+        const w = SNOW_CONFIG.platformWidth[0] + Math.random() * (SNOW_CONFIG.platformWidth[1] - SNOW_CONFIG.platformWidth[0]);
+        const swayAmp = SNOW_CONFIG.swayAmpRange[0] + Math.random() * (SNOW_CONFIG.swayAmpRange[1] - SNOW_CONFIG.swayAmpRange[0]);
+        const swayPeriod = SNOW_CONFIG.swayPeriodRange[0] + Math.random() * (SNOW_CONFIG.swayPeriodRange[1] - SNOW_CONFIG.swayPeriodRange[0]);
+        this.platforms.push({ baseX: px, x: px, y: py, w, h: 15, swayAmp, swayPeriod, swayPhase: Math.random() * Math.PI * 2 });
+      }
+      this.scrollTop = groundY - 540; // カメラ最上端の初期位置（＝地面付近が画面下に見える状態）
+      this.bestAltitudeY = f.y; // これまでの最高到達点（yが小さいほど高い）。評価はこれを使う
+      this.bestAltitudeM = 0;
+      this.icicles = [];
+      this.nextIcicle = 0;
+      this.iceHits = 0;
     } else if (this.courseKey === 'volcano') {
       f.x = 460;
       this.nextHazard = 20;
@@ -287,6 +345,8 @@ const PracticeGame = {
   _tick() {
     this.frame++;
     this.elapsed += 1 / 60;
+    // 足場の揺れはFighter.updateの当たり判定より前に反映する（同フレームでズレないように）
+    if (this.courseKey === 'snow') this._swaySnowPlatforms();
     const inp = this._readInput();
     const f = this.fighter;
     f.applyInput(inp);
@@ -308,7 +368,15 @@ const PracticeGame = {
       f.x = 60; f.y = 390; f.vx = 0; f.vy = 0;
       this.score = Math.max(0, this.score - 5);
     }
-    if (this.elapsed >= this.course.duration) this.finish(false);
+    if (this.elapsed >= this.course.duration) this.finish(false, 'timeup');
+  },
+
+  // 足場の左右の揺れ（周期・振幅は足場ごとにランダム）。氷なので踏ん張りが効かない想定。
+  _swaySnowPlatforms() {
+    for (const p of this.platforms) {
+      if (!p.swayAmp) continue;
+      p.x = p.baseX + Math.sin((this.frame + p.swayPhase) / p.swayPeriod * Math.PI * 2) * p.swayAmp;
+    }
   },
 
   // 現在の技が a(通常/空中技) / b(必殺技) / smash(溜め攻撃) のどれに属するか判定
@@ -463,12 +531,51 @@ const PracticeGame = {
 
   _updateSnow() {
     const f = this.fighter;
-    this.cameraY = Math.min(0, f.y - 270);
-    this.avalancheY -= 0.55;
-    const heightScore = Math.max(0, Math.round((500 - f.y) / (500 - this.goalY) * 100));
-    this.score = Math.max(this.score, heightScore);
-    if (f.y + f.h > this.avalancheY || f.y > 620) { this.finish(false); return; }
-    if (f.y <= this.goalY + 45) this.finish(true);
+    // 到達標高のベストを常時更新（評価はゲームオーバー後も「最も高く登った時点」を見る）
+    if (f.y < this.bestAltitudeY) this.bestAltitudeY = f.y;
+    this.bestAltitudeM = Math.max(0, Math.round((this._snowGroundY - this.bestAltitudeY) / 10));
+    this.score = this.bestAltitudeM;
+
+    // 強制縦スクロール：開始直後だけ猶予を置き、以降は時間経過で加速しながら上へ押し続ける
+    if (this.elapsed >= SNOW_CONFIG.scrollDelay) {
+      const progress = Math.min(1, (this.elapsed - SNOW_CONFIG.scrollDelay) / (this.course.duration - SNOW_CONFIG.scrollDelay));
+      this.scrollTop -= SNOW_CONFIG.scrollBaseSpeed + (SNOW_CONFIG.scrollMaxSpeed - SNOW_CONFIG.scrollBaseSpeed) * progress;
+    }
+    this.cameraY = this.scrollTop;
+    // 画面下端（+ killMargin）からフレームアウトしたら即ゲームオーバー
+    const killY = this.scrollTop + 540 + SNOW_CONFIG.killMargin;
+    if (f.y > killY) { this.finish(false, 'falls'); return; }
+
+    // ツララ：残り時間の後半（icicleStartTime経過後）から降り始め、終盤ほど頻度が上がる
+    if (this.elapsed >= SNOW_CONFIG.icicleStartTime) {
+      this.nextIcicle--;
+      if (this.nextIcicle <= 0) {
+        const progress = Math.min(1, (this.elapsed - SNOW_CONFIG.icicleStartTime) / Math.max(1, this.course.duration - SNOW_CONFIG.icicleStartTime));
+        this.nextIcicle = SNOW_CONFIG.icicleIntervalStart + (SNOW_CONFIG.icicleIntervalEnd - SNOW_CONFIG.icicleIntervalStart) * progress;
+        this.icicles.push({
+          x: 40 + Math.random() * (880 - SNOW_CONFIG.icicleWidth),
+          y: this.scrollTop - 60, w: SNOW_CONFIG.icicleWidth, h: SNOW_CONFIG.icicleHeight,
+          warn: SNOW_CONFIG.icicleWarnFrames, hit: false,
+        });
+      }
+    }
+    for (const ice of this.icicles) {
+      if (ice.warn > 0) { ice.warn--; continue; }
+      ice.y += SNOW_CONFIG.icicleFallSpeed;
+      if (!ice.hit && Physics.rectsOverlap(f.getHurtbox(), ice)) {
+        ice.hit = true;
+        if (f.dodgeTimer > 0) {
+          // 回避行動で無力化。評価対象の「回避」がまさに活きた場面なので記録だけ残す
+          this.avoided++;
+        } else {
+          this.iceHits++;
+          f.hitstun = Math.max(f.hitstun, SNOW_CONFIG.icicleStunFrames);
+          f.vy = -3.5;
+          f.vx = (f.x + f.w / 2 < ice.x + ice.w / 2 ? -1 : 1) * 3;
+        }
+      }
+    }
+    this.icicles = this.icicles.filter(ice => !ice.hit && ice.y < this.scrollTop + 640);
   },
 
   _updateVolcano() {
@@ -505,7 +612,7 @@ const PracticeGame = {
     const status = this.courseKey === 'desert' ? `モノリス破壊 ${this.targets.filter(t => t.destroyed).length}/${this.targets.length}　落下 ${this.pitFalls || 0}回`
       : this.courseKey === 'jungle' ? `仕掛け ${this.switchProgress || 0}/3`
       : this.courseKey === 'coast' ? `命中 ${this.hits}　COMBO ${this.combo}`
-      : this.courseKey === 'snow' ? `高度 ${Math.max(0, Math.round((500 - this.fighter.y) / 10))}m`
+      : this.courseKey === 'snow' ? `標高 ${this.bestAltitudeM || 0}m${this.elapsed >= SNOW_CONFIG.icicleStartTime ? '　⚠ツララ注意' : ''}`
       : `耐久 ♥${this.hp}　防御 ${this.avoided}`;
     if (status !== this._hudLastStatus) {
       this._hudLastStatus = status;
@@ -513,7 +620,7 @@ const PracticeGame = {
     }
   },
 
-  finish(cleared) {
+  finish(cleared, reason) {
     if (!this.active) return;
     this.active = false;
     cancelAnimationFrame(this.raf);
@@ -529,22 +636,31 @@ const PracticeGame = {
       normalized = Math.max(0, Math.round(100 - (this.elapsed / this.course.duration) * 100));
     } else if (this.courseKey === 'jungle') normalized = this.switchProgress / 3 * 65 + (cleared ? 35 : 0);
     else if (this.courseKey === 'coast') normalized = Math.min(100, this.hits * 4 + this.bestCombo * 3 - this.misses * 2);
-    else if (this.courseKey === 'snow') normalized = Math.min(100, this.score + (cleared ? 15 : 0));
-    else normalized = Math.min(100, this.elapsed / this.course.duration * 75 + this.avoided * 2 + (this.hp > 0 ? 10 : 0));
+    else if (this.courseKey === 'snow') {
+      const altitudeM = this.bestAltitudeM || 0;
+      const found = SNOW_RANK_ALTITUDE.find(rank => altitudeM >= rank.min);
+      grade = found ? found.grade : 'E';
+      normalized = Math.max(0, Math.min(100, Math.round(altitudeM / SNOW_RANK_ALTITUDE[0].min * 100)));
+    } else normalized = Math.min(100, this.elapsed / this.course.duration * 75 + this.avoided * 2 + (this.hp > 0 ? 10 : 0));
     normalized = Math.max(0, Math.round(normalized));
     if (!grade) grade = normalized >= 90 ? 'S' : normalized >= 75 ? 'A' : normalized >= 55 ? 'B' : normalized >= 30 ? 'C' : 'D';
     let growthText = '管理者テストのため能力値は変化しません';
     if (!this.admin && this.monster.id) {
-      const growth = this.courseKey === 'desert'
-        ? GROWTH.applyPracticeResult(this.monster, this.course.stat, grade, DESERT_REWARD_BASE.stat, DESERT_REWARD_BASE.life)
+      const rewardBase = this.courseKey === 'desert' ? DESERT_REWARD_BASE : this.courseKey === 'snow' ? SNOW_REWARD_BASE : null;
+      const growth = rewardBase
+        ? GROWTH.applyPracticeResult(this.monster, this.course.stat, grade, rewardBase.stat, rewardBase.life)
         : GROWTH.applyPracticeResult(this.monster, this.course.stat, grade);
       MasmonStore.update(this.monster);
       growthText = `${this.course.statLabel} +${growth[this.course.stat]}　ライフ +${growth.life}`;
     }
     document.getElementById('practice-result-grade').textContent = grade;
-    document.getElementById('practice-result-title').textContent = cleared ? `${this.course.name} 修行成功！` : `${this.course.name} 修行終了`;
+    document.getElementById('practice-result-title').textContent = cleared ? `${this.course.name} 修行成功！`
+      : this.courseKey === 'snow' ? (reason === 'timeup' ? `${this.course.name} タイムアップ！` : `${this.course.name} 雪崩に飲まれた…`)
+      : `${this.course.name} 修行終了`;
     document.getElementById('practice-result-score').textContent = this.courseKey === 'desert'
       ? (cleared ? `クリアタイム ${this.elapsed.toFixed(1)}秒` : `タイムアップ（未クリア）`)
+      : this.courseKey === 'snow'
+      ? `到達標高 ${this.bestAltitudeM || 0}m　ツララ被弾 ${this.iceHits || 0}回　回避 ${this.avoided || 0}回`
       : `評価スコア ${normalized}／100`;
     document.getElementById('practice-result-growth').textContent = growthText;
     document.getElementById('practice-result-modal').classList.remove('hidden');
@@ -583,8 +699,21 @@ const PracticeGame = {
     const offsetY = -(this.cameraY || 0);
     const offsetX = -(this.cameraX || 0);
     if (this.courseKey === 'snow') {
-      ctx.fillStyle = 'rgba(255,255,255,.35)';
-      for (let i = 0; i < 35; i++) ctx.fillRect((i * 83 + this.frame) % 960, (i * 57 + this.frame * 1.5) % 540, 4, 4);
+      // 奥の山脈（スクロールに合わせてゆっくり流れる視差背景）
+      const parallax = ((this.cameraY || 0) * 0.16) % 320;
+      ctx.fillStyle = 'rgba(255,255,255,.30)';
+      for (let i = -1; i < 4; i++) {
+        const bx = i * 320 - parallax;
+        ctx.beginPath(); ctx.moveTo(bx, 540); ctx.lineTo(bx + 160, 300 + (i % 2) * 40); ctx.lineTo(bx + 320, 540); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.18)';
+      for (let i = -1; i < 4; i++) {
+        const bx = i * 320 - parallax * 0.55 + 160;
+        ctx.beginPath(); ctx.moveTo(bx, 540); ctx.lineTo(bx + 140, 360); ctx.lineTo(bx + 280, 540); ctx.fill();
+      }
+      // 降り続ける雪
+      ctx.fillStyle = 'rgba(255,255,255,.4)';
+      for (let i = 0; i < 45; i++) ctx.fillRect((i * 71 + this.frame * 0.7) % 960, (i * 53 + this.frame * 2.4) % 540, 3, 3);
     }
     if (this.courseKey === 'desert') {
       // 遠景の太陽と砂丘（視差なしの簡易背景）
@@ -595,6 +724,7 @@ const PracticeGame = {
     ctx.save(); ctx.translate(offsetX, offsetY);
     for (const platform of this.platforms) {
       if (platform.gone) continue;
+      if (this.courseKey === 'snow' && platform.swayAmp) { this._drawIcePlatform(ctx, platform); continue; }
       ctx.fillStyle = this.courseKey === 'snow' ? '#e8f8ff' : this.courseKey === 'volcano' ? '#34242a' : '#5b4937';
       ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
       ctx.fillStyle = this.courseKey === 'snow' ? '#8bd5ef' : '#d8aa5a'; ctx.fillRect(platform.x, platform.y, platform.w, 4);
@@ -651,12 +781,64 @@ const PracticeGame = {
       if (hazard.type === 'spikes') { ctx.beginPath(); ctx.moveTo(hazard.x,hazard.y+hazard.h);ctx.lineTo(hazard.x+hazard.w/2,hazard.y);ctx.lineTo(hazard.x+hazard.w,hazard.y+hazard.h);ctx.fill(); }
       else { ctx.beginPath();ctx.arc(hazard.x+hazard.w/2,hazard.y+hazard.h/2,hazard.w/2,0,Math.PI*2);ctx.fill(); }
     }
+    if (this.courseKey === 'snow') this._drawSnowIcicles(ctx);
     this._drawProjectiles(ctx);
     // ---- プレイヤー：本番と同じFighter.draw()でそのまま描画（全モーション対応）----
     this.fighter.draw(ctx);
     if (this.courseKey === 'jungle' && this.switchProgress >= 3) { ctx.fillStyle='#8dfff0';ctx.fillRect(900,390,35,95); }
-    if (this.courseKey === 'snow') { ctx.fillStyle='rgba(210,245,255,.75)';ctx.fillRect(0,this.avalancheY,960,260); }
+    if (this.courseKey === 'snow') {
+      // 強制スクロールに置き去りにされる境界＝ここより下に出ると即アウト
+      const killY = (this.scrollTop || 0) + 540 + SNOW_CONFIG.killMargin;
+      const grad = ctx.createLinearGradient(0, killY - 70, 0, killY + 220);
+      grad.addColorStop(0, 'rgba(220,248,255,0)');
+      grad.addColorStop(0.55, 'rgba(220,248,255,.7)');
+      grad.addColorStop(1, 'rgba(245,252,255,.96)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(-400, killY - 70, 1760, 400);
+    }
     ctx.restore();
+  },
+
+  // 氷の足場：霜がかった質感＋下端に垂れる氷柱（見た目のみ、当たり判定はplatform本体のまま）
+  _drawIcePlatform(ctx, p) {
+    const grad = ctx.createLinearGradient(p.x, p.y, p.x, p.y + p.h);
+    grad.addColorStop(0, '#f6fdff'); grad.addColorStop(0.5, '#cdeeff'); grad.addColorStop(1, '#86c9e8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(p.x, p.y, p.w, 3);
+    ctx.strokeStyle = 'rgba(80,140,175,.4)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.x + p.w * 0.28, p.y); ctx.lineTo(p.x + p.w * 0.4, p.y + p.h);
+    ctx.moveTo(p.x + p.w * 0.72, p.y); ctx.lineTo(p.x + p.w * 0.6, p.y + p.h);
+    ctx.stroke();
+    ctx.fillStyle = '#bfe9fb';
+    const spikes = Math.max(2, Math.floor(p.w / 34));
+    for (let i = 0; i < spikes; i++) {
+      const sx = p.x + (i + 0.5) * (p.w / spikes);
+      const sh = 5 + ((i * 37 + Math.floor(p.baseX)) % 8);
+      ctx.beginPath(); ctx.moveTo(sx - 5, p.y + p.h); ctx.lineTo(sx + 5, p.y + p.h); ctx.lineTo(sx, p.y + p.h + sh); ctx.fill();
+    }
+  },
+
+  // ツララ：warnの間は落下地点に影が伸びる予告のみ、0になったら実体が落下する
+  _drawSnowIcicles(ctx) {
+    for (const ice of this.icicles) {
+      if (ice.warn > 0) {
+        const ratio = 1 - ice.warn / SNOW_CONFIG.icicleWarnFrames;
+        ctx.fillStyle = `rgba(255,255,255,${0.25 + ratio * 0.4})`;
+        ctx.fillRect(ice.x + ice.w * 0.15, ice.y, ice.w * 0.7, 6 + ratio * 16);
+        continue;
+      }
+      const grad = ctx.createLinearGradient(ice.x, ice.y, ice.x, ice.y + ice.h);
+      grad.addColorStop(0, '#eafbff'); grad.addColorStop(1, '#8fd0ee');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(ice.x, ice.y); ctx.lineTo(ice.x + ice.w, ice.y);
+      ctx.lineTo(ice.x + ice.w * 0.5, ice.y + ice.h);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ice.x + ice.w * 0.32, ice.y + 4); ctx.lineTo(ice.x + ice.w * 0.42, ice.y + ice.h * 0.7); ctx.stroke();
+    }
   },
 
   _drawProjectiles(ctx) {
