@@ -56,10 +56,16 @@ const Multiplayer = {
       const fighter = FIGHTERS[monster.baseFighterKey];
       return `<label class="multi-masmon-card">
         <input type="radio" name="multi-${kind}-masmon" value="${monster.id}" ${index === 0 ? 'checked' : ''}>
-        <img src="${fighter.stockIcon || fighter.idleImage}" alt="">
+        <img alt="">
         <span><strong>${this.escapeHtml(monster.name)}</strong><small>Lv.${monster.level}／${fighter.displayName}</small></span>
       </label>`;
     }).join('');
+    // スキン（色変更）を反映する
+    masmons.forEach((monster, index) => {
+      const fighter = FIGHTERS[monster.baseFighterKey];
+      const img = list.children[index]?.querySelector('img');
+      if (img) Skin.paintInto(img, fighter.stockIcon || fighter.idleImage, monster.skin);
+    });
   },
 
   selectionFor(kind) {
@@ -360,12 +366,18 @@ const Multiplayer = {
     const stage = STAGES[this.room.stageKey];
     document.getElementById('multi-lobby-room').textContent = `ROOM ${this.room.roomId}／${stage ? stage.displayName : this.room.stageKey}／${this.room.maxPlayers}人対戦`;
     const members = this.sortedMembers();
-    document.getElementById('multi-lobby-members').innerHTML = Array.from({ length: this.room.maxPlayers }, (_, index) => {
+    const lobby = document.getElementById('multi-lobby-members');
+    lobby.innerHTML = Array.from({ length: this.room.maxPlayers }, (_, index) => {
       const member = members[index];
       if (!member) return `<div class="multi-member-slot empty"><strong>CPU Lv.9</strong><small>対戦開始時に補充</small></div>`;
-      const def = FIGHTERS[member.selection.fighterKey];
-      return `<div class="multi-member-slot"><img src="${def.stockIcon || def.idleImage}" alt=""><span><strong>${this.escapeHtml(member.name)}</strong><small>${this.escapeHtml(member.selection.name)} Lv.${member.selection.level}</small></span></div>`;
+      return `<div class="multi-member-slot"><img alt=""><span><strong>${this.escapeHtml(member.name)}</strong><small>${this.escapeHtml(member.selection.name)} Lv.${member.selection.level}</small></span></div>`;
     }).join('');
+    // 相手のスキン（色変更）も反映する
+    members.forEach((member, index) => {
+      const def = FIGHTERS[member.selection.fighterKey];
+      const img = lobby.children[index]?.querySelector('img');
+      if (img && def) Skin.paintInto(img, def.stockIcon || def.idleImage, member.selection.skin);
+    });
     document.getElementById('multi-start-battle').classList.toggle('hidden', this.role !== 'host');
   },
 

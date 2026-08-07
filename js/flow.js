@@ -336,7 +336,8 @@ const AppFlow = {
     const templateCards = Object.values(FIGHTERS).map(f => this._fighterCardHtml({
       fighterKey: f.key, label: f.displayName, img: f.idleImage, color: f.color,
     }));
-    const masmonCards = MasmonStore.loadAll().filter(m => FIGHTERS[m.baseFighterKey]).map(m => {
+    const masmons = MasmonStore.loadAll().filter(m => FIGHTERS[m.baseFighterKey]);
+    const masmonCards = masmons.map(m => {
       const base = FIGHTERS[m.baseFighterKey] || {};
       return this._fighterCardHtml({
         fighterKey: m.baseFighterKey, masmonId: m.id,
@@ -345,6 +346,12 @@ const AppFlow = {
       });
     });
     list.innerHTML = templateCards.join('') + masmonCards.join('');
+    // スキン（色変更）を反映する
+    masmons.forEach((m, index) => {
+      const base = FIGHTERS[m.baseFighterKey] || {};
+      const card = list.children[templateCards.length + index];
+      if (card && base.idleImage) Skin.paintInto(card, base.idleImage, m.skin, { background: true });
+    });
   },
 
   _fighterCardHtml({ fighterKey, masmonId, label, img, color, hundredBadge = false }) {
@@ -649,13 +656,18 @@ const AppFlow = {
       </button>`;
     }).join('');
     list.forEach((m, index) => {
-      const label = roster.children[index]?.querySelector('span');
+      const card = roster.children[index];
+      const label = card?.querySelector('span');
       if (label) label.textContent = m.name;
+      // スキン（色変更）を反映する
+      const base = FIGHTERS[m.baseFighterKey] || {};
+      const thumb = card?.querySelector('img');
+      if (thumb && base.idleImage) Skin.paintInto(thumb, base.idleImage, m.skin);
     });
     const selected = list.find(m => m.id === this.selectedManageMasmonId);
     if (selected) {
       const base = FIGHTERS[selected.baseFighterKey] || {};
-      this._startManageIdleAnimation(base, image);
+      this._startManageIdleAnimation(base, image, selected.skin);
       name.textContent = `${selected.name}　Lv.${selected.level}`;
       if (statPanel) {
         const stats = GROWTH.computeStatsAtLevel(
@@ -665,7 +677,7 @@ const AppFlow = {
     } else if (statPanel) statPanel.innerHTML = '';
   },
 
-  _startManageIdleAnimation(base, image) {
+  _startManageIdleAnimation(base, image, skin) {
     if (this.manageIdleTimer) {
       clearInterval(this.manageIdleTimer);
       this.manageIdleTimer = null;
@@ -676,12 +688,12 @@ const AppFlow = {
       return;
     }
     let frameIndex = 0;
-    image.src = frames[frameIndex];
+    Skin.paintInto(image, frames[frameIndex], skin);
     if (frames.length === 1) return;
     const frameMs = Math.max(80, (base.idleFrameDuration || 8) * (1000 / 60));
     this.manageIdleTimer = setInterval(() => {
       frameIndex = (frameIndex + 1) % frames.length;
-      image.src = frames[frameIndex];
+      Skin.paintInto(image, frames[frameIndex], skin);
     }, frameMs);
   },
 
@@ -1029,7 +1041,7 @@ const AppFlow = {
       ? GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: monster.trainingStats }, monster.aptitudes, monster.level)
       : { ...defaultStats(), ...(def.stats || {}) };
     const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
-    document.getElementById('fighter-status-image').src = def.idleImage;
+    Skin.paintInto(document.getElementById('fighter-status-image'), def.idleImage, monster && monster.skin);
     document.getElementById('fighter-status-name').textContent = monster ? monster.name : def.displayName;
     document.getElementById('fighter-status-level').textContent = monster ? `Lv.${monster.level}` : 'ベースモンスター';
     document.getElementById('fighter-status-grid').innerHTML = GROWTH.STAT_KEYS.map(key => `

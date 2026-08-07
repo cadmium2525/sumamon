@@ -94,7 +94,9 @@ const PracticeGame = {
     document.getElementById('practice-intro-modal').classList.add('hidden');
     document.getElementById('practice-result-modal').classList.add('hidden');
     const def = FIGHTERS[monster.baseFighterKey] || FIGHTERS.irumine;
-    document.getElementById('practice-monster-summary').innerHTML = `<img src="${def.idleImage}" alt=""><span><strong>${this.escape(monster.name)} Lv.${monster.level}</strong><small>修行チケット ${UserProfileStore.data.practiceTickets || 0}枚</small></span>`;
+    const summary = document.getElementById('practice-monster-summary');
+    summary.innerHTML = `<img alt=""><span><strong>${this.escape(monster.name)} Lv.${monster.level}</strong><small>修行チケット ${UserProfileStore.data.practiceTickets || 0}枚</small></span>`;
+    Skin.paintInto(summary.querySelector('img'), def.idleImage, monster.skin);
     const tickets = Number(UserProfileStore.data.practiceTickets) || 0;
     document.getElementById('practice-course-list').innerHTML = Object.entries(PRACTICE_COURSES).map(([key, course]) => {
       // 伸び方は対象ステータスの適性で変わるため、コース選択時に確認できるようにする

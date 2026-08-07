@@ -192,7 +192,54 @@ const Skin = {
     return out;
   },
 
-  clearCache() { this._cache.clear(); },
+  // ---- HTML側（<img> や背景画像）へ反映するための入口 ----
+  // キャンバスは <img> に入れられないため、データURLへ変換して使う。
+  _urlCache: new Map(),   // 変換中のものも含む（Promise）
+  _urlReady: new Map(),   // 変換済み（文字列）。待たずに差し込めるので点滅を防げる。
+
+  // 塗り替え済みのデータURLを返す。塗り替え不要ならsrcをそのまま返す。
+  // 同じ組み合わせは変換途中でも待ち合わせるよう、Promiseごとキャッシュする。
+  dataUrl(src, skin) {
+    if (!src || this.isEmpty(skin) || typeof document === 'undefined') return Promise.resolve(src);
+    const key = `${src}#${this.cacheKey(skin)}`;
+    const hit = this._urlCache.get(key);
+    if (hit) return hit;
+    const task = new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const out = this.apply(img, skin, src);
+          resolve(out === img ? src : out.toDataURL('image/png'));
+        } catch (e) {
+          console.warn('[Skin] 塗り替えに失敗しました:', src, e);
+          resolve(src);
+        }
+      };
+      img.onerror = () => resolve(src);
+      img.src = src;
+    });
+    task.then(url => this._urlReady.set(key, url));
+    this._urlCache.set(key, task);
+    return task;
+  },
+
+  // 要素へ塗り替え済みの絵を割り当てる。
+  // 先に元の絵を入れてから差し替えるので、変換を待つ間も空白にならない。
+  paintInto(el, src, skin, { background = false } = {}) {
+    if (!el || !src) return;
+    const assign = url => {
+      if (background) el.style.backgroundImage = `url('${url}')`;
+      else el.src = url;
+    };
+    if (this.isEmpty(skin)) { assign(src); return; }
+    // 変換済みなら待たずに入れる（コマ送りのたびに元の色が一瞬見えるのを防ぐ）
+    const ready = this._urlReady.get(`${src}#${this.cacheKey(skin)}`);
+    if (ready) { assign(ready); return; }
+    assign(src);
+    this.dataUrl(src, skin).then(url => { if (url && url !== src) assign(url); });
+  },
+
+  clearCache() { this._cache.clear(); this._urlCache.clear(); this._urlReady.clear(); },
 };
 
 if (typeof window !== 'undefined') window.Skin = Skin;

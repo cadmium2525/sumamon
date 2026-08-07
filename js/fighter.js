@@ -33,6 +33,19 @@ class Fighter {
     return state;
   }
 
+  // 描画に使う絵を、スキン（色変更）を通したものへ差し替える。
+  // 塗り替えは重いので、1枚につき1回だけ行って覚えておく。
+  // 読み込みが終わっていない絵はまだ塗れないので、そのまま返し、覚えない。
+  _skinned(image) {
+    if (!this.hasSkin || !image) return image;
+    const hit = this._skinCache.get(image);
+    if (hit) return hit;
+    if (!(image.naturalWidth || image.width)) return image;
+    const out = Skin.apply(image, this.skin, `${this.fighterKey || ''}:${image.src || ''}`);
+    this._skinCache.set(image, out);
+    return out;
+  }
+
   // そのアニメーションが表示可能な状態か（全コマ読み込み済み・失敗なし・contentBoxあり）
   static animationReady(state) {
     return !!(state && state.config.contentBox && state.failed === 0 && state.loaded >= state.images.length);
@@ -101,8 +114,19 @@ class Fighter {
     // パーツ分割：頭・胴・左右の脚を付け根で振る（立ち絵のピクセル座標で指定）
     this.partsSpec = options.parts || null;
     this.partsLayer = null;
-    // スキン（色変更）。スプライトはこれを通してから切り分ける。
+    // スキン（色変更）。描画に使う絵は全てここを通す。
+    // パーツ分割・武器レイヤーも塗り替えた後の絵から切り出すこと（順序が逆だと元の色が残る）。
     this.skin = options.skin || null;
+    this.hasSkin = !!(window.Skin && !Skin.isEmpty(this.skin));
+    this._skinCache = new Map();
+    // HUDやリザルトはHTML側で絵を使うため、データURLも用意しておく。
+    // 変換が終わるまではnullで、その間は元の絵が使われる。
+    this.skinnedIconSrc = null;
+    this.skinnedSpriteSrc = null;
+    if (this.hasSkin) {
+      if (this.stockIconSrc) Skin.dataUrl(this.stockIconSrc, this.skin).then(url => { this.skinnedIconSrc = url; });
+      if (options.spriteSrc) Skin.dataUrl(options.spriteSrc, this.skin).then(url => { this.skinnedSpriteSrc = url; });
+    }
     this.weaponSpec = options.weapon || null;
     this.weaponLayer = null;      // { weapon: canvas, body: canvas, pivotX, pivotY }
     // 斬撃の軌跡（攻撃判定の通り道）を数フレームぶん覚えておく
@@ -828,7 +852,9 @@ class Fighter {
     const spec = this.partsSpec;
     if (!spec || !this.sprite || !this.spriteLoaded) return null;
     if (typeof document === 'undefined') return null;
-    const W = this.sprite.width, H = this.sprite.height;
+    // 切り分けるのは塗り替えた後の絵。逆にすると元の色のまま切り出されてしまう。
+    const sprite = this._skinned(this.sprite);
+    const W = sprite.width, H = sprite.height;
     const neckY = Math.max(1, Math.min(H - 2, Math.round(spec.neckY)));
     const hipY = Math.max(neckY + 1, Math.min(H - 1, Math.round(spec.hipY)));
     const splitX = Math.max(1, Math.min(W - 1, Math.round(spec.legSplitX)));
@@ -838,7 +864,7 @@ class Fighter {
       if (sw <= 0 || sh <= 0) return null;
       const c = document.createElement('canvas');
       c.width = sw; c.height = sh;
-      c.getContext('2d').drawImage(this.sprite, sx, sy, sw, sh, 0, 0, sw, sh);
+      c.getContext('2d').drawImage(sprite, sx, sy, sw, sh, 0, 0, sw, sh);
       return { canvas: c, x: sx, y: sy };
     };
 
@@ -881,7 +907,8 @@ class Fighter {
 
     const weapon = document.createElement('canvas');
     weapon.width = Math.round(w); weapon.height = Math.round(h);
-    weapon.getContext('2d').drawImage(this.sprite, x, y, w, h, 0, 0, weapon.width, weapon.height);
+    // 武器もパーツ分割と同じく、塗り替えた後の絵から切り出す
+    weapon.getContext('2d').drawImage(this._skinned(this.sprite), x, y, w, h, 0, 0, weapon.width, weapon.height);
 
     const pivot = spec.pivot || { x: x + w / 2, y: y + h / 2 };
     return { weapon, pivotX: pivot.x, pivotY: pivot.y, rect: spec.rect };
@@ -1435,8 +1462,10 @@ class Fighter {
   _drawAnimationImage(ctx, image, box, nextImage, blend) {
     const cx = this.x + this.w / 2;
     const scale = this.h / (box.bottom - box.top);
-    const drawOne = img => {
-      if (!img || !img.complete || img.naturalWidth === 0) return;
+    const drawOne = src => {
+      if (!src || !src.complete || src.naturalWidth === 0) return;
+      // 塗り替え後はキャンバスになるため、読み込み判定を済ませてから差し替える
+      const img = this._skinned(src);
       const drawW = img.width * scale;
       const drawH = img.height * scale;
       const contentCenterX = ((box.left + box.right) / 2) * scale;
@@ -1561,24 +1590,25 @@ class Fighter {
       if (this.facing === -1) {
         ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
       }
-      ctx.drawImage(this.walkSheet, col * this.walkFrameW, row * this.walkFrameH,
+      ctx.drawImage(this._skinned(this.walkSheet), col * this.walkFrameW, row * this.walkFrameH,
         this.walkFrameW, this.walkFrameH, drawX, drawY, this.walkFrameW * scale, this.walkFrameH * scale);
       ctx.restore();
     } else if (this.sprite && this.spriteLoaded) {
       const cx = this.x + this.w / 2;
+      const sprite = this._skinned(this.sprite);
       let drawX, drawY, drawW, drawH;
       if (this.spriteContentBox) {
         // 画像解析済み：本体bbox(影・余白を除く)の高さが、ちょうどhurtboxの高さ(this.h)に一致するスケールで描画
         const box = this.spriteContentBox;
         const scale = this.h / (box.bottom - box.top);
-        drawW = this.sprite.width * scale;
-        drawH = this.sprite.height * scale;
+        drawW = sprite.width * scale;
+        drawH = sprite.height * scale;
         drawX = cx - ((box.left + box.right) / 2) * scale;
         drawY = this.y - box.top * scale;
       } else {
         // フォールバック（bbox未解析のスプライト）：hurtbox高さ基準の簡易表示
         drawH = this.h * 2.2;
-        drawW = drawH * (this.sprite.width / this.sprite.height);
+        drawW = drawH * (sprite.width / sprite.height);
         drawX = cx - drawW / 2;
         drawY = (this.y + this.h) - drawH;
       }
@@ -1597,7 +1627,7 @@ class Fighter {
             stateKey: missingStateMotion ? found.wanted : (attacking ? null : 'idle'),
           })
         : null;
-      const scale0 = drawW / this.sprite.width;
+      const scale0 = drawW / sprite.width;
       const drawParts = () => {
         // 奥の脚 → 手前の脚 → 胴 → 頭 の順。上の部品が下の継ぎ目を隠す。
         for (const key of ['legBack', 'legFront', 'torso', 'head']) {
@@ -1618,8 +1648,8 @@ class Fighter {
       };
 
       if (layer && window.ProceduralMotion) {
-        const scale = drawW / this.sprite.width;
-        if (parts) drawParts(); else ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
+        const scale = drawW / sprite.width;
+        if (parts) drawParts(); else ctx.drawImage(sprite, drawX, drawY, drawW, drawH);
         const angle = ProceduralMotion.weaponAngleFor(this, { attacking: missingMoveMotion });
         const px = drawX + layer.pivotX * scale;
         const py = drawY + layer.pivotY * scale;
@@ -1634,7 +1664,7 @@ class Fighter {
       } else if (parts) {
         drawParts();
       } else {
-        ctx.drawImage(this.sprite, drawX, drawY, drawW, drawH);
+        ctx.drawImage(sprite, drawX, drawY, drawW, drawH);
       }
       ctx.restore();
       this._drawStatusEllipse(ctx, bodyColor);

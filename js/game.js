@@ -460,9 +460,12 @@ function updateHUD() {
     const p = players[i];
     if (!p) continue;
     const stocks = Math.max(0, p.stocks);
-    if (stocks !== ref.lastStocks) {
+    // スキン（色変更）の変換は非同期なので、間に合った時点で一度描き直す
+    const iconSrc = p.skinnedIconSrc || p.stockIconSrc;
+    if (stocks !== ref.lastStocks || iconSrc !== ref.lastStockIcon) {
       ref.lastStocks = stocks;
-      const style = p.stockIconSrc ? `background-image:url('${p.stockIconSrc}')` : '';
+      ref.lastStockIcon = iconSrc;
+      const style = iconSrc ? `background-image:url('${iconSrc}')` : '';
       ref.stocks.innerHTML = stocks
         ? `<span class="phud-stock-dot" style="${style}"></span>`.repeat(stocks) : '';
     }
@@ -478,9 +481,11 @@ function updateHUD() {
       }
     }
     // アイコン画像は読み込み完了後に一度だけ差し込む（構築時にはまだ未読込のことがある）
-    if (!ref.iconApplied && p.sprite && p.spriteLoaded) {
+    // スキンありの場合は塗り替え済みの絵が出来上がるまで待つ。
+    if (!ref.iconApplied && p.sprite && p.spriteLoaded && (!p.hasSkin || p.skinnedSpriteSrc)) {
       ref.iconApplied = true;
-      ref.icon.style.background = `${p.color} url(${p.sprite.src}) center bottom/contain no-repeat`;
+      const src = p.skinnedSpriteSrc || p.sprite.src;
+      ref.icon.style.background = `${p.color} url(${src}) center bottom/contain no-repeat`;
     }
     const shield = Math.max(0, Math.round(p.shieldHP));
     if (shield !== ref.lastShield) {
@@ -498,7 +503,7 @@ function computeRanking() {
     rank: idx + 1,
     name: p.name,
     color: p.color,
-    spriteSrc: p.sprite ? p.sprite.src : null,
+    spriteSrc: p.skinnedSpriteSrc || (p.sprite ? p.sprite.src : null),
     kos: p.kos,
     falls: p.falls,
     selfDestructs: p.selfDestructs,
