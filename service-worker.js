@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v119';
+const CACHE_NAME = 'smamon-app-v120';
 const APP_SHELL = [
   './',
   './index.html',

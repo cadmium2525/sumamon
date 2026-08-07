@@ -137,26 +137,25 @@ const JUNGLE_REWARD_BASE = { stat: 20, life: 8 };
 // ==== 「トーブル海岸」＝広いマップを駆け巡る破壊ミッション ====
 // 砂浜／海中／洞窟の3エリアが横に繋がった広大なマップに20個の標的を置く。
 // 60秒で全部壊せるかどうかは、移動の無駄をどれだけ削れるかで決まる。
+// マップは横一直線ではなく「1周する」構成。
+//   キャンプ(左上) → 砂浜を右へ → 右端で海へ潜って降下 →
+//   海底を左へ → クリスタル洞窟 → 左端の縦穴を登る → キャンプへ戻る
+// 上段(砂浜)と下段(海底・洞窟)の2層になるので、カメラは縦にも動かす。
 const COAST_CONFIG = {
-  // マップの広さと標的のHPは「無駄なく動けば60秒でちょうど全部壊せる」ように実測で詰めてある。
-  // 最初は幅3600・HP半分で作ったが、雑に動くボットでも48秒で全破壊できてしまい、
-  // 誰でもSが取れる状態だった。往復距離とHPを上げて、最適ルートで50秒前後になるよう調整している。
-  worldWidth: 4600,
+  // 1周の長さは実測で決めている。最初は幅3400・高さ1120で作ったが、
+  // 一切寄り道せず走っても1周に約38秒かかり、20個を壊す時間が残らなかった。
+  // 移動だけで約24秒、破壊に約30秒使える配分になるまで縮めてある。
+  worldWidth: 2600,
+  worldHeight: 980,
   readyFrames: 180,     // カウントダウン3秒（この間は時間が減らない）
-  panFrames: 96,        // マップ全体を見せるカメラパン。パンが終わってから数え始める
-  groundY: 490,
-  ceilingY: 40,
-  // エリア境界（x座標）
-  beachEnd: 1500,
-  waterEnd: 3100,
-  waterSurfaceY: 322,   // 海面。これより下が水中
-  // 海底は砂浜・洞窟の地面と必ず同じ高さにする。
-  // 少しでも低くすると、海底を東へ歩いて洞窟へ渡る時に「段差を上がれず落ちる」。
-  // このエンジンは横からの衝突で押し上げてくれないので、低い床から高い床へは
-  // 歩いて移れず、床の切れ目からそのまま奈落へ落ちてしまう。
-  // 海の深さは床を下げるのではなく、海面(waterSurfaceY)を高く取ることで出す。
-  seabedY: 490,
-  caveCeilingY: 132,
+  // 1周ぶんをゆっくり見せる。96フレーム(1.6秒)では速すぎて何も読み取れなかった。
+  panFrames: 300,
+  beachY: 380,          // 上段（砂浜）の地面の高さ
+  floorY: 900,          // 下段（海底・洞窟）の床の高さ
+  campEndX: 320,        // これより左は縦穴（洞窟からキャンプへ戻る出口）
+  beachEndX: 1900,      // これより右は海（上段の地面はここで終わる）
+  caveEndX: 1200,       // これより左は洞窟（水中ではない）
+  caveCeilingY: 660,    // 洞窟の天井
   targetCount: 20,
   // 水中の挙動。Fighterには手を入れず、ここで毎フレーム速度を補正して表現する
   // （fighter.js を触るとバトル本編の挙動まで変わってしまうため）
@@ -170,10 +169,14 @@ const COAST_CONFIG = {
 // 標的の種類。エリアごとに置くものを変え、HPと壊れ方も変える。
 // 弱攻撃(dmgBase=3)の連打でも壊せるが、スマッシュ(11〜13)なら1〜2発で砕ける。
 const COAST_TARGET_TYPES = {
-  sandcastle: { label: '砂の城',   hp: 20, w: 62, h: 58, zone: 'beach' },
-  chest:      { label: '宝箱',     hp: 26, w: 54, h: 42, zone: 'beach' },
-  ball:       { label: 'ビーチボール', hp: 11, w: 42, h: 42, zone: 'water' },
-  pearl:      { label: '真珠貝',   hp: 30, w: 60, h: 52, zone: 'cave' },
+  // HPは「シビアすぎる」という感想を受けて2段階下げてある（20/26/11/30 → 14/18/8/20 → 現在値）。
+  // 周回マップは移動だけで約28秒かかるため、標的が固いと20個に手が届かない。
+  // 現在はスマッシュ(dmgBase 11〜13)なら砂の城・宝箱・ボールが1発、真珠貝が2発。
+  // 弱攻撃(3)でも4〜5発で壊せる。
+  sandcastle: { label: '砂の城',   hp: 10, w: 62, h: 58, zone: 'beach' },
+  chest:      { label: '宝箱',     hp: 12, w: 54, h: 42, zone: 'beach' },
+  ball:       { label: 'ビーチボール', hp: 6,  w: 42, h: 42, zone: 'water' },
+  pearl:      { label: '真珠貝',   hp: 14, w: 60, h: 52, zone: 'cave' },
 };
 
 // 破壊数→ランク。仕様で個数が決まっているのでそのまま持つ。
@@ -834,9 +837,12 @@ const PracticeGame = {
   },
 
   // ---- トーブル海岸 ----
+  // 1周するマップ。上段(砂浜)を右へ→右端で海へ潜って降下→下段(海底)を左へ→
+  // 洞窟→左端の縦穴を登って上段へ戻る、という導線になっている。
   _setupCoast(f) {
     const C = COAST_CONFIG;
     this.worldWidth = C.worldWidth;
+    this.worldHeight = C.worldHeight;
     this.readyTimer = C.readyFrames;
     this.panTimer = C.panFrames;
     this.destroyedTotal = 0;
@@ -844,50 +850,58 @@ const PracticeGame = {
     this.floatTexts = [];
     this.bubbles = [];
     this.hitstop = 0;
-    this.waveSeed = Math.random() * 1000;
-    f.x = 110;
-    f.y = C.groundY - f.h;
+    f.x = 170;
+    f.y = C.beachY - f.h;
 
     // ---- 地形 ----
-    // 地面はすべて solid（下入力ですり抜けない）。砂浜と洞窟は陸、その間が海。
+    // キャンプの床だけ solid を付けない。洞窟から縦穴を登ってきた時、
+    // 下から通り抜けて上に乗る必要があるため（solidにすると天井になって戻れない）。
     this.platforms = [
-      { x: 0, y: C.groundY, w: C.beachEnd, h: 60, solid: true, zone: 'beach' },
-      { x: C.beachEnd, y: C.seabedY, w: C.waterEnd - C.beachEnd, h: 40, solid: true, zone: 'sea' },
-      { x: C.waterEnd, y: C.groundY, w: C.worldWidth - C.waterEnd, h: 60, solid: true, zone: 'cave' },
+      { x: 40, y: C.beachY, w: C.campEndX - 40, h: 26, kind: 'camp' },
+      // 砂浜の地面（上段）。ここは solid にして下強・下スマが出せるようにする。
+      { x: C.campEndX, y: C.beachY, w: C.beachEndX - C.campEndX, h: 90, solid: true, kind: 'sand' },
+      // 下段の床。海底も洞窟の床も同じ高さで一続きにする。
+      // 高さがずれると、低い床から高い床へ歩いて移れず奈落へ落ちる。
+      { x: 40, y: C.floorY, w: C.worldWidth - 80, h: 80, solid: true, kind: 'floor' },
     ];
 
-    // 砂浜：足場になる岩と、波打ち際へ張り出した桟橋
+    // 砂浜（上段）の足場
     this.platforms.push(
-      { x: 330, y: 396, w: 150, h: 16, zone: 'beach', kind: 'rock' },
-      { x: 700, y: 322, w: 130, h: 16, zone: 'beach', kind: 'rock' },
-      { x: 1010, y: 400, w: 170, h: 16, zone: 'beach', kind: 'wood' },
-      { x: 1290, y: 336, w: 140, h: 16, zone: 'beach', kind: 'rock' },
+      { x: 520, y: 282, w: 150, h: 16, kind: 'rock' },
+      { x: 860, y: 214, w: 130, h: 16, kind: 'rock' },
+      { x: 1200, y: 286, w: 160, h: 16, kind: 'wood' },
+      { x: 1560, y: 216, w: 140, h: 16, kind: 'rock' },
     );
 
-    // 海：波間を漂う巨大な流木（横移動）と、ウミガメの背中（横移動・周回）
+    // 海（右の降下ルート）。波間を漂う流木とウミガメ、浮き沈みするサンゴの石柱。
     this.platforms.push(
-      this._movingPlatform(1620, C.waterSurfaceY - 16, 170, 'x', 130, 300, 'driftwood'),
-      this._movingPlatform(2120, C.waterSurfaceY - 10, 140, 'x', 190, 380, 'turtle'),
-      this._movingPlatform(2660, C.waterSurfaceY - 16, 160, 'x', 110, 260, 'driftwood'),
-    );
-    // 潮の満ち引きで浮き沈みするサンゴの石柱（縦移動）
-    this.platforms.push(
-      this._movingPlatform(1860, 410, 120, 'y', 74, 250, 'coral'),
-      this._movingPlatform(2400, 430, 120, 'y', 86, 310, 'coral'),
-      this._movingPlatform(2900, 415, 120, 'y', 80, 280, 'coral'),
+      this._movingPlatform(1960, C.beachY + 44, 160, 'x', 80, 300, 'driftwood'),
+      this._movingPlatform(2280, C.beachY + 34, 140, 'x', 110, 380, 'turtle'),
+      this._movingPlatform(2020, 620, 130, 'y', 70, 260, 'coral'),
+      this._movingPlatform(2340, 740, 130, 'y', 80, 320, 'coral'),
     );
 
-    // 洞窟：間欠泉に吹き上げられる岩（縦移動）と、光る鉱石の棚
+    // 海底（下段の右側）：間欠泉に吹き上げられる岩
     this.platforms.push(
-      { x: 3200, y: 392, w: 150, h: 16, zone: 'cave', kind: 'rock' },
-      this._movingPlatform(3480, 400, 120, 'y', 96, 210, 'geyser'),
-      { x: 3760, y: 322, w: 160, h: 16, zone: 'cave', kind: 'ore' },
-      this._movingPlatform(4040, 396, 130, 'y', 70, 260, 'geyser'),
-      { x: 4300, y: 380, w: 150, h: 16, zone: 'cave', kind: 'ore' },
+      this._movingPlatform(1720, 782, 130, 'y', 74, 240, 'geyser'),
+      { x: 1380, y: 760, w: 150, h: 16, kind: 'rock' },
+    );
+
+    // 洞窟（下段の左側）：光る鉱石の棚
+    this.platforms.push(
+      { x: 980, y: 772, w: 150, h: 16, kind: 'ore' },
+      { x: 680, y: 810, w: 140, h: 16, kind: 'rock' },
+    );
+
+    // 左端の縦穴（洞窟からキャンプへ戻る登り）。
+    // 1段あたり約130pxで、単発ジャンプ(約190px)で必ず届く高さに並べてある。
+    this.platforms.push(
+      { x: 280, y: 790, w: 140, h: 16, kind: 'ore' },
+      { x: 80,  y: 660, w: 150, h: 16, kind: 'rock' },
+      { x: 260, y: 530, w: 140, h: 16, kind: 'ore' },
     );
 
     // ---- 標的20個 ----
-    // エリアごとに置く物を変える。個数配分は砂浜7・海6・洞窟7。
     this.targets = [];
     const put = (type, x, y, extra = {}) => {
       const t = COAST_TARGET_TYPES[type];
@@ -899,29 +913,30 @@ const PracticeGame = {
         seed: Math.random() * 1000, ...extra,
       });
     };
-    // 砂浜（砂の城・宝箱）
-    put('sandcastle', 260, C.groundY);
-    put('sandcastle', 405, 396);          // 岩の上
-    put('chest', 560, C.groundY);
-    put('chest', 765, 322);               // 高い岩の上
-    put('sandcastle', 900, C.groundY);
-    put('chest', 1095, 400);              // 桟橋の上
-    put('sandcastle', 1360, 336);         // 波打ち際の岩の上
-    // 海（ビーチボールは海面に浮いて上下する。宝箱は海底に半分埋まっている）
-    put('ball', 1700, C.waterSurfaceY, { float: true });
-    put('chest', 1900, C.seabedY);
-    put('ball', 2180, C.waterSurfaceY, { float: true });
-    put('chest', 2500, C.seabedY);
-    put('ball', 2740, C.waterSurfaceY, { float: true });
-    put('ball', 2980, C.waterSurfaceY, { float: true });
-    // 洞窟（真珠貝）
-    put('pearl', 3265, 392);              // 岩棚の上
-    put('pearl', 3400, C.groundY);
-    put('pearl', 3660, C.groundY);
-    put('pearl', 3840, 322);              // 光る鉱石の棚の上
-    put('pearl', 4130, C.groundY);
-    put('pearl', 4375, 380);              // 奥の鉱石棚の上
-    put('pearl', 4520, C.groundY);
+    // 砂浜（上段・右へ進む区間）7個
+    put('sandcastle', 450, C.beachY);
+    put('chest', 595, 282);
+    put('sandcastle', 730, C.beachY);
+    put('chest', 925, 214);
+    put('sandcastle', 1100, C.beachY);
+    put('chest', 1280, 286);
+    put('sandcastle', 1630, 216);
+    // 海（右の降下区間）5個
+    put('ball', 2040, C.beachY + 44, { float: true });
+    put('ball', 2350, C.beachY + 34, { float: true });
+    put('chest', 2085, 620);
+    put('ball', 2405, 740, { float: true });
+    put('chest', 2480, C.floorY);
+    // 海底（下段・左へ戻る区間）4個
+    put('chest', 2180, C.floorY);
+    put('chest', 1785, 782);
+    put('chest', 1455, 760);
+    put('chest', 1290, C.floorY);
+    // 洞窟＋縦穴（登り区間）4個
+    put('pearl', 1055, 772);
+    put('pearl', 860, C.floorY);
+    put('pearl', 750, 810);
+    put('pearl', 350, 790);
   },
 
   // 往復する足場を1枚作る。ジャングルと同じ持ち方（baseX/baseY + moveAxis）。
@@ -1252,31 +1267,26 @@ const PracticeGame = {
     const C = COAST_CONFIG;
     const f = this.fighter;
 
-    // 開始演出：まずマップ全体を左から右へ流し見せ、そのあと自機に寄ってカウントダウン。
+    // 開始演出：まず1周ぶんをゆっくり見せ、そのあと自機に寄ってカウントダウン。
     // どちらの間も制限時間は減らさない（_tickで加算済みのぶんを戻す）。
     if (this.readyTimer > 0) {
       this.elapsed = 0;
       if (this.panTimer > 0) {
         this.panTimer--;
-        const t = 1 - this.panTimer / C.panFrames;
-        // 端から端まで見せてから自機の位置へ寄る（最後の1/4で寄せる）
-        const sweep = Math.min(1, t / 0.75);
-        const far = (C.worldWidth - 960) * sweep;
-        const back = t > 0.75 ? (t - 0.75) / 0.25 : 0;
-        this.cameraX = far * (1 - back) + this._coastCameraTarget() * back;
+        this._applyCoastPanCamera(1 - this.panTimer / C.panFrames);
+        this._updateCoastScenery();
         return;
       }
       this.readyTimer--;
-      this.cameraX = this._coastCameraTarget();
+      this._followCoastCamera();
       this._updateCoastScenery();
       return;
     }
 
-    this.cameraX = this._coastCameraTarget();
+    this._followCoastCamera();
 
     // 水中の挙動。Fighter本体には手を入れず、ここで速度を補正して「泳ぎ」を作る。
-    const inWater = this._coastInWater(f);
-    if (inWater) {
+    if (this._coastInWater(f)) {
       if (f.vy > 0) f.vy = Math.min(f.vy * C.waterSinkDamp, C.waterMaxFall);
       if (f.vy < C.waterRiseCap) f.vy = C.waterRiseCap;
       f.vx *= C.waterDrag;
@@ -1288,7 +1298,7 @@ const PracticeGame = {
 
     this._updateCoastScenery();
 
-    // 海面に浮かぶ標的は波に合わせて上下する
+    // 海面や足場に浮かぶ標的は波に合わせて上下する
     for (const t of this.targets) {
       if (!t.float || t.destroyed) continue;
       t.y = t.baseY + Math.sin((this.frame + t.seed) / 46) * 9;
@@ -1299,26 +1309,54 @@ const PracticeGame = {
     }
 
     // 万一どこかで床を踏み外しても、進行度を失わせない。
-    // 全コース共通の復帰処理はスタート地点(x=60)へ戻してしまい、
-    // 広いマップでは「洞窟まで来たのに砂浜へ戻される」ことになるため使わない。
-    // ここでは今いる場所の真上に戻すだけにする。
-    if (f.y > 560) {
-      f.y = C.groundY - f.h;
+    // 全コース共通の復帰処理はスタート地点へ戻してしまい、周回マップでは
+    // 「洞窟まで来たのにキャンプへ戻される」ことになるため使わない。
+    if (f.y > C.worldHeight - 20) {
+      f.y = C.floorY - f.h;
       f.vy = 0;
     }
   },
 
-  // カメラは自機を中央に置きつつ、マップの端では止める
-  _coastCameraTarget() {
+  // カメラは自機を画面中央に置きつつ、マップの端では止める（縦にも動く）
+  _followCoastCamera() {
+    const C = COAST_CONFIG;
     const f = this.fighter;
-    return Math.max(0, Math.min(COAST_CONFIG.worldWidth - 960, f.x + f.w / 2 - 480));
+    this.cameraX = Math.max(0, Math.min(C.worldWidth - 960, f.x + f.w / 2 - 480));
+    this.cameraY = Math.max(0, Math.min(C.worldHeight - 540, f.y + f.h / 2 - 270));
   },
 
-  // 自機が水中にいるか（海のエリアかつ海面より下）
+  // 開始演出のカメラ。導線どおりに1周なぞってから自機へ寄る。
+  // 直線的に端まで飛ばすだけだと何がどこにあるか読み取れないので、
+  // 「砂浜を右へ→海を降りる→海底を左へ→洞窟→縦穴を登る」を順にたどる。
+  _applyCoastPanCamera(t) {
+    const C = COAST_CONFIG;
+    const maxX = C.worldWidth - 960, maxY = C.worldHeight - 540;
+    const f = this.fighter;
+    const path = [
+      [0, 0],                       // キャンプ（スタート）
+      [Math.min(maxX, 1150), 0],    // 砂浜を右へ
+      [maxX, 0],                    // 海の入口
+      [maxX, maxY],                 // 海を降りる
+      [Math.min(maxX, 1500), maxY], // 海底を左へ
+      [180, maxY],                  // 洞窟
+      [0, Math.round(maxY * 0.45)], // 縦穴を登る
+      [Math.max(0, Math.min(maxX, f.x + f.w / 2 - 480)),
+       Math.max(0, Math.min(maxY, f.y + f.h / 2 - 270))], // 自機へ寄る
+    ];
+    // 端を少しゆっくりにして、見せたい所で目が追いつくようにする
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    const pos = Math.max(0, Math.min(0.9999, eased)) * (path.length - 1);
+    const i = Math.floor(pos), frac = pos - i;
+    const a = path[i], b = path[Math.min(path.length - 1, i + 1)];
+    this.cameraX = a[0] + (b[0] - a[0]) * frac;
+    this.cameraY = a[1] + (b[1] - a[1]) * frac;
+  },
+
+  // 自機が水中にいるか。洞窟側(caveEndXより左)は水中ではない。
   _coastInWater(f) {
     const C = COAST_CONFIG;
     const cx = f.x + f.w / 2, cy = f.y + f.h * 0.55;
-    return cx > C.beachEnd && cx < C.waterEnd && cy > C.waterSurfaceY;
+    return cx > C.caveEndX && cy > C.beachY;
   },
 
   // 足場の往復移動と、泡・波の演出を進める
@@ -1333,7 +1371,7 @@ const PracticeGame = {
         b.y -= b.speed;
         b.x += Math.sin((this.frame + b.seed) / 18) * 0.5;
         b.life--;
-        if (b.y < COAST_CONFIG.waterSurfaceY) b.life = 0; // 海面で消える
+        if (b.y < COAST_CONFIG.beachY) b.life = 0; // 海面まで昇ったら消える
       }
       this.bubbles = this.bubbles.filter(b => b.life > 0);
     }
@@ -2000,38 +2038,41 @@ const PracticeGame = {
 
   // ---- トーブル海岸の描画 ----
 
-  // 空と遠景。カメラのx位置に応じて、砂浜→海→洞窟へ空気の色が移り変わる。
+  // 空と遠景。カメラが下段（海底・洞窟）へ降りるほど暗く沈ませる。
   _drawCoastBackground(ctx) {
     const C = COAST_CONFIG;
-    const cam = this.cameraX || 0;
-    const center = cam + 480;
-    // 洞窟に入るほど暗く沈ませる
-    const caveMix = Math.max(0, Math.min(1, (center - (C.waterEnd - 220)) / 420));
-    const sky = ctx.createLinearGradient(0, 0, 0, 540);
+    const cam = this.cameraX || 0, camY = this.cameraY || 0;
+    const centerY = camY + 270;
+    // 下段に降りるほど暗く、かつ洞窟側(左)ほど青黒く
+    const deep = Math.max(0, Math.min(1, (centerY - C.beachY) / 420));
+    const caveMix = deep * Math.max(0, Math.min(1, (C.caveEndX + 200 - (cam + 480)) / 700));
     const lerp = (a, b, t) => Math.round(a + (b - a) * t);
-    const top = `rgb(${lerp(126, 12, caveMix)},${lerp(216, 26, caveMix)},${lerp(244, 52, caveMix)})`;
-    const bottom = `rgb(${lerp(52, 6, caveMix)},${lerp(150, 16, caveMix)},${lerp(196, 34, caveMix)})`;
-    sky.addColorStop(0, top); sky.addColorStop(1, bottom);
+    const sky = ctx.createLinearGradient(0, 0, 0, 540);
+    const topC = [lerp(lerp(126, 30, deep), 12, caveMix), lerp(lerp(216, 120, deep), 26, caveMix), lerp(lerp(244, 190, deep), 52, caveMix)];
+    const botC = [lerp(lerp(52, 8, deep), 6, caveMix), lerp(lerp(150, 60, deep), 16, caveMix), lerp(lerp(196, 110, deep), 34, caveMix)];
+    sky.addColorStop(0, `rgb(${topC[0]},${topC[1]},${topC[2]})`);
+    sky.addColorStop(1, `rgb(${botC[0]},${botC[1]},${botC[2]})`);
     ctx.fillStyle = sky; ctx.fillRect(0, 0, 960, 540);
 
-    if (caveMix < 0.98) {
+    // 上段が見えている間だけ、太陽・雲・遠景の島を描く
+    const skyVisible = 1 - Math.max(0, Math.min(1, (camY - 60) / 280));
+    if (skyVisible > 0.02) {
       ctx.save();
-      ctx.globalAlpha = 1 - caveMix;
-      // 太陽と、水平線の向こうの島影（視差でゆっくり流れる）
+      ctx.globalAlpha = skyVisible;
       ctx.fillStyle = 'rgba(255,250,214,.85)';
-      ctx.beginPath(); ctx.arc(760 - cam * 0.02, 88, 42, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(770 - cam * 0.02, 96 - camY * 0.25, 42, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = 'rgba(120,190,215,.5)';
       for (let i = 0; i < 8; i++) {
         const bx = (i * 460 - cam * 0.12) % 1800 - 200;
+        const by = 300 - camY * 0.3;
         ctx.beginPath();
-        ctx.moveTo(bx, 300); ctx.lineTo(bx + 130, 214 + this._noise(i) * 40); ctx.lineTo(bx + 280, 300);
+        ctx.moveTo(bx, by); ctx.lineTo(bx + 130, by - 86 - this._noise(i) * 40); ctx.lineTo(bx + 280, by);
         ctx.fill();
       }
-      // 雲
       ctx.fillStyle = 'rgba(255,255,255,.42)';
       for (let i = 0; i < 7; i++) {
         const bx = (i * 330 - cam * 0.05) % 1500 - 180;
-        const by = 50 + this._noise(i * 3.7) * 70;
+        const by = 50 + this._noise(i * 3.7) * 70 - camY * 0.22;
         ctx.beginPath();
         ctx.ellipse(bx, by, 66, 20, 0, 0, Math.PI * 2);
         ctx.ellipse(bx + 46, by + 8, 46, 15, 0, 0, Math.PI * 2);
@@ -2041,39 +2082,98 @@ const PracticeGame = {
     }
   },
 
-  // 地形（砂浜の砂、海、洞窟の岩壁）。ワールド座標で描くのでtranslate後に呼ぶ。
+  // 地形。ワールド座標で描くのでtranslate後に呼ぶ。
   _drawCoastTerrain(ctx) {
     const C = COAST_CONFIG;
-    const cam = this.cameraX || 0;
+    const cam = this.cameraX || 0, camY = this.cameraY || 0;
     const left = cam - 40, right = cam + 1000;
+    const top = camY - 40, bottom = camY + 580;
 
-    // --- 洞窟の岩壁（奥の壁と天井）---
-    if (right > C.waterEnd - 120) {
-      const x0 = Math.max(left, C.waterEnd - 120);
-      ctx.fillStyle = '#0b1c30';
-      ctx.fillRect(x0, 0, right - x0, C.groundY);
-      // 天井から下がる鍾乳石
-      ctx.fillStyle = '#122840';
-      ctx.fillRect(x0, 0, right - x0, C.caveCeilingY);
-      for (let x = Math.floor(x0 / 46) * 46; x < right; x += 46) {
-        if (x < C.waterEnd - 120) continue;
-        const h = 18 + this._noise(x * 0.37) * 44;
-        ctx.beginPath();
-        ctx.moveTo(x, C.caveCeilingY); ctx.lineTo(x + 23, C.caveCeilingY + h); ctx.lineTo(x + 46, C.caveCeilingY);
-        ctx.fill();
-      }
-      // 光る鉱石とサンゴ（仄かに周囲を照らす）
+    // --- 海（砂浜より下、洞窟より右の範囲すべて）---
+    const wx0 = Math.max(left, C.caveEndX), wx1 = Math.min(right, C.worldWidth);
+    if (wx1 > wx0 && bottom > C.beachY) {
+      const water = ctx.createLinearGradient(0, C.beachY, 0, C.floorY + 60);
+      water.addColorStop(0, 'rgba(58,168,214,.72)');
+      water.addColorStop(1, 'rgba(6,44,84,.95)');
+      ctx.fillStyle = water;
+      ctx.fillRect(wx0, C.beachY, wx1 - wx0, C.floorY + 80 - C.beachY);
+      // 水中を差し込む光のゆらめき
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      for (let x = Math.floor(x0 / 130) * 130; x < right; x += 130) {
-        if (x < C.waterEnd - 100) continue;
-        const gy = 190 + this._noise(x * 0.11) * 230;
+      for (let i = 0; i < 14; i++) {
+        const sx = C.caveEndX + i * 150 + Math.sin((this.frame + i * 60) / 120) * 26;
+        if (sx < wx0 - 160 || sx > wx1 + 160) continue;
+        const g = ctx.createLinearGradient(sx, C.beachY, sx - 90, C.floorY);
+        g.addColorStop(0, 'rgba(190,245,255,.16)');
+        g.addColorStop(1, 'rgba(190,245,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(sx - 18, C.beachY); ctx.lineTo(sx + 30, C.beachY);
+        ctx.lineTo(sx - 56, C.floorY); ctx.lineTo(sx - 104, C.floorY);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+      // 海面の波（砂浜が途切れる右側だけ、空気に触れている）
+      if (right > C.beachEndX) {
+        const sx0 = Math.max(left, C.beachEndX);
+        ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let x = sx0; x <= wx1; x += 12) {
+          const y = C.beachY + Math.sin((x + this.frame * 1.6) / 58) * 5
+                  + Math.sin((x - this.frame * 0.9) / 27) * 2.4;
+          x === sx0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    // --- 洞窟と縦穴（下段の左側／砂浜の下）---
+    // 砂浜の下からいきなり空の色が見えていると「地面の下」に見えないので、
+    // 砂浜の直下から床まで岩盤で塗りつぶし、その中を空洞として抜く。
+    if (left < C.caveEndX && bottom > C.beachY) {
+      const cx1 = Math.min(right, C.caveEndX);
+      ctx.fillStyle = '#16304a';
+      ctx.fillRect(left, C.beachY + 26, cx1 - left, C.floorY + 80 - C.beachY - 26);
+      // 縦穴（キャンプへ戻る登り）：岩盤をくり抜いた通路
+      if (left < C.campEndX) {
+        const sx1 = Math.min(right, C.campEndX);
+        ctx.fillStyle = '#0d2136';
+        ctx.fillRect(left, C.beachY + 26, sx1 - left, C.floorY - C.beachY - 26);
+        ctx.strokeStyle = 'rgba(90,150,190,.4)'; ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(C.campEndX, C.beachY + 26); ctx.lineTo(C.campEndX, C.caveCeilingY);
+        ctx.stroke();
+      }
+      // 洞窟の空洞（天井より下）。縦穴の上は塞がない。
+      if (bottom > C.caveCeilingY - 40) {
+        const ox0 = Math.max(left, C.campEndX);
+        if (cx1 > ox0) {
+          ctx.fillStyle = '#0b1c30';
+          ctx.fillRect(ox0, C.caveCeilingY, cx1 - ox0, C.floorY - C.caveCeilingY);
+          ctx.fillStyle = '#16304a';
+          for (let x = Math.floor(ox0 / 46) * 46; x < cx1; x += 46) {
+            if (x < C.campEndX) continue;
+            const h = 16 + this._noise(x * 0.37) * 40;
+            ctx.beginPath();
+            ctx.moveTo(x, C.caveCeilingY); ctx.lineTo(x + 23, C.caveCeilingY + h); ctx.lineTo(x + 46, C.caveCeilingY);
+            ctx.fill();
+          }
+        }
+      }
+      // 光る鉱石とサンゴ（洞窟と縦穴の両方に散らす）
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let x = Math.floor(left / 130) * 130; x < cx1; x += 130) {
+        if (x < 60) continue;
+        const inShaft = x < C.campEndX;
+        const gy = inShaft ? C.beachY + 110 + this._noise(x * 0.2) * 340
+                           : C.caveCeilingY + 60 + this._noise(x * 0.11) * 150;
         const pulse = 0.55 + 0.45 * Math.sin((this.frame + x) / 70);
-        const g = ctx.createRadialGradient(x, gy, 2, x, gy, 58);
-        g.addColorStop(0, `rgba(120,220,255,${0.34 * pulse})`);
+        const g = ctx.createRadialGradient(x, gy, 2, x, gy, 56);
+        g.addColorStop(0, `rgba(120,220,255,${0.32 * pulse})`);
         g.addColorStop(1, 'rgba(120,220,255,0)');
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(x, gy, 58, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, gy, 56, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = `rgba(190,245,255,${0.75 * pulse})`;
         ctx.beginPath();
         ctx.moveTo(x, gy - 9); ctx.lineTo(x + 6, gy); ctx.lineTo(x, gy + 9); ctx.lineTo(x - 6, gy);
@@ -2082,76 +2182,64 @@ const PracticeGame = {
       ctx.restore();
     }
 
-    // --- 海 ---
-    if (right > C.beachEnd && left < C.waterEnd) {
-      const wx0 = Math.max(left, C.beachEnd), wx1 = Math.min(right, C.waterEnd);
-      const water = ctx.createLinearGradient(0, C.waterSurfaceY, 0, C.seabedY + 40);
-      water.addColorStop(0, 'rgba(58,168,214,.78)');
-      water.addColorStop(1, 'rgba(8,54,96,.94)');
-      ctx.fillStyle = water;
-      ctx.fillRect(wx0, C.waterSurfaceY, wx1 - wx0, C.seabedY + 40 - C.waterSurfaceY);
-      // 海底の砂
-      ctx.fillStyle = '#5b6f7e';
-      ctx.fillRect(wx0, C.seabedY, wx1 - wx0, 40);
-      // 水中を差し込む光のゆらめき
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 12; i++) {
-        const sx = C.beachEnd + i * 108 + Math.sin((this.frame + i * 60) / 120) * 26;
-        if (sx < wx0 - 120 || sx > wx1 + 120) continue;
-        const g = ctx.createLinearGradient(sx, C.waterSurfaceY, sx - 60, C.seabedY);
-        g.addColorStop(0, 'rgba(190,245,255,.20)');
-        g.addColorStop(1, 'rgba(190,245,255,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.moveTo(sx - 16, C.waterSurfaceY); ctx.lineTo(sx + 26, C.waterSurfaceY);
-        ctx.lineTo(sx - 38, C.seabedY); ctx.lineTo(sx - 78, C.seabedY);
-        ctx.closePath(); ctx.fill();
+    // --- 下段の床（海底の砂／洞窟の岩床）---
+    if (bottom > C.floorY - 20) {
+      const fx0 = Math.max(left, 40), fx1 = Math.min(right, C.worldWidth - 40);
+      if (fx1 > fx0) {
+        // 洞窟側は岩、海側は砂。境目(caveEndX)で塗り分ける
+        const rockEnd = Math.min(fx1, C.caveEndX);
+        if (rockEnd > fx0) {
+          const g = ctx.createLinearGradient(0, C.floorY, 0, C.floorY + 80);
+          g.addColorStop(0, '#3b4a5c'); g.addColorStop(1, '#16202c');
+          ctx.fillStyle = g;
+          ctx.fillRect(fx0, C.floorY, rockEnd - fx0, 80);
+        }
+        const sandStart = Math.max(fx0, C.caveEndX);
+        if (fx1 > sandStart) {
+          const g = ctx.createLinearGradient(0, C.floorY, 0, C.floorY + 80);
+          g.addColorStop(0, '#7d8ea0'); g.addColorStop(1, '#3b4a5c');
+          ctx.fillStyle = g;
+          ctx.fillRect(sandStart, C.floorY, fx1 - sandStart, 80);
+        }
+        // 床の起伏
+        ctx.fillStyle = 'rgba(0,0,0,.22)';
+        for (let x = Math.floor(fx0 / 40) * 40; x < fx1; x += 40) {
+          ctx.beginPath();
+          ctx.ellipse(x + 20, C.floorY + 16 + this._noise(x) * 12, 15, 6, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
-      ctx.restore();
-      // 海面の波（寄せては返す）
-      ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      for (let x = wx0; x <= wx1; x += 12) {
-        const y = C.waterSurfaceY + Math.sin((x + this.frame * 1.6) / 58) * 5
-                + Math.sin((x - this.frame * 0.9) / 27) * 2.4;
-        x === wx0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-      ctx.stroke();
     }
 
-    // --- 砂浜 ---
-    if (left < C.beachEnd) {
-      const bx1 = Math.min(right, C.beachEnd);
-      const sand = ctx.createLinearGradient(0, C.groundY, 0, C.groundY + 60);
-      sand.addColorStop(0, '#f6e8c4'); sand.addColorStop(1, '#cbb185');
-      ctx.fillStyle = sand;
-      ctx.fillRect(left, C.groundY, bx1 - left, 60);
-      // 陽光の反射（きらめき）
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      for (let x = Math.floor(left / 24) * 24; x < bx1; x += 24) {
-        const n = this._noise(x * 0.5);
-        const tw = 0.5 + 0.5 * Math.sin((this.frame + x) / 26 + n * 6);
-        ctx.fillStyle = `rgba(255,255,240,${0.28 * tw * n})`;
-        ctx.fillRect(x, C.groundY + 5 + n * 26, 3, 2);
-      }
-      ctx.restore();
-      // 波打ち際：砂へ寄せては返す薄い水
-      const tide = Math.sin(this.frame / 96) * 46;
-      const edge = C.beachEnd - 120 + tide;
-      if (right > edge) {
-        ctx.fillStyle = 'rgba(150,225,245,.5)';
-        ctx.beginPath();
-        ctx.moveTo(edge, C.groundY + 60);
-        for (let x = edge; x <= bx1; x += 10) {
-          ctx.lineTo(x, C.groundY + 4 + Math.sin((x + this.frame * 2) / 34) * 3);
+    // --- 砂浜（上段の地面）---
+    if (top < C.beachY + 90 && left < C.beachEndX) {
+      const bx0 = Math.max(left, C.campEndX), bx1 = Math.min(right, C.beachEndX);
+      if (bx1 > bx0) {
+        const sand = ctx.createLinearGradient(0, C.beachY, 0, C.beachY + 90);
+        sand.addColorStop(0, '#f6e8c4'); sand.addColorStop(1, '#b99e73');
+        ctx.fillStyle = sand;
+        ctx.fillRect(bx0, C.beachY, bx1 - bx0, 90);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let x = Math.floor(bx0 / 24) * 24; x < bx1; x += 24) {
+          const n = this._noise(x * 0.5);
+          const tw = 0.5 + 0.5 * Math.sin((this.frame + x) / 26 + n * 6);
+          ctx.fillStyle = `rgba(255,255,240,${0.28 * tw * n})`;
+          ctx.fillRect(x, C.beachY + 6 + n * 40, 3, 2);
         }
-        ctx.lineTo(bx1, C.groundY + 60);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,.72)';
-        for (let x = edge; x <= bx1; x += 10) {
-          ctx.fillRect(x, C.groundY + 2 + Math.sin((x + this.frame * 2) / 34) * 3, 8, 2.5);
+        ctx.restore();
+        // 波打ち際（砂浜が海に接する右端）
+        const tide = Math.sin(this.frame / 96) * 40;
+        const edge = C.beachEndX - 150 + tide;
+        if (right > edge) {
+          ctx.fillStyle = 'rgba(150,225,245,.5)';
+          ctx.beginPath();
+          ctx.moveTo(edge, C.beachY + 90);
+          for (let x = edge; x <= bx1; x += 10) {
+            ctx.lineTo(x, C.beachY + 4 + Math.sin((x + this.frame * 2) / 34) * 3);
+          }
+          ctx.lineTo(bx1, C.beachY + 90);
+          ctx.closePath(); ctx.fill();
         }
       }
     }
@@ -2160,11 +2248,36 @@ const PracticeGame = {
   // 足場。kind ごとに見た目を変える（流木・ウミガメ・サンゴ・間欠泉・岩・木・鉱石）
   _drawCoastPlatform(ctx, p) {
     const C = COAST_CONFIG;
-    const cam = this.cameraX || 0;
+    const cam = this.cameraX || 0, camY = this.cameraY || 0;
     if (p.x + p.w < cam - 60 || p.x > cam + 1020) return; // 画面外は描かない
+    if (p.y + p.h < camY - 60 || p.y > camY + 600) return;
     // 地面（砂浜・海底・洞窟の床）は _drawCoastTerrain 側で描いているので飛ばす
     if (p.h >= 40) return;
     const kind = p.kind || 'rock';
+
+    if (kind === 'camp') {
+      // トレーニングキャンプの木組みの床。洞窟から登ってきた時に下から抜けられるよう、
+      // ここだけ solid にしていない（見た目でも板張りだと分かるようにする）。
+      const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+      g.addColorStop(0, '#a8834f'); g.addColorStop(1, '#6b4f2c');
+      ctx.fillStyle = g;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.strokeStyle = 'rgba(50,34,16,.5)'; ctx.lineWidth = 1.5;
+      for (let x = p.x + 26; x < p.x + p.w; x += 26) {
+        ctx.beginPath(); ctx.moveTo(x, p.y); ctx.lineTo(x, p.y + p.h); ctx.stroke();
+      }
+      ctx.fillStyle = '#c39a5f'; ctx.fillRect(p.x, p.y, p.w, 4);
+      // キャンプのテント
+      ctx.fillStyle = '#d8dce0';
+      ctx.beginPath();
+      ctx.moveTo(p.x + 46, p.y); ctx.lineTo(p.x + 90, p.y - 58); ctx.lineTo(p.x + 134, p.y);
+      ctx.fill();
+      ctx.fillStyle = '#8e9aa6';
+      ctx.beginPath();
+      ctx.moveTo(p.x + 78, p.y); ctx.lineTo(p.x + 90, p.y - 34); ctx.lineTo(p.x + 102, p.y);
+      ctx.fill();
+      return;
+    }
 
     if (kind === 'turtle') {
       // ウミガメ：甲羅の六角模様と、ゆっくり動く四肢
@@ -2209,7 +2322,7 @@ const PracticeGame = {
     if (kind === 'coral') {
       // サンゴの石柱：下へ伸びる柱と、上面の枝サンゴ
       ctx.fillStyle = 'rgba(214,120,132,.55)';
-      ctx.fillRect(p.x + p.w * 0.3, p.y + p.h, p.w * 0.4, C.seabedY - p.y);
+      ctx.fillRect(p.x + p.w * 0.3, p.y + p.h, p.w * 0.4, C.floorY - p.y);
       const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
       g.addColorStop(0, '#f0a0ad'); g.addColorStop(1, '#b25f70');
       ctx.fillStyle = g;
@@ -2275,10 +2388,11 @@ const PracticeGame = {
 
   // 標的4種。絵文字は使わず、すべてcanvasで描く。
   _drawCoastTargets(ctx) {
-    const cam = this.cameraX || 0;
+    const cam = this.cameraX || 0, camY = this.cameraY || 0;
     for (const t of this.targets) {
       if (!t || t.destroyed) continue;
       if (t.x + t.w < cam - 60 || t.x > cam + 1020) continue;
+      if (t.y + t.h < camY - 60 || t.y > camY + 600) continue;
       const shake = t.shake > 0 ? (this._noise(this.frame * 3.7 + t.id) - 0.5) * 6 : 0;
       ctx.save();
       ctx.translate(t.x + t.w / 2 + shake, t.y + t.h);
@@ -2473,15 +2587,16 @@ const PracticeGame = {
   // 開始演出。カメラパン中はエリア名を、寄ったあとはルール説明とカウントダウンを出す。
   _drawCoastReady(ctx) {
     const C = COAST_CONFIG;
-    const cam = this.cameraX || 0;
+    const cam = this.cameraX || 0, camY = this.cameraY || 0;
     ctx.save();
-    ctx.translate(cam, 0); // 画面に固定して描く
+    ctx.translate(cam, camY); // 画面に固定して描く
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
     if (this.panTimer > 0) {
       // パン中：今映っているエリアの名前を大きく出す
-      const center = cam + 480;
-      const zone = center < C.beachEnd ? '砂 浜' : center < C.waterEnd ? '海 中' : '洞 窟';
+      const cx = cam + 480, cy = camY + 270;
+      const zone = cy < C.beachY + 120 ? (cx > C.beachEndX ? '海 中' : '砂 浜')
+        : cx > C.caveEndX ? '海 底' : (cx < C.campEndX + 200 ? '脱 出 口' : 'クリスタル洞窟');
       ctx.globalAlpha = 0.9;
       ctx.font = 'bold 46px "Hiragino Kaku Gothic ProN", sans-serif';
       ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 14;
