@@ -35,10 +35,29 @@ input, textarea, select {
 .practice-game-panel { position: absolute; inset: 0; display: grid; place-items: center; background: #050a10; }
 .practice-game-panel.hidden { display: none; }
 #practice-canvas { width: 100%; height: 100%; object-fit: contain; background: #172433; }
-.practice-hud { position: absolute; z-index: 5; top: max(7px, env(safe-area-inset-top)); left: 50%; display: flex; align-items: center; gap: 15px; min-width: 310px; padding: 6px 13px; border: 1px solid rgba(255,255,255,.5); border-radius: 14px; color: #fff; background: rgba(0,0,0,.7); transform: translateX(-50%); }
-.practice-hud strong { color: #ffe48a; }
-.practice-hud span { flex: 1; font-size: 11px; text-align: center; }
-.practice-hud time { font-size: 16px; font-weight: 900; }
+/* 修行のHUD。
+   以前は画面中央上に浮かぶ不透明な角丸の箱だった。コース名が2行に折り返して
+   箱が縦に伸び、ステータスも1文字ずつ縦積みになった結果、画面上部が大きく
+   塞がれ、上の方に出た的（ジャングルの石板など）が見えなくなっていた。
+   最上部いっぱいに広げた「帯」に変え、必ず1行に収める。下端は透明へ抜くので、
+   帯の下に的が重なっても視界を遮らない。 */
+.practice-hud {
+  position: absolute; z-index: 5;
+  top: 0; left: 0;
+  /* 右上の「中断」「設定」ボタンの手前で止める */
+  right: max(112px, calc(env(safe-area-inset-right) + 106px));
+  display: flex; align-items: baseline; gap: 12px;
+  padding: max(6px, env(safe-area-inset-top)) 12px 12px 14px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(0,0,0,.74) 0%, rgba(0,0,0,.46) 58%, rgba(0,0,0,0) 100%);
+  white-space: nowrap;
+  pointer-events: none; /* 仮想パッドやボタンのタップを吸わない */
+}
+/* コース名は遊んでいる間は重要度が低いので、幅が足りなければ「…」で詰める */
+.practice-hud strong { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: #ffe48a; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+/* スコア・次の番号・コンボ。ここが一番見たい情報なので余った幅を全部渡す */
+.practice-hud span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; text-align: left; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+.practice-hud time { flex: 0 0 auto; margin-left: auto; font-size: 17px; font-weight: 900; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
 .practice-quit { position: absolute; z-index: 7; top: max(8px, env(safe-area-inset-top)); right: max(58px, calc(env(safe-area-inset-right) + 52px)); padding: 6px 10px; border: 1px solid #fff; border-radius: 7px; color: #fff; background: rgba(0,0,0,.65); }
 .practice-result-modal { position: fixed; z-index: 950; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.78); }
 .practice-result-modal.hidden { display: none; }

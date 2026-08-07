@@ -317,7 +317,8 @@ const PracticeGame = {
     document.getElementById('practice-select-panel').classList.add('hidden');
     document.getElementById('practice-game-panel').classList.add('hidden');
     document.getElementById('practice-result-modal').classList.add('hidden');
-    document.getElementById('practice-game-title').textContent = `${course.name}${admin ? '（管理者テスト）' : ''}`;
+    // HUDは1行に収める帯なので、管理者テストの表示は短く添えるだけにする
+    document.getElementById('practice-game-title').textContent = `${course.name}${admin ? '［テスト］' : ''}`;
     this._showIntro();
   },
 
