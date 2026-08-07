@@ -1,26 +1,84 @@
 const PRACTICE_COURSES = {
-  desert: { name: 'マンディー砂漠', stat: 'power', statLabel: 'ちから', color: '#d79b43', duration: 60, description: '1分間の横スクロール障害物走。3種のモノリスを正しい攻撃で破壊してゴールを目指す' },
+  desert: { name: 'マンディー砂漠', stat: 'power', statLabel: 'ちから', color: '#d79b43', duration: 60, description: '鉄板に書かれた技を出して関門を突破する。スコアを競う技の練習場' },
   jungle: { name: 'パレパレジャングル', stat: 'intelligence', statLabel: 'かしこさ', color: '#4eaa56', duration: 65, description: '仕掛けを解いて最深部へ進む' },
   coast: { name: 'トーブル海岸', stat: 'accuracy', statLabel: '命中', color: '#42b7dd', duration: 50, description: '動くターゲットを正確に狙う' },
   snow: { name: 'パパス雪山', stat: 'evasion', statLabel: '回避', color: '#a9dcf2', duration: 60, description: '強制スクロールする雪山を、落ちないよう登り続けろ' },
   volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 50, description: '火山弾と溶岩から生き残る', level: 10 },
 };
 
-// 「マンディー砂漠」専用: モノリス（壁）の弱点属性ごとのダメージテーブル（弱点以外は0＝無効）
-// a = 通常技/空中技などの物理攻撃全般, b = 必殺技（飛び道具含む）, smash = 溜め攻撃
-const DESERT_WALL_WEAKNESS = {
-  brick: { a: 1, b: 0, smash: 0, maxHp: 3, color: ['#a8502f', '#7a3620'], label: 'レンガ壁（通常技で破壊）' },
-  stone: { a: 0, b: 1, smash: 0, maxHp: 3, color: ['#8a8f96', '#585d63'], label: '石壁（必殺技で破壊）' },
-  onyx: { a: 0, b: 0, smash: 1, maxHp: 3, color: ['#1c1c22', '#000'], label: '黒光り壁（スマッシュ攻撃のみ有効）' },
+// ==== 「マンディー砂漠」＝技の練習場 ====
+// 関門ごとに「この技で壊せ」という指定がランダムで決まり、鉄板に白チョークで書かれる。
+// 指定どおりの技を当てれば1発で砕け、違う技は弾かれて減点。
+//
+// slot は Fighter.currentMoveSlot と同じ表記（"ground.up" 等）。
+// 以前は「通常技/必殺技/スマッシュ」という大きな括りを技オブジェクトから推測していたが、
+// スマッシュが通常技と誤判定されて壁が意図せず壊れていた。currentMoveSlot は
+// startAttack の時点で確定する正確なIDなので、推測をやめてこれを使う。
+// ※「空後」は入れていない。空中で方向を入れると fighter.js 側で facing がその向きへ
+//   変わる仕様のため、後ろを入れた瞬間に「前」と判定され、空後は原理的に出せない。
+//   出せない技を指定すると関門を永久に突破できなくなるので、プールから外してある。
+const DESERT_MOVE_POOL = [
+  { slot: 'ground.neutral',   label: '弱A',   hint: 'A' },
+  { slot: 'ground.side',      label: '横強',   hint: '横を入れてからA' },
+  // 上強は「上でジャンプ（タップジャンプ）」が入っていると、上を入れた時点で
+  // 跳んでしまい空上になる。設定がONのプレイヤーには出題しない（下の絞り込み参照）。
+  { slot: 'ground.up',        label: '上強',   hint: '上を入れてからA', needsTapJumpOff: true },
+  { slot: 'ground.down',      label: '下強',   hint: '下を入れてからA' },
+  { slot: 'ground.dashAttack', label: 'ダッシュ攻撃', hint: '走りながらA' },
+  { slot: 'smash.side',       label: '横スマ', hint: '横とAを同時' },
+  { slot: 'smash.up',         label: '上スマ', hint: '上とAを同時' },
+  { slot: 'smash.down',       label: '下スマ', hint: '下とAを同時' },
+  { slot: 'air.neutral',      label: '空N',   hint: '空中でA' },
+  { slot: 'air.forward',      label: '空前',   hint: '空中で前＋A' },
+  { slot: 'air.up',           label: '空上',   hint: '空中で上＋A' },
+  { slot: 'air.down',         label: '空下',   hint: '空中で下＋A' },
+  { slot: 'special.neutral',  label: 'NB',    hint: 'B' },
+  { slot: 'special.side',     label: '横B',   hint: '横＋B' },
+  { slot: 'special.up',       label: '上B',   hint: '上＋B' },
+  { slot: 'special.down',     label: '下B',   hint: '下＋B' },
+];
+
+// 実際に出せる技だけに絞る。出せない技を指定してしまうと、その関門で詰んでしまう。
+function desertAvailableMoves() {
+  const tapJumpOn = window.GameSettings ? window.GameSettings.tapJumpEnabled !== false : true;
+  return DESERT_MOVE_POOL.filter(entry => !(entry.needsTapJumpOff && tapJumpOn));
+}
+
+const DESERT_CONFIG = {
+  ceilingY: 96,        // 天井の高さ。ここより上へは絶対に行けない（関門の飛び越え防止）
+  groundY: 485,
+  gateCount: 7,
+  gateSpacing: 460,    // 関門の間隔(px)。穴を飛び越えてから構えるまでの余裕を見て決めた
+  firstGateX: 640,
+  gateWidth: 64,
+  goalMargin: 360,     // 最後の関門からゴールまでの距離
+  pitWidth: 120,
+  scorePerGate: 120,   // 関門突破の得点
+  scoreWrongMove: -25, // 違う技を当てた時の減点
+  scorePerSecondLeft: 25, // ゴール到達時、残り1秒あたりの加点
+  scoreNoMiss: 250,    // 一度もミスせずクリアした時のボーナス
+  wrongKnockback: 4.2, // 弾かれた時に押し戻される速さ
+  wrongStun: 16,       // 弾かれた時の硬直フレーム
+  // 減点の連鎖を防ぐ猶予(フレーム)。技を手探りしている間、当たるたびに減点すると
+  // あっという間に0点へ張り付き、スコアを競う意味が無くなってしまう。
+  // この猶予の内は弾かれる演出だけ出して、減点とミス計上は行わない。
+  wrongGraceFrames: 30,
+  // 減点の総額の上限。上限が無いと、苦手な技で粘っているだけで
+  // 突破した関門の得点まで食い潰し、6関門突破しても0点という結果になってしまう。
+  // 「ミスは響くが、進んだぶんは必ず残る」ようにここで頭打ちにする。
+  wrongPenaltyCap: 300,
 };
 
-// クリアタイム（秒）→ランクのしきい値（速いほど高評価）。ゴール未到達の場合は一律Eランク扱い。
-const DESERT_RANK_TIMES = [
-  { grade: 'S', max: 22 },
-  { grade: 'A', max: 30 },
-  { grade: 'B', max: 38 },
-  { grade: 'C', max: 45 },
-  { grade: 'D', max: 53 },
+// 合計スコア→ランク。Playwrightの疑似プレイ28回の分布から決めている。
+// 理論上の満点は約1960点（全7関門＋最速クリア＋ノーミス）。実測でも最高1915点。
+// クリアできなかった場合は「関門×120 − 減点(上限300)」が残るので、
+// 6関門まで進めばC、4関門でもDが取れる。E は序盤で足踏みした場合。
+const DESERT_RANK_SCORES = [
+  { grade: 'S', min: 1500 },
+  { grade: 'A', min: 1150 },
+  { grade: 'B', min: 800 },
+  { grade: 'C', min: 400 },
+  { grade: 'D', min: 180 },
 ];
 // Sランク報酬「ちから+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
 const DESERT_REWARD_BASE = { stat: 20, life: 8 };
@@ -193,13 +251,9 @@ const PracticeGame = {
     this.fighter.stocks = 999; // 場外/撃墜処理は使わない（穴はコース側で個別に処理する）
     // ブラストラインは実質無効化：Fighter標準のKO処理を発火させない
     this.blastBounds = { left: -1e6, right: 1e6, top: -1e6, bottom: 1e6 };
-    // 技の系統判定（技オブジェクトの参照/chargedフラグから a/b/smash を割り出す）
-    this._specialMoveSet = new Set([
-      ...Object.values(MOVES.special || {}),
-      ...Object.values((this.fighter.moveSet && this.fighter.moveSet.special) || {}),
-    ]);
-
     this.projectiles = [];
+    this.debris = [];
+    this.gates = [];
     this.score = 0;
     this.hits = 0;
     this.misses = 0;
@@ -221,13 +275,19 @@ const PracticeGame = {
     document.getElementById('practice-intro-title').textContent = `${course.name}`;
     let text = course.description;
     if (this.courseKey === 'desert') {
-      text = '灼熱の砂漠を制限時間1分以内に駆け抜けろ！\n行く手を阻む3種のモノリス（壁）は、見た目ごとに弱点となる攻撃が異なる。よく観察して正しい攻撃で打ち破ろう。\n頭上は塞がっているため、ジャンプで飛び越えることはできない。\n落とし穴に落ちてもゲームオーバーにはならない。直前のチェックポイントからやり直しになるだけなので、あきらめずゴールを目指そう。';
+      text = `灼熱の砂漠に築かれた、技を鍛えるための関門。制限時間1分でスコアを稼げ！\n道をふさぐ石柱には黒い鉄板が打ち付けられ、「横スマ」「下強」といった技の名前が白いチョークで書かれている。書かれた技をその石柱に当てれば、一撃で砕け散る。\n違う技を当てると弾き返され、スコアが下がる。鉄板をよく読んでから振ろう。\n石柱は天井まで届いているので、ジャンプや上必殺で飛び越えることはできない。正面から技で突破するしかない。\n落とし穴に落ちてもゲームオーバーにはならず、直前の関門からやり直しになる。失うのは時間だけだ。\n指定される技は毎回ランダムに変わる。全${DESERT_CONFIG.gateCount}関門を、ミスなく速く抜けるほど高得点。`;
     } else if (this.courseKey === 'snow') {
       text = '画面は少し待つと自動で上へスクロールを始める。追いつかれて画面の下にはみ出すと、その時点で即ゲームオーバー！\n足場は氷でできており、左右にゆっくり揺れる。乗ったまま油断すると滑り落ちるので、揺れに合わせて足場の中心をキープしよう。\n残り時間が半分を切ると、画面上からダメージ判定のある「ツララ」が降ってくる。影が伸びたら落下の合図、回避（ジャンプ・回避行動）でかわそう。\n評価は生き残った時間ではなく「どれだけ高く登ったか」で決まる。ゲームオーバーになっても、そこまでの最高到達点で採点される。';
     }
     document.getElementById('practice-intro-text').textContent = text;
     const hints = this.courseKey === 'desert'
-      ? Object.values(DESERT_WALL_WEAKNESS).map(w => `<li><b>■</b>${this.escape(w.label)}</li>`)
+      ? [
+          `鉄板の技を当てて突破：1関門 +${DESERT_CONFIG.scorePerGate}点`,
+          `違う技を当てる：${DESERT_CONFIG.scoreWrongMove}点（弾かれて隙もできる）`,
+          `ゴール到達：残り1秒につき +${DESERT_CONFIG.scorePerSecondLeft}点`,
+          `ノーミスでクリア：+${DESERT_CONFIG.scoreNoMiss}点`,
+          '設定で「上でジャンプ」を切ると、上強も出題されるようになります',
+        ].map(line => `<li><b>■</b>${this.escape(line)}</li>`)
       : this.courseKey === 'snow'
       ? ['強制スクロール：一定時間後、画面が自動で上へ進み続ける', '揺れる足場：周期も振幅もランダムで、乗るたびに揺れ方が変わる', 'ツララ：影の予告後に落下。当たるとノックバックして怯む', '評価：制限時間中に到達した最高標高でS〜Eを判定'].map(text2 => `<li><b>❄</b>${this.escape(text2)}</li>`)
       : [];
@@ -264,23 +324,7 @@ const PracticeGame = {
     f.y = groundY - f.h;
     f.vx = 0; f.vy = 0;
     if (this.courseKey === 'desert') {
-      this.worldWidth = 3200;
-      this.goalX = 3100;
-      this.platforms = [
-        { x: 0, y: 485, w: 300, h: 55 },
-        { x: 420, y: 485, w: 880, h: 55 },
-        { x: 1420, y: 485, w: 930, h: 55 },
-        { x: 2470, y: 485, w: 730, h: 55 },
-      ];
-      this.pits = [{ x: 300, w: 120 }, { x: 1300, w: 120 }, { x: 2350, w: 120 }];
-      const spawnY = 485 - f.h;
-      this.checkpoints = [{ x: 70, y: spawnY }, { x: 340, y: spawnY }, { x: 1340, y: spawnY }, { x: 2490, y: spawnY }];
-      this.lastCheckpoint = this.checkpoints[0];
-      let uid = 0;
-      [[650, 'brick'], [1650, 'stone'], [2650, 'onyx']].forEach(([x, wallType]) => {
-        const info = DESERT_WALL_WEAKNESS[wallType];
-        this.targets.push({ id: uid++, x, y: 245, w: 60, h: 240, wallType, hp: info.maxHp, maxHp: info.maxHp, destroyed: false });
-      });
+      this._setupDesert(f);
     } else if (this.courseKey === 'jungle') {
       this.platforms.push({ x: 205, y: 400, w: 150, h: 16 }, { x: 500, y: 360, w: 150, h: 16 });
       [260, 555, 760].forEach((x, index) => this.targets.push({ id: index + 1, x, y: index === 1 ? 305 : 425, w: 35, h: 60, switch: true, active: false }));
@@ -318,6 +362,62 @@ const PracticeGame = {
       f.x = 460;
       this.nextHazard = 20;
     }
+  },
+
+  // ---- マンディー砂漠：関門・穴・天井を組み立てる ----
+  _setupDesert(f) {
+    const C = DESERT_CONFIG;
+    const lastGateX = C.firstGateX + (C.gateCount - 1) * C.gateSpacing;
+    this.goalX = lastGateX + C.goalMargin;
+    this.worldWidth = this.goalX + 260;
+    this.ceilingY = C.ceilingY;
+
+    // 指定技はランダム。ただし同じ技が連続すると練習にならないので、直前とは必ず変える。
+    const pool = desertAvailableMoves();
+    this.gates = [];
+    let previousSlot = null;
+    for (let i = 0; i < C.gateCount; i++) {
+      let pick;
+      do { pick = pool[Math.floor(Math.random() * pool.length)]; }
+      while (pool.length > 1 && pick.slot === previousSlot);
+      previousSlot = pick.slot;
+      this.gates.push({
+        id: i, x: C.firstGateX + i * C.gateSpacing, w: C.gateWidth,
+        slot: pick.slot, label: pick.label, hint: pick.hint,
+        broken: false, flash: 0, shake: 0, wrongFlash: 0,
+      });
+    }
+
+    // 穴は関門と関門のちょうど中間へ置く。着地してから次の関門の前に立つ余裕を残す。
+    this.pits = [];
+    for (let i = 0; i < this.gates.length - 1; i++) {
+      const from = this.gates[i].x + this.gates[i].w;
+      const to = this.gates[i + 1].x;
+      this.pits.push({ x: Math.round((from + to) / 2 - C.pitWidth / 2), w: C.pitWidth });
+    }
+
+    // 穴の位置から地面（足場）を切り出す
+    this.platforms = [];
+    let cursor = 0;
+    for (const pit of this.pits) {
+      this.platforms.push({ x: cursor, y: C.groundY, w: pit.x - cursor, h: 55 });
+      cursor = pit.x + pit.w;
+    }
+    this.platforms.push({ x: cursor, y: C.groundY, w: this.worldWidth - cursor, h: 55 });
+
+    // 復帰地点は各関門の直前。穴に落ちてもやり直しになるだけで、失うのは時間だけ。
+    const spawnY = C.groundY - f.h;
+    this.checkpoints = [{ x: 70, y: spawnY }];
+    for (const gate of this.gates) this.checkpoints.push({ x: gate.x - 150, y: spawnY });
+    this.lastCheckpoint = this.checkpoints[0];
+
+    this.gateIndex = 0;   // 次に突破すべき関門
+    this.wrongHits = 0;
+    this.wrongCooldown = 0;
+    this.wrongPenalty = 0;
+    this.sandGusts = [];
+    f.x = 70;
+    f.y = spawnY;
   },
 
   _spawnCoastTarget(id) {
@@ -358,6 +458,9 @@ const PracticeGame = {
     if (this.courseKey === 'snow') this._swaySnowPlatforms();
     const inp = this._readInput();
     const f = this.fighter;
+    // 関門の押し戻しは「動く前にどちら側に居たか」で決める。移動後の位置だけで
+    // 判断すると、1フレームの移動量が大きい時に反対側へ弾き出されてすり抜ける。
+    this._prevX = f.x;
     f.applyInput(inp);
     f.update(this.platforms, this.blastBounds);
     // 練習コースの外へ出ないよう左端だけ簡易クランプ（右端は各コースのゴール/画面設計に任せる）
@@ -388,42 +491,87 @@ const PracticeGame = {
     }
   },
 
-  // 現在の技が a(通常/空中技) / b(必殺技) / smash(溜め攻撃) のどれに属するか判定
-  _familyOf(move) {
-    if (!move) return 'a';
-    if (move.charged) return 'smash';
-    if (this._specialMoveSet.has(move)) return 'b';
-    return 'a';
-  },
-
   // 本番のcheckAttacks()と同じ仕組み：現在の攻撃判定(hitbox)を一度だけ対象に当てる
   _checkMeleeHit() {
     const f = this.fighter;
     const hb = f.getHitbox();
     if (!hb || f.hasHitThisAttack) return;
-    const family = this._familyOf(f.currentMove);
+    if (this.courseKey === 'desert') {
+      // 砂漠は「どの技で当てたか」が肝なので、技のIDごと関門へ渡す
+      const gate = this._gateHitBy(hb);
+      if (gate) { f.hasHitThisAttack = true; this._resolveGateHit(gate, f.currentMoveSlot); }
+      return;
+    }
     for (const target of this.targets) {
       if (!target || target.destroyed || !Physics.rectsOverlap(hb, target)) continue;
       f.hasHitThisAttack = true;
-      this._applyHitToTarget(target, family);
+      this._applyHitToTarget(target);
     }
   },
 
-  _applyHitToTarget(target, family) {
+  // 攻撃判定と重なっている、まだ壊れていない関門を返す
+  _gateHitBy(box) {
+    for (const gate of this.gates || []) {
+      if (gate.broken) continue;
+      if (Physics.rectsOverlap(box, { x: gate.x, y: this.ceilingY, w: gate.w, h: DESERT_CONFIG.groundY - this.ceilingY })) return gate;
+    }
+    return null;
+  },
+
+  // 関門に技が当たった時の判定。slot が指定と一致すれば1発で砕ける。
+  _resolveGateHit(gate, slot) {
+    const C = DESERT_CONFIG;
+    if (slot && slot === gate.slot) {
+      gate.broken = true;
+      gate.flash = 18;
+      this.score += C.scorePerGate;
+      this.gateIndex = this.gates.filter(g => g.broken).length;
+      this._spawnGateDebris(gate);
+      return true;
+    }
+    // 指定と違う技：弾かれて減点。何が違ったのか分かるよう、鉄板を赤く光らせる。
+    gate.wrongFlash = 22;
+    gate.shake = 10;
+    const f = this.fighter;
+    f.vx = -f.facing * C.wrongKnockback;
+    f.hitstun = Math.max(f.hitstun, C.wrongStun);
+    // 直前に減点されたばかりなら、弾き返すだけで減点はしない（連鎖防止）
+    if ((this.wrongCooldown || 0) > 0) return false;
+    this.wrongCooldown = C.wrongGraceFrames;
+    this.wrongHits++;
+    const room = C.wrongPenaltyCap - (this.wrongPenalty || 0);
+    const penalty = Math.min(room, -C.scoreWrongMove);
+    if (penalty > 0) {
+      this.wrongPenalty = (this.wrongPenalty || 0) + penalty;
+      this.score = Math.max(0, this.score - penalty);
+    }
+    return false;
+  },
+
+  _spawnGateDebris(gate) {
+    const C = DESERT_CONFIG;
+    this.debris = this.debris || [];
+    const cx = gate.x + gate.w / 2;
+    for (let i = 0; i < 26; i++) {
+      const t = Math.random();
+      this.debris.push({
+        x: cx + (Math.random() - 0.5) * gate.w,
+        y: this.ceilingY + t * (C.groundY - this.ceilingY),
+        vx: (Math.random() - 0.35) * 6.5,
+        vy: -2 - Math.random() * 6,
+        size: 4 + Math.random() * 11,
+        spin: (Math.random() - 0.5) * 0.32,
+        angle: Math.random() * Math.PI,
+        life: 44 + Math.random() * 34,
+      });
+    }
+  },
+
+  _applyHitToTarget(target) {
     if (target.switch) {
       const expected = this.switchOrder[this.switchProgress];
       if (target.id === expected) { target.active = true; this.switchProgress++; this.score += 18; }
       else { this.switchProgress = 0; this.targets.forEach(item => { if (item) item.active = false; }); this.score = Math.max(0, this.score - 5); }
-    } else if (target.wallType) {
-      const dmg = (DESERT_WALL_WEAKNESS[target.wallType]?.[family]) || 0;
-      if (dmg > 0) {
-        target.hp -= dmg;
-        this.score += 10;
-        target.flash = 10;
-        if (target.hp <= 0) { target.destroyed = true; this.score += 20; }
-      } else {
-        target.bounce = 10; // 弱点でない攻撃は効かない（見た目で弾かれる演出のみ）
-      }
     } else if (target.target) {
       this.hits++; this.combo++; this.bestCombo = Math.max(this.bestCombo, this.combo);
       this.score += 4 + Math.min(6, this.combo);
@@ -441,13 +589,14 @@ const PracticeGame = {
       if (sprite && !sprite.src) sprite.src = spritePath;
       const f = this.fighter;
       this.projectiles.push({
-        move: request.move, sprite, config: cfg,
+        // 飛び道具の必殺技（ルミナスアロー等）は本体に攻撃判定が出ないため、
+        // 「どの技から出たか」を弾に持たせないと砂漠の関門を絶対に壊せなくなる。
+        move: request.move, slot: f.currentMoveSlot, sprite, config: cfg,
         x: f.facing === 1 ? f.x + f.w : f.x - cfg.width,
         y: f.y + f.h * 0.42, vx: f.facing * cfg.speed, vy: 0,
         w: cfg.width, h: cfg.height, life: cfg.lifetime, hit: false, exploding: 0,
       });
     }
-    const family = 'b'; // 飛び道具は必ず必殺技扱い
     for (const p of this.projectiles) {
       if (p.exploding > 0) { p.exploding--; if (p.exploding <= 0) p.hit = true; continue; }
       const isBomb = p.config.type === 'bomb';
@@ -469,21 +618,43 @@ const PracticeGame = {
       if (isBomb && p.life <= 0) {
         const radius = p.config.explosionRadius || 90;
         const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-        for (const target of this.targets) {
-          if (!target || target.destroyed) continue;
-          const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
-          if (Math.hypot(tx - cx, ty - cy) <= radius) this._applyHitToTarget(target, family);
+        if (this.courseKey === 'desert') {
+          const gate = this._gateHitBy({ x: cx - radius, y: cy - radius, w: radius * 2, h: radius * 2 });
+          if (gate) this._resolveGateHit(gate, p.slot);
+        } else {
+          for (const target of this.targets) {
+            if (!target || target.destroyed) continue;
+            const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
+            if (Math.hypot(tx - cx, ty - cy) <= radius) this._applyHitToTarget(target);
+          }
         }
         p.exploding = 12; p.vx = 0; p.vy = 0;
         continue;
       }
-      if (isBomb) continue;
+      if (isBomb) {
+        // 爆弾は関門にぶつかった時点で炸裂させる。すり抜けさせると、
+        // 寿命(150F)が尽きる頃には関門のはるか先まで転がっていて、
+        // 「下必殺」を指定された関門を絶対に壊せなくなる。
+        if (this.courseKey === 'desert' && !p.hit) {
+          const gate = this._gateHitBy(p);
+          if (gate) {
+            this._resolveGateHit(gate, p.slot);
+            p.exploding = 12; p.vx = 0; p.vy = 0;
+          }
+        }
+        continue;
+      }
       if (!p.hit) {
-        for (const target of this.targets) {
-          if (!target || target.destroyed || !Physics.rectsOverlap(p, target)) continue;
-          this._applyHitToTarget(target, family);
-          p.hit = true;
-          break;
+        if (this.courseKey === 'desert') {
+          const gate = this._gateHitBy(p);
+          if (gate) { this._resolveGateHit(gate, p.slot); p.hit = true; }
+        } else {
+          for (const target of this.targets) {
+            if (!target || target.destroyed || !Physics.rectsOverlap(p, target)) continue;
+            this._applyHitToTarget(target);
+            p.hit = true;
+            break;
+          }
         }
       }
     }
@@ -493,16 +664,43 @@ const PracticeGame = {
 
   _updateDesert() {
     const f = this.fighter;
-    // モノリス（壁）は破壊するまで通行不能。高さ方向の制限を設けないことで、
-    // ジャンプ（2段ジャンプ含む）でも決して飛び越えられない「天井付きの壁」として機能する。
-    for (const wall of this.targets) {
-      if (!wall || wall.destroyed) continue;
-      if (f.x + f.w > wall.x && f.x < wall.x + wall.w) {
-        const approachingFromLeft = (f.x + f.w / 2) < (wall.x + wall.w / 2);
-        f.x = approachingFromLeft ? wall.x - f.w : wall.x + wall.w;
-        f.vx = 0;
+
+    // ---- 関門の飛び越え防止 ----
+    // 「天井」と「全高の壁」の2枚構えにしてある。どちらか片方だけでは破られる：
+    //   ・天井が無いと、2段ジャンプや上必殺(recoveryBoost)で壁の上を通れてしまう
+    //   ・壁の判定に高さ制限を付けると、天井との隙間から抜けられてしまう
+    // そこで壁はy方向を一切見ずに押し戻し、天井は毎フレーム頭を押さえる。
+    if (f.y < this.ceilingY) {
+      f.y = this.ceilingY;
+      if (f.vy < 0) f.vy = 0; // 上向きの勢い（上必殺を含む）をここで殺す
+    }
+    // 「今重なっているか」だけを見ると、1フレームの移動量が壁の幅を超えた時に
+    // 壁ごと飛び越して素通りしてしまう。動く前の位置と動いた後の位置を結んで、
+    // 壁の面を横切ったかどうかで判定する（通過判定）。これなら速度に関係なく止まる。
+    const prevX = Number.isFinite(this._prevX) ? this._prevX : f.x;
+    for (const gate of this.gates) {
+      if (gate.broken) continue;
+      const left = gate.x, right = gate.x + gate.w;
+      const wasLeft = prevX + f.w <= left;
+      const wasRight = prevX >= right;
+      if (wasLeft && f.x + f.w > left) {           // 左から壁の面を越えようとした
+        f.x = left - f.w; f.vx = 0;
+      } else if (wasRight && f.x < right) {        // 右から戻ろうとした
+        f.x = right; f.vx = 0;
+      } else if (f.x + f.w > left && f.x < right) { // 念のため：どちらでもないのに重なっている
+        f.x = wasRight ? right : left - f.w; f.vx = 0;
       }
     }
+
+    if (this.wrongCooldown > 0) this.wrongCooldown--;
+    // 演出タイマー
+    for (const gate of this.gates) {
+      if (gate.flash > 0) gate.flash--;
+      if (gate.wrongFlash > 0) gate.wrongFlash--;
+      if (gate.shake > 0) gate.shake--;
+    }
+    this._updateDebris();
+
     // カメラは横スクロールでプレイヤーを追従
     this.cameraX = Math.max(0, Math.min(this.worldWidth - 960, f.x - 420));
     // チェックポイント更新
@@ -515,6 +713,20 @@ const PracticeGame = {
       this.pitFalls++;
     }
     if (f.x + f.w >= this.goalX) this.finish(true);
+  },
+
+  _updateDebris() {
+    if (!this.debris || !this.debris.length) return;
+    for (const d of this.debris) {
+      d.x += d.vx;
+      d.y += d.vy;
+      d.vy += 0.42;
+      d.angle += d.spin;
+      d.life--;
+      const floor = DESERT_CONFIG.groundY - d.size / 2;
+      if (d.y > floor) { d.y = floor; d.vy *= -0.32; d.vx *= 0.72; d.spin *= 0.6; }
+    }
+    this.debris = this.debris.filter(d => d.life > 0);
   },
 
   _updateJungle() {
@@ -618,7 +830,7 @@ const PracticeGame = {
       this._hudLastTime = remaining;
       this._hudTimeEl.textContent = `${remaining}`;
     }
-    const status = this.courseKey === 'desert' ? `モノリス破壊 ${this.targets.filter(t => t.destroyed).length}/${this.targets.length}　落下 ${this.pitFalls || 0}回`
+    const status = this.courseKey === 'desert' ? `関門 ${this.gates.filter(g => g.broken).length}/${this.gates.length}　スコア ${this.score}　ミス ${this.wrongHits || 0}`
       : this.courseKey === 'jungle' ? `仕掛け ${this.switchProgress || 0}/3`
       : this.courseKey === 'coast' ? `命中 ${this.hits}　COMBO ${this.combo}`
       : this.courseKey === 'snow' ? `標高 ${this.bestAltitudeM || 0}m${this.elapsed >= SNOW_CONFIG.icicleStartTime ? '　⚠ツララ注意' : ''}`
@@ -636,13 +848,18 @@ const PracticeGame = {
     let normalized = 0;
     let grade;
     if (this.courseKey === 'desert') {
+      // ゴールできた時だけ、残り時間とノーミスのボーナスが乗る
       if (cleared) {
-        const found = DESERT_RANK_TIMES.find(rank => this.elapsed <= rank.max);
-        grade = found ? found.grade : 'E';
+        this.timeBonus = Math.max(0, Math.round(this.course.duration - this.elapsed)) * DESERT_CONFIG.scorePerSecondLeft;
+        this.noMissBonus = this.wrongHits === 0 ? DESERT_CONFIG.scoreNoMiss : 0;
+        this.score += this.timeBonus + this.noMissBonus;
       } else {
-        grade = 'E';
+        this.timeBonus = 0;
+        this.noMissBonus = 0;
       }
-      normalized = Math.max(0, Math.round(100 - (this.elapsed / this.course.duration) * 100));
+      const found = DESERT_RANK_SCORES.find(rank => this.score >= rank.min);
+      grade = found ? found.grade : 'E';
+      normalized = this.score;
     } else if (this.courseKey === 'jungle') normalized = this.switchProgress / 3 * 65 + (cleared ? 35 : 0);
     else if (this.courseKey === 'coast') normalized = Math.min(100, this.hits * 4 + this.bestCombo * 3 - this.misses * 2);
     else if (this.courseKey === 'snow') {
@@ -653,6 +870,7 @@ const PracticeGame = {
     } else normalized = Math.min(100, this.elapsed / this.course.duration * 75 + this.avoided * 2 + (this.hp > 0 ? 10 : 0));
     normalized = Math.max(0, Math.round(normalized));
     if (!grade) grade = normalized >= 90 ? 'S' : normalized >= 75 ? 'A' : normalized >= 55 ? 'B' : normalized >= 30 ? 'C' : 'D';
+    const brokenGates = this.courseKey === 'desert' ? this.gates.filter(g => g.broken).length : 0;
     let growthText = '管理者テストのため能力値は変化しません';
     if (!this.admin && this.monster.id) {
       const rewardBase = this.courseKey === 'desert' ? DESERT_REWARD_BASE : this.courseKey === 'snow' ? SNOW_REWARD_BASE : null;
@@ -667,7 +885,9 @@ const PracticeGame = {
       : this.courseKey === 'snow' ? (reason === 'timeup' ? `${this.course.name} タイムアップ！` : `${this.course.name} 雪崩に飲まれた…`)
       : `${this.course.name} 修行終了`;
     document.getElementById('practice-result-score').textContent = this.courseKey === 'desert'
-      ? (cleared ? `クリアタイム ${this.elapsed.toFixed(1)}秒` : `タイムアップ（未クリア）`)
+      ? (cleared
+          ? `スコア ${this.score}（関門 ${brokenGates}/${this.gates.length}　残り時間 +${this.timeBonus}${this.noMissBonus ? `　ノーミス +${this.noMissBonus}` : `　ミス ${this.wrongHits}回`}）`
+          : `スコア ${this.score}（関門 ${brokenGates}/${this.gates.length}　ミス ${this.wrongHits}回　ゴール未到達）`)
       : this.courseKey === 'snow'
       ? `到達標高 ${this.bestAltitudeM || 0}m　ツララ被弾 ${this.iceHits || 0}回　回避 ${this.avoided || 0}回`
       : `評価スコア ${normalized}／100`;
@@ -700,7 +920,7 @@ const PracticeGame = {
   _draw() {
     const ctx = this.ctx;
     const themes = {
-      desert: ['#e8b85c', '#8d4f24'], jungle: ['#5aaf69', '#173a29'], coast: ['#62cced', '#17678d'], snow: ['#d9f4ff', '#5a8fb3'], volcano: ['#e34b2e', '#351018'],
+      desert: ['#ffe9b8', '#c9793a'], jungle: ['#5aaf69', '#173a29'], coast: ['#62cced', '#17678d'], snow: ['#d9f4ff', '#5a8fb3'], volcano: ['#e34b2e', '#351018'],
     };
     const [top, bottom] = themes[this.courseKey];
     const gradient = ctx.createLinearGradient(0, 0, 0, 540); gradient.addColorStop(0, top); gradient.addColorStop(1, bottom);
@@ -724,65 +944,24 @@ const PracticeGame = {
       ctx.fillStyle = 'rgba(255,255,255,.4)';
       for (let i = 0; i < 45; i++) ctx.fillRect((i * 71 + this.frame * 0.7) % 960, (i * 53 + this.frame * 2.4) % 540, 3, 3);
     }
-    if (this.courseKey === 'desert') {
-      // 遠景の太陽と砂丘（視差なしの簡易背景）
-      ctx.fillStyle = 'rgba(255,244,200,.9)'; ctx.beginPath(); ctx.arc(800, 90, 55, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,.12)';
-      for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.ellipse(((i * 260) - (this.cameraX * .3)) % 1200, 470, 160, 40, 0, 0, Math.PI * 2); ctx.fill(); }
-    }
+    if (this.courseKey === 'desert') this._drawDesertSky(ctx);
     ctx.save(); ctx.translate(offsetX, offsetY);
-    for (const platform of this.platforms) {
-      if (platform.gone) continue;
-      if (this.courseKey === 'snow' && platform.swayAmp) { this._drawIcePlatform(ctx, platform); continue; }
-      ctx.fillStyle = this.courseKey === 'snow' ? '#e8f8ff' : this.courseKey === 'volcano' ? '#34242a' : '#5b4937';
-      ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-      ctx.fillStyle = this.courseKey === 'snow' ? '#8bd5ef' : '#d8aa5a'; ctx.fillRect(platform.x, platform.y, platform.w, 4);
-    }
     if (this.courseKey === 'desert') {
-      for (const pit of this.pits) {
-        ctx.fillStyle = '#1c1408'; ctx.fillRect(pit.x, 485, pit.w, 55);
-        ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.ellipse(pit.x + pit.w / 2, 490, pit.w / 2, 10, 0, 0, Math.PI * 2); ctx.fill();
+      this._drawDesertGround(ctx);
+    } else {
+      for (const platform of this.platforms) {
+        if (platform.gone) continue;
+        if (this.courseKey === 'snow' && platform.swayAmp) { this._drawIcePlatform(ctx, platform); continue; }
+        ctx.fillStyle = this.courseKey === 'snow' ? '#e8f8ff' : this.courseKey === 'volcano' ? '#34242a' : '#5b4937';
+        ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+        ctx.fillStyle = this.courseKey === 'snow' ? '#8bd5ef' : '#d8aa5a'; ctx.fillRect(platform.x, platform.y, platform.w, 4);
       }
-      // ゴール旗
-      ctx.fillStyle = '#e8e8e8'; ctx.fillRect(this.goalX + 20, 300, 6, 185);
-      ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.moveTo(this.goalX + 26, 300); ctx.lineTo(this.goalX + 70, 320); ctx.lineTo(this.goalX + 26, 340); ctx.fill();
     }
+    if (this.courseKey === 'desert') this._drawDesertGates(ctx);
     for (const target of this.targets) {
       if (!target || target.destroyed) continue;
       if (target.switch) { ctx.fillStyle = target.active ? '#7dff75' : '#ffd54f'; ctx.fillRect(target.x, target.y, target.w, target.h); ctx.fillStyle = '#14202a'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(target.id, target.x + 12, target.y + 35); }
       else if (target.target) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(target.x + target.w/2, target.y + target.h/2, target.w/2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#ff3d45'; ctx.beginPath(); ctx.arc(target.x+target.w/2,target.y+target.h/2,9,0,Math.PI*2);ctx.fill(); }
-      else if (target.wallType) {
-        const info = DESERT_WALL_WEAKNESS[target.wallType];
-        // 破壊するまで頭上が塞がっていることを示す半透明の帯（見た目のバリア＝天井の代わり）
-        ctx.fillStyle = 'rgba(255,255,255,.10)';
-        ctx.fillRect(target.x, 0, target.w, target.y);
-        ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.setLineDash([6, 8]);
-        ctx.strokeRect(target.x, 0, target.w, target.y); ctx.setLineDash([]);
-        const [wTop, wBottom] = info.color;
-        const shake = target.bounce > 0 ? (Math.random() * 6 - 3) : 0;
-        const flashOn = target.flash > 0 && Math.floor(target.flash / 3) % 2 === 0;
-        const grad = ctx.createLinearGradient(target.x, target.y, target.x, target.y + target.h);
-        grad.addColorStop(0, flashOn ? '#fff' : wTop); grad.addColorStop(1, wBottom);
-        ctx.fillStyle = grad;
-        ctx.fillRect(target.x + shake, target.y, target.w, target.h);
-        if (target.wallType === 'brick') {
-          ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2;
-          for (let row = 0; row < target.h / 20; row++) {
-            const offsetBrick = row % 2 === 0 ? 0 : target.w / 2;
-            ctx.beginPath(); ctx.moveTo(target.x, target.y + row * 20); ctx.lineTo(target.x + target.w, target.y + row * 20); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(target.x + offsetBrick, target.y + row * 20); ctx.lineTo(target.x + offsetBrick, target.y + row * 20 + 20); ctx.stroke();
-          }
-        } else if (target.wallType === 'stone') {
-          ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 3;
-          for (let row = 0; row < target.h / 34; row++) ctx.strokeRect(target.x, target.y + row * 34, target.w, 34);
-        } else {
-          ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(target.x + 6, target.y + 6, 8, target.h - 12);
-          ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(target.x + target.w - 16, target.y + 20, 6, target.h - 40);
-        }
-        ctx.fillStyle = '#ffd96b'; ctx.fillRect(target.x, target.y - 8, target.w * (target.hp / target.maxHp), 5);
-        if (target.flash > 0) target.flash -= 1;
-        if (target.bounce > 0) target.bounce -= 1;
-      }
       else { ctx.fillStyle = '#7d6a58'; ctx.fillRect(target.x,target.y,target.w,target.h); ctx.fillStyle='#ffd96b';ctx.fillRect(target.x,target.y,target.w*(target.hp/target.maxHp),5); }
     }
     for (const hazard of this.hazards) {
@@ -806,6 +985,301 @@ const PracticeGame = {
       ctx.fillRect(-400, killY - 70, 1760, 400);
     }
     ctx.restore();
+    // 舞う砂は最前面。ワールド座標ではなく画面座標で流す。
+    if (this.courseKey === 'desert') this._drawDesertSand(ctx);
+  },
+
+  // ==== マンディー砂漠の描画 ====
+  // 種を与えると毎回同じ値を返す擬似乱数。チョーク文字や岩肌のムラに使う。
+  // Math.random()を使うと毎フレーム描き直しでガタガタ動いてしまうため、必ずこちらを使う。
+  _noise(seed) {
+    const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  },
+
+  _drawDesertSky(ctx) {
+    const cam = this.cameraX || 0;
+    // 灼熱の太陽。関門と重なっても邪魔にならないよう、輪郭は淡く霞ませる。
+    const sunX = 815 - (cam * 0.04) % 200;
+    const sun = ctx.createRadialGradient(sunX, 168, 6, sunX, 168, 170);
+    sun.addColorStop(0, 'rgba(255,255,242,.95)');
+    sun.addColorStop(.18, 'rgba(255,246,198,.62)');
+    sun.addColorStop(.5, 'rgba(255,226,150,.24)');
+    sun.addColorStop(1, 'rgba(255,214,130,0)');
+    ctx.fillStyle = sun; ctx.fillRect(sunX - 180, -20, 360, 380);
+    ctx.fillStyle = 'rgba(255,253,235,.85)';
+    ctx.beginPath(); ctx.arc(sunX, 168, 30, 0, Math.PI * 2); ctx.fill();
+
+    // 遠景のメサ（卓状台地）。空との境をはっきりさせて奥行きを作る。
+    ctx.fillStyle = 'rgba(184,126,86,.32)';
+    for (let i = 0; i < 5; i++) {
+      const bx = ((i * 430) - cam * 0.07) % 2150 - 400;
+      const top = 250 + (i % 3) * 26;
+      ctx.beginPath();
+      ctx.moveTo(bx, 470); ctx.lineTo(bx + 26, top + 14); ctx.lineTo(bx + 60, top);
+      ctx.lineTo(bx + 210, top); ctx.lineTo(bx + 244, top + 18); ctx.lineTo(bx + 268, 470);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // 遠景の遺跡（砂丘の上に立つ石柱のシルエット。足元を砂丘線に合わせる）
+    ctx.fillStyle = 'rgba(126,80,44,.38)';
+    for (let i = 0; i < 8; i++) {
+      const bx = ((i * 285) - cam * 0.16) % 2280 - 300;
+      const h = 96 + (i % 3) * 40;
+      const baseY = 452;
+      ctx.fillRect(bx, baseY - h, 24, h);
+      ctx.fillRect(bx - 9, baseY - h - 11, 42, 11);
+      ctx.fillRect(bx - 7, baseY - 9, 38, 9);
+    }
+
+    // 3層の砂丘。手前ほど速く流れ、色を濃くして層を分ける（視差）
+    const dunes = [
+      { speed: 0.13, base: 424, amp: 54, color: 'rgba(214,158,96,.55)', step: 520 },
+      { speed: 0.28, base: 458, amp: 42, color: 'rgba(190,128,70,.7)', step: 430 },
+      { speed: 0.48, base: 490, amp: 32, color: 'rgba(160,98,50,.85)', step: 350 },
+    ];
+    for (const layer of dunes) {
+      ctx.fillStyle = layer.color;
+      ctx.beginPath();
+      ctx.moveTo(-140, 540);
+      const shift = (cam * layer.speed) % layer.step;
+      for (let x = -140 - shift; x < 1140; x += layer.step) {
+        ctx.quadraticCurveTo(x + layer.step * 0.5, layer.base - layer.amp, x + layer.step, layer.base);
+      }
+      ctx.lineTo(1140, 540); ctx.closePath(); ctx.fill();
+    }
+
+    // 地表付近の陽炎（横に揺れる薄い帯）
+    ctx.save();
+    for (let i = 0; i < 5; i++) {
+      const y = 430 + i * 13;
+      ctx.globalAlpha = 0.05 + i * 0.012;
+      ctx.fillStyle = '#fff3d2';
+      ctx.fillRect(Math.sin(this.frame / 26 + i) * 16 - 30, y, 1040, 5);
+    }
+    ctx.restore();
+  },
+
+  // 手前を舞う砂。画面座標で描き、奥行きと「熱風」の空気感を出す。
+  _drawDesertSand(ctx) {
+    ctx.save();
+    for (let i = 0; i < 46; i++) {
+      const speed = 2.2 + (i % 5) * 1.5;
+      const x = (960 - ((this.frame * speed + i * 137) % 1120)) - 80;
+      const y = (i * 61 + Math.sin(this.frame / 22 + i) * 26) % 540;
+      ctx.globalAlpha = 0.10 + (i % 4) * 0.06;
+      ctx.fillStyle = '#fff0cc';
+      ctx.fillRect(x, y, 12 + (i % 3) * 9, 1.6);
+    }
+    ctx.restore();
+  },
+
+  _drawDesertGround(ctx) {
+    const C = DESERT_CONFIG;
+    const cam = this.cameraX || 0;
+    for (const platform of this.platforms) {
+      if (platform.w <= 0) continue;
+      const g = ctx.createLinearGradient(0, platform.y, 0, platform.y + platform.h);
+      g.addColorStop(0, '#e3b567'); g.addColorStop(.18, '#c9954c'); g.addColorStop(1, '#8a5c2c');
+      ctx.fillStyle = g;
+      ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+      // 表面のハイライトと砂目
+      ctx.fillStyle = 'rgba(255,236,186,.75)';
+      ctx.fillRect(platform.x, platform.y, platform.w, 3);
+      ctx.fillStyle = 'rgba(90,56,24,.22)';
+      const from = Math.max(platform.x, cam - 40);
+      const to = Math.min(platform.x + platform.w, cam + 1000);
+      for (let x = Math.ceil(from / 16) * 16; x < to; x += 16) {
+        const n = this._noise(x);
+        ctx.fillRect(x, platform.y + 8 + n * 30, 9 + n * 7, 2);
+      }
+    }
+    // 落とし穴：奥へ落ち込む闇と、縁のこぼれた砂
+    for (const pit of this.pits) {
+      const g = ctx.createLinearGradient(0, C.groundY, 0, C.groundY + 55);
+      g.addColorStop(0, '#3a2410'); g.addColorStop(1, '#120a03');
+      ctx.fillStyle = g;
+      ctx.fillRect(pit.x, C.groundY, pit.w, 55);
+      ctx.fillStyle = 'rgba(0,0,0,.5)';
+      ctx.beginPath(); ctx.ellipse(pit.x + pit.w / 2, C.groundY + 5, pit.w / 2, 11, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(226,180,110,.85)';
+      ctx.beginPath(); ctx.moveTo(pit.x - 14, C.groundY); ctx.lineTo(pit.x, C.groundY); ctx.lineTo(pit.x, C.groundY + 14); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(pit.x + pit.w + 14, C.groundY); ctx.lineTo(pit.x + pit.w, C.groundY); ctx.lineTo(pit.x + pit.w, C.groundY + 14); ctx.fill();
+    }
+    // 天井（岩盤）。砂と同系色だと画面が一色に見えるので、寒色寄りの石でくっきり分ける。
+    const ceil = ctx.createLinearGradient(0, 0, 0, this.ceilingY);
+    ceil.addColorStop(0, '#2e2620'); ceil.addColorStop(.62, '#4a3d33'); ceil.addColorStop(1, '#5d4c3c');
+    ctx.fillStyle = ceil;
+    ctx.fillRect(cam - 60, 0, 1100, this.ceilingY);
+    // 天井の石積み
+    ctx.strokeStyle = 'rgba(20,15,10,.5)'; ctx.lineWidth = 2;
+    for (let x = Math.floor((cam - 60) / 78) * 78; x < cam + 1040; x += 78) {
+      ctx.beginPath(); ctx.moveTo(x, 18); ctx.lineTo(x, this.ceilingY); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(cam - 60, 18); ctx.lineTo(cam + 1040, 18); ctx.stroke();
+    // 陽が当たる下端のふち
+    ctx.fillStyle = 'rgba(255,214,150,.35)';
+    ctx.fillRect(cam - 60, this.ceilingY - 4, 1100, 4);
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    ctx.fillRect(cam - 60, this.ceilingY, 1100, 10);
+    // 天井から垂れる岩
+    for (let x = Math.floor((cam - 60) / 90) * 90; x < cam + 1040; x += 90) {
+      const n = this._noise(x * 0.7);
+      const dh = 12 + n * 24;
+      const g2 = ctx.createLinearGradient(0, this.ceilingY, 0, this.ceilingY + dh);
+      g2.addColorStop(0, '#5d4c3c'); g2.addColorStop(1, '#33291f');
+      ctx.fillStyle = g2;
+      ctx.beginPath();
+      ctx.moveTo(x, this.ceilingY); ctx.lineTo(x + 22, this.ceilingY); ctx.lineTo(x + 11, this.ceilingY + dh);
+      ctx.closePath(); ctx.fill();
+    }
+    // ゴール：石造りの門と旗
+    this._drawDesertGoal(ctx);
+  },
+
+  _drawDesertGoal(ctx) {
+    const C = DESERT_CONFIG;
+    const gx = this.goalX;
+    ctx.fillStyle = '#cfa96a';
+    ctx.fillRect(gx + 6, this.ceilingY, 26, C.groundY - this.ceilingY);
+    ctx.fillRect(gx + 150, this.ceilingY, 26, C.groundY - this.ceilingY);
+    ctx.fillStyle = '#b08b4f';
+    ctx.fillRect(gx - 4, this.ceilingY, 190, 26);
+    ctx.fillStyle = 'rgba(255,240,200,.9)';
+    ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('GOAL', gx + 91, this.ceilingY + 13);
+    // はためく旗
+    const wave = Math.sin(this.frame / 12) * 8;
+    ctx.fillStyle = '#e8544a';
+    ctx.beginPath();
+    ctx.moveTo(gx + 32, 190);
+    ctx.quadraticCurveTo(gx + 80, 205 + wave, gx + 128, 190);
+    ctx.lineTo(gx + 128, 250);
+    ctx.quadraticCurveTo(gx + 80, 265 + wave, gx + 32, 250);
+    ctx.closePath(); ctx.fill();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  },
+
+  // 関門＝天井から地面まで届く石柱。中央に黒鉄板が打ち付けてある。
+  _drawDesertGates(ctx) {
+    const C = DESERT_CONFIG;
+    const top = this.ceilingY, bottom = C.groundY, height = bottom - top;
+    for (const gate of this.gates) {
+      if (gate.broken) continue;
+      const shake = gate.shake > 0 ? (this._noise(this.frame * 3.1 + gate.id) - 0.5) * 7 : 0;
+      const x = gate.x + shake;
+      // 石柱本体
+      const g = ctx.createLinearGradient(x, 0, x + gate.w, 0);
+      g.addColorStop(0, '#8d6a44'); g.addColorStop(.35, '#c49a63'); g.addColorStop(1, '#7a5735');
+      ctx.fillStyle = g;
+      ctx.fillRect(x, top, gate.w, height);
+      // 積み石の目地
+      ctx.strokeStyle = 'rgba(60,38,16,.45)'; ctx.lineWidth = 2;
+      for (let row = 0; row < height / 46; row++) {
+        const ry = top + row * 46;
+        ctx.beginPath(); ctx.moveTo(x, ry); ctx.lineTo(x + gate.w, ry); ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,238,200,.28)';
+      ctx.fillRect(x + 5, top, 7, height);
+      // 間違った技を当てた直後は赤くフラッシュ
+      if (gate.wrongFlash > 0 && Math.floor(gate.wrongFlash / 3) % 2 === 0) {
+        ctx.fillStyle = 'rgba(255,70,50,.42)';
+        ctx.fillRect(x, top, gate.w, height);
+      }
+      this._drawMovePlate(ctx, gate, x);
+    }
+    this._drawDesertDebris(ctx);
+  },
+
+  // 黒い鉄板＋白チョーク書きの技名
+  _drawMovePlate(ctx, gate, x) {
+    const pw = 120, ph = 86;
+    const px = x + gate.w / 2 - pw / 2;
+    const py = 236;
+    ctx.save();
+    // 影
+    ctx.fillStyle = 'rgba(0,0,0,.4)';
+    ctx.fillRect(px + 4, py + 5, pw, ph);
+    // 鉄板（黒鉄。上から光が当たる想定でわずかに明暗を付ける）
+    const g = ctx.createLinearGradient(px, py, px, py + ph);
+    g.addColorStop(0, '#3b3f46'); g.addColorStop(.5, '#22262b'); g.addColorStop(1, '#15181c');
+    ctx.fillStyle = g;
+    ctx.fillRect(px, py, pw, ph);
+    // 縁の面取り
+    ctx.strokeStyle = 'rgba(255,255,255,.16)'; ctx.lineWidth = 2;
+    ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+    ctx.strokeStyle = 'rgba(0,0,0,.55)';
+    ctx.strokeRect(px + 5, py + 5, pw - 10, ph - 10);
+    // 四隅のリベット
+    ctx.fillStyle = '#6e7681';
+    for (const [rx, ry] of [[px + 10, py + 10], [px + pw - 10, py + 10], [px + 10, py + ph - 10], [px + pw - 10, py + ph - 10]]) {
+      ctx.beginPath(); ctx.arc(rx, ry, 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.35)';
+      ctx.beginPath(); ctx.arc(rx - 1, ry - 1, 1.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#6e7681';
+    }
+    // チョークの技名と入力ヒント
+    this._drawChalkText(ctx, gate.label, px + pw / 2, py + 34, 30, gate.id * 17 + 3);
+    this._drawChalkText(ctx, gate.hint, px + pw / 2, py + 66, 13, gate.id * 17 + 91);
+    ctx.restore();
+  },
+
+  // チョークで書いたような白文字。1文字ずつ位置と角度をわずかにずらし、
+  // かすれと粉っぽさを重ねる。ずれ量は種から作るので毎フレーム同じ形になる。
+  _drawChalkText(ctx, text, cx, cy, size, seed) {
+    const chars = [...String(text)];
+    ctx.save();
+    ctx.font = `bold ${size}px "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const widths = chars.map(c => ctx.measureText(c).width);
+    const spacing = size * 0.06;
+    const total = widths.reduce((a, b) => a + b, 0) + spacing * (chars.length - 1);
+    let cursor = cx - total / 2;
+    chars.forEach((ch, i) => {
+      const n1 = this._noise(seed + i * 3.3);
+      const n2 = this._noise(seed + i * 7.7 + 1);
+      const n3 = this._noise(seed + i * 5.1 + 2);
+      const gx = cursor + widths[i] / 2 + (n1 - 0.5) * size * 0.09;
+      const gy = cy + (n2 - 0.5) * size * 0.13;
+      ctx.save();
+      ctx.translate(gx, gy);
+      ctx.rotate((n3 - 0.5) * 0.09);
+      // かすれ：わずかにずらした薄い文字を重ねて、線に粗さを出す
+      ctx.fillStyle = 'rgba(255,255,255,.22)';
+      ctx.fillText(ch, (n1 - 0.5) * 1.8, (n2 - 0.5) * 1.8);
+      ctx.fillStyle = 'rgba(236,242,248,.30)';
+      ctx.fillText(ch, (n3 - 0.5) * 2.2, (n1 - 0.5) * 2.0);
+      ctx.fillStyle = 'rgba(255,255,255,.94)';
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+      cursor += widths[i] + spacing;
+    });
+    // チョークの粉
+    ctx.fillStyle = 'rgba(255,255,255,.30)';
+    for (let i = 0; i < 12; i++) {
+      const n1 = this._noise(seed * 2 + i * 13.7);
+      const n2 = this._noise(seed * 2 + i * 9.1 + 5);
+      ctx.fillRect(cx - total / 2 + n1 * total, cy - size * 0.5 + n2 * size, 1.4, 1.4);
+    }
+    ctx.restore();
+  },
+
+  // 砕けた石柱の破片
+  _drawDesertDebris(ctx) {
+    if (!this.debris || !this.debris.length) return;
+    for (const d of this.debris) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.rotate(d.angle);
+      ctx.globalAlpha = Math.max(0, Math.min(1, d.life / 30));
+      ctx.fillStyle = '#b8905c';
+      ctx.fillRect(-d.size / 2, -d.size / 2, d.size, d.size);
+      ctx.fillStyle = 'rgba(255,236,196,.5)';
+      ctx.fillRect(-d.size / 2, -d.size / 2, d.size, Math.max(1, d.size * 0.25));
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
   },
 
   // 氷の足場：霜がかった質感＋下端に垂れる氷柱（見た目のみ、当たり判定はplatform本体のまま）
