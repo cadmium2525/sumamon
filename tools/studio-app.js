@@ -38,6 +38,7 @@ const Studio = {
     this.el('spec-proc-intensity').addEventListener('input', () => this.refreshProcLabel());
     this.bindWeapon();
     this.bindParts();
+    this.bindMovePower();
     this.el('btn-diff').addEventListener('click', () => this.showDiff());
     this.el('btn-commit').addEventListener('click', () => this.commit());
 
@@ -54,6 +55,91 @@ const Studio = {
   refreshFallLabel() {
     const value = (Number(this.el('spec-fall').value) || 100) / 100;
     this.el('spec-fall-value').textContent = value.toFixed(2);
+  },
+
+  // ---- 技の強さ（モンスターごとの倍率） ----
+  // ゲーム側の共通の技表(js/moves.js)を基準に、ダメージと吹っ飛ばしを倍率で上書きする。
+  // 絶対値ではなく倍率にしてあるので、あとで共通のバランスを直しても
+  // 各モンスターの「この技が得意」という個性は保たれる。
+  MOVE_POWER_GROUPS: {
+    smash:   { label: 'スマッシュ', moves: { side: '横スマ', up: '上スマ', down: '下スマ' } },
+    ground:  { label: '地上', moves: { neutral: '弱A', side: '横強', up: '上強', down: '下強', dashAttack: 'ダッシュ攻撃' } },
+    air:     { label: '空中', moves: { neutral: '空N', forward: '空前', back: '空後', up: '空上', down: '空下' } },
+    special: { label: '必殺', moves: { neutral: '通常必殺', side: '横必殺', up: '上必殺', down: '下必殺' } },
+  },
+
+  movePower: {},          // { 'smash.side': { dmg: 1.3, kb: 1.25 } }
+  movePowerTab: 'smash',
+
+  bindMovePower() {
+    for (const group of Object.keys(this.MOVE_POWER_GROUPS)) {
+      this.el(`mp-tab-${group}`).addEventListener('click', () => {
+        this.movePowerTab = group;
+        for (const g of Object.keys(this.MOVE_POWER_GROUPS)) {
+          this.el(`mp-tab-${g}`).classList.toggle('seg-on', g === group);
+        }
+        this.renderMovePower();
+      });
+    }
+    this.el('mp-reset').addEventListener('click', () => {
+      for (const key of Object.keys(this.movePower)) {
+        if (key.startsWith(this.movePowerTab + '.')) delete this.movePower[key];
+      }
+      this.renderMovePower();
+    });
+    this.el('mp-reset-all').addEventListener('click', () => {
+      this.movePower = {};
+      this.renderMovePower();
+    });
+    this.el('move-power-list').addEventListener('input', event => {
+      const input = event.target.closest('[data-move]');
+      if (!input) return;
+      const key = input.dataset.move;
+      const kind = input.dataset.kind;          // 'dmg' | 'kb'
+      const value = Number(input.value) / 100;
+      const entry = this.movePower[key] || { dmg: 1, kb: 1 };
+      entry[kind] = value;
+      // 両方100%に戻したら記録ごと消す（保存データを増やさない）
+      if (Math.abs(entry.dmg - 1) < 0.005 && Math.abs(entry.kb - 1) < 0.005) delete this.movePower[key];
+      else this.movePower[key] = entry;
+      this.renderMovePower();
+    });
+    this.renderMovePower();
+  },
+
+  // 保存用に整える。標準（等倍）の技は書き出さないので、JSONは変えた技のぶんだけ増える。
+  _readMovePower() {
+    const out = {};
+    for (const [key, value] of Object.entries(this.movePower)) {
+      const entry = {};
+      if (Math.abs(value.dmg - 1) >= 0.005) entry.dmg = Number(value.dmg.toFixed(2));
+      if (Math.abs(value.kb - 1) >= 0.005) entry.kb = Number(value.kb.toFixed(2));
+      if (Object.keys(entry).length) out[key] = entry;
+    }
+    return Object.keys(out).length ? out : null;
+  },
+
+  renderMovePower() {
+    const group = this.MOVE_POWER_GROUPS[this.movePowerTab];
+    const list = this.el('move-power-list');
+    list.innerHTML = Object.entries(group.moves).map(([moveKey, label]) => {
+      const key = `${this.movePowerTab}.${moveKey}`;
+      const entry = this.movePower[key] || { dmg: 1, kb: 1 };
+      const dmg = Math.round(entry.dmg * 100);
+      const kb = Math.round(entry.kb * 100);
+      const changed = this.movePower[key] ? ' changed' : '';
+      return `<div class="mp-row${changed}">
+        <b>${label}</b><small>${key}</small>
+        <div class="mp-slider"><span>ダメージ</span>
+          <input type="range" min="50" max="200" value="${dmg}" data-move="${key}" data-kind="dmg"><i>${dmg}%</i></div>
+        <div class="mp-slider"><span>吹っ飛ばし</span>
+          <input type="range" min="50" max="200" value="${kb}" data-move="${key}" data-kind="kb"><i>${kb}%</i></div>
+      </div>`;
+    }).join('');
+    const count = Object.keys(this.movePower).length;
+    this.el('move-power-info').textContent = count
+      ? `標準から変えている技: ${count}個（${Object.keys(this.movePower).join('、')}）`
+      : '全ての技が標準の強さです';
   },
 
   // ---- スポイト（残った背景の色を足して抜く） ----
@@ -533,6 +619,15 @@ const Studio = {
     this.el('spec-hw').value = fighter.hurtboxWidth || 54;
     this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
     this.refreshFallLabel();
+    // 技の強さ（倍率）。片方だけ指定されている場合も等倍で埋めておく。
+    this.movePower = {};
+    for (const [key, value] of Object.entries(fighter.movePower || {})) {
+      this.movePower[key] = {
+        dmg: Number(value && value.dmg) > 0 ? Number(value.dmg) : 1,
+        kb: Number(value && value.kb) > 0 ? Number(value.kb) : 1,
+      };
+    }
+    this.renderMovePower();
     this._existingIdleCanvas = null;
     this._loadingIdlePath = null;
     const partsSpec = fighter.parts || null;
@@ -1323,6 +1418,7 @@ const Studio = {
         hurtboxHeight: Number(this.el('spec-hh').value) || 124,
         hurtboxWidth: Number(this.el('spec-hw').value) || 54,
         fallSpeed: Number((Number(this.el('spec-fall').value) / 100).toFixed(2)) || 1,
+        movePower: this._readMovePower(),
         parts: (this.el('spec-parts').checked && this._readParts()) || null,
         weapon: (this.el('spec-weapon').checked && this.weapon.rect && this.weapon.rect.w > 2)
           ? { rect: this.weapon.rect, pivot: this.weapon.pivot || null } : null,
@@ -1380,6 +1476,10 @@ const Studio = {
           ? `あり（首y=${collected.spec.parts.neckY} 腰y=${collected.spec.parts.hipY}）` : 'なし'}`,
         `■ 武器レイヤー: ${collected.spec.weapon
           ? `あり（${collected.spec.weapon.rect.w}×${collected.spec.weapon.rect.h}px）` : 'なし'}`,
+        `■ 技の強さ: ${collected.spec.movePower
+          ? Object.entries(collected.spec.movePower).map(([k, v]) =>
+              `${k}(${v.dmg ? `ダメージ${Math.round(v.dmg * 100)}%` : ''}${v.dmg && v.kb ? '・' : ''}${v.kb ? `吹っ飛ばし${Math.round(v.kb * 100)}%` : ''})`).join(' / ')
+          : '全て標準'}`,
         `■ 自動モーション: ${collected.spec.proceduralMotion.enabled
           ? `使う（強さ ${Math.round(collected.spec.proceduralMotion.intensity * 100)}%）` : '使わない'}`,
         `■ 登録モーション: ${Object.keys(collected.animations).join('、') || 'なし'}`,

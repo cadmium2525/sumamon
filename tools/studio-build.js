@@ -79,6 +79,8 @@ const StudioBuild = {
       fallSpeed: spec.fallSpeed,
       proceduralMotion: spec.proceduralMotion,
     };
+    // 技の強さ（倍率）。全て標準ならキーごと消して、余計な記述を残さない。
+    if (spec.movePower) fighter.movePower = spec.movePower; else delete fighter.movePower;
     if (spec.parts) fighter.parts = spec.parts; else delete fighter.parts;
     if (spec.weapon) fighter.weapon = spec.weapon; else delete fighter.weapon;
     if (spec.idleImage) fighter.idleImage = spec.idleImage;

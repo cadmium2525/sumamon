@@ -38,18 +38,52 @@ const FighterData = {
     return { ...base, ...overrides };
   },
 
-  _applyMovesets(raw) {
+  // モンスターごとの技の強さ（倍率）を掛ける。
+  // data/fighters.json の movePower に { "smash.side": { dmg: 1.3, kb: 1.25 } } の形で入る。
+  // 絶対値ではなく倍率にしてあるので、共通のバランス調整をしても
+  // 各モンスターの「この技が得意」という個性はそのまま残る。
+  _scaleMove(move, scale) {
+    if (!scale || !move) return move;
+    const dmg = Number(scale.dmg);
+    const kb = Number(scale.kb);
+    const out = { ...move };
+    if (Number.isFinite(dmg) && dmg > 0 && Number.isFinite(move.dmgBase)) {
+      out.dmgBase = Number((move.dmgBase * dmg).toFixed(2));
+    }
+    if (Number.isFinite(kb) && kb > 0 && Number.isFinite(move.kbBase)) {
+      out.kbBase = Number((move.kbBase * kb).toFixed(2));
+    }
+    return out;
+  },
+
+  // ファイター1体ぶんの技表を「共通のMOVES → movesets.jsonの上書き → 強さの倍率」の順に組み立てる。
+  // 全ての技をここで実体化しておくことで、モーションを登録していない技にも倍率が効く。
+  _buildMoveTable(fighterKey, groups, fighters) {
+    const base = (typeof window !== 'undefined' && window.MOVES) || {};
+    const power = ((fighters && fighters[fighterKey]) || {}).movePower || {};
     const result = {};
-    for (const [fighterKey, groups] of Object.entries(raw || {})) {
-      const resolvedGroups = {};
-      for (const [groupKey, moves] of Object.entries(groups || {})) {
-        const resolvedMoves = {};
-        for (const [moveKey, def] of Object.entries(moves || {})) {
-          resolvedMoves[moveKey] = this._resolveMove(groupKey, moveKey, def);
-        }
-        resolvedGroups[groupKey] = resolvedMoves;
+    const groupKeys = new Set([...Object.keys(base), ...Object.keys(groups || {})]);
+    for (const groupKey of groupKeys) {
+      const baseGroup = base[groupKey] || {};
+      const overrideGroup = (groups || {})[groupKey] || {};
+      const merged = {};
+      for (const moveKey of new Set([...Object.keys(baseGroup), ...Object.keys(overrideGroup)])) {
+        const resolved = Object.prototype.hasOwnProperty.call(overrideGroup, moveKey)
+          ? this._resolveMove(groupKey, moveKey, overrideGroup[moveKey])
+          : { ...baseGroup[moveKey] };
+        if (!resolved || !resolved.name) continue;
+        merged[moveKey] = this._scaleMove(resolved, power[`${groupKey}.${moveKey}`]);
       }
-      result[fighterKey] = resolvedGroups;
+      result[groupKey] = merged;
+    }
+    return result;
+  },
+
+  _applyMovesets(raw, fighters) {
+    const result = {};
+    // movesets.json に載っていないファイターにも倍率を効かせるため、両方のキーを見る
+    for (const fighterKey of new Set([...Object.keys(raw || {}), ...Object.keys(fighters || {})])) {
+      result[fighterKey] = this._buildMoveTable(fighterKey, (raw || {})[fighterKey], fighters);
     }
     return result;
   },
@@ -63,7 +97,7 @@ const FighterData = {
     ]);
     FIGHTERS = fighters;
     window.FIGHTERS = fighters;
-    window.FIGHTER_MOVESETS = this._applyMovesets(movesets);
+    window.FIGHTER_MOVESETS = this._applyMovesets(movesets, fighters);
     this.loaded = true;
   },
 };

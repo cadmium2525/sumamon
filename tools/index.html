@@ -98,6 +98,16 @@ button:disabled { opacity: .45; }
   border-radius: 999px; background: #16243494; color: #cfe6f7; font-size: 11px; }
 .dropper-chip i { display: block; width: 16px; height: 16px; border: 1px solid rgba(255,255,255,.5); border-radius: 4px; }
 .preview.pick { outline: 2px solid #ffd45e; cursor: crosshair; }
+.move-power-list { display: grid; gap: 6px; margin-top: 10px; }
+.mp-row { padding: 9px 10px; border: 1px solid #22344a; border-radius: 9px; background: #0f1a27; }
+.mp-row.changed { border-color: #ffd45e; }
+.mp-row b { display: block; color: #e7f1fa; font-size: 13px; }
+.mp-row small { color: #8fa6ba; font-size: 10px; }
+.mp-slider { display: grid; grid-template-columns: 62px 1fr 46px; align-items: center; gap: 8px; margin-top: 6px; }
+.mp-slider span { color: #9fb6c7; font-size: 11px; }
+.mp-slider i { color: #ffd45e; font-size: 11px; font-style: normal; font-weight: 800; text-align: right; }
+.mp-slider input { margin: 0; }
+button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-weight: 400; }
 .hidden { display: none; }
 </style>
 </head>
@@ -213,7 +223,26 @@ button:disabled { opacity: .45; }
 </section>
 
 <section>
-  <h2><i>5</i>能力と適性</h2>
+  <h2><i>5</i>技の強さ</h2>
+  <p class="note" style="margin-top:0">技ごとに<b>ダメージ</b>と<b>吹っ飛ばし</b>を倍率で調整できます。
+    100%が標準です。モーションを登録していない技にも効きます。<br>
+    吹っ飛ばしは飛距離に大きく効きます（倍にすると飛距離は約3倍）。撃墜技にしたい技を上げてください。</p>
+  <div class="row seg" style="margin-top:10px">
+    <button id="mp-tab-smash" class="seg-on" type="button">スマッシュ</button>
+    <button id="mp-tab-ground" type="button">地上</button>
+    <button id="mp-tab-air" type="button">空中</button>
+    <button id="mp-tab-special" type="button">必殺</button>
+  </div>
+  <div id="move-power-list" class="move-power-list"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="mp-reset" class="ghost" type="button">この分類を標準に戻す</button>
+    <button id="mp-reset-all" class="ghost" type="button">全部を標準に戻す</button>
+  </div>
+  <div id="move-power-info" class="box-info"></div>
+</section>
+
+<section>
+  <h2><i>6</i>能力と適性</h2>
   <div class="row">
     <div><label>ライフ</label><input id="st-life" type="number" value="100"></div>
     <div><label>ちから</label><input id="st-power" type="number" value="10"></div>
@@ -229,7 +258,7 @@ button:disabled { opacity: .45; }
 </section>
 
 <section>
-  <h2><i>6</i>登録して本番へ反映</h2>
+  <h2><i>7</i>登録して本番へ反映</h2>
   <label>更新履歴に載せる見出し</label>
   <input id="log-title" placeholder="新モンスター「マイモン」を追加">
   <label>更新履歴の本文</label>

@@ -33,7 +33,7 @@ const MOVES = {
   },
   // スマッシュ攻撃（地上A系を溜めた場合に発動。上記tiltより威力・吹っ飛びが大きい）
   smash: {
-    up:   { name: '上スマ', dmgBase: 11, kbBase: 9, angle: 84, duration: 20, active: [6, 11], range: 36, h: 44, yOff: -22, statKey: 'power', endlag: 18 },
+    up:   { name: '上スマ', dmgBase: 11, kbBase: 11.5, angle: 84, duration: 20, active: [6, 11], range: 36, h: 44, yOff: -22, statKey: 'power', endlag: 18 },
     side: { name: '横スマ', dmgBase: 13, kbBase: 10, angle: 38, duration: 22, active: [7, 12], range: 54, h: 30, yOff: 6,  statKey: 'power', endlag: 20 },
     down: { name: '下スマ', dmgBase: 10, kbBase: 8, angle: 18, duration: 18, active: [5, 10], range: 46, h: 18, yOff: 34, statKey: 'power', endlag: 17 },
   },

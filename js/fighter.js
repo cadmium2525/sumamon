@@ -331,15 +331,18 @@ class Fighter {
     const tumbleJumpCancel = input.jump && !this.prevJumpHeld;
     const tumbleAttackCancel = input.attack && !this.prevAttackHeld;
     const tumbleSpecialCancel = input.special && !this.prevSpecialHeld;
-    if (this.tumbling && !this.onGround && (tumbleJumpCancel || tumbleAttackCancel || tumbleSpecialCancel)) {
+    // ---- きりもみ（吹っ飛び）からの復帰 ----
+    // 本家同様、のけぞり（ヒットスタン）が終わるまでは暴れても抜けられない。
+    // 以前はここで無条件に hitstun を0にしていたため、ジャンプ・攻撃・必殺を
+    // 連打するだけで吹っ飛びを1フレームで抜けられ、ジャンプ回数を使い切って
+    // いても即座に動けるので「被弾でジャンプが復活した」ように見えていた。
+    // ジャンプが残っていない時は、ジャンプ入力そのものを無かったことにして
+    // 技・必殺での立て直しだけは通す。
+    const canTumbleJump = tumbleJumpCancel && this.jumpsUsed < CONFIG.MAX_JUMPS;
+    if (this.tumbling && !this.onGround && this.hitstun <= 0 &&
+        (canTumbleJump || tumbleAttackCancel || tumbleSpecialCancel)) {
       this.tumbling = false;
-      this.hitstun = 0;
-      if (tumbleJumpCancel && this.jumpsUsed >= CONFIG.MAX_JUMPS) {
-        this.tumbling = true;
-        this.hitstun = 1;
-        return;
-      }
-      if (tumbleJumpCancel && this.jumpsUsed < CONFIG.MAX_JUMPS) {
+      if (canTumbleJump) {
         this.vy = CONFIG.JUMP_POWER;
         this.jumpsUsed++;
         this.jumpAnimTimer = 0;
@@ -347,9 +350,9 @@ class Fighter {
       } else if (tumbleSpecialCancel) {
         const key = this.getHeldDirection(input) || 'neutral';
         const move = (this.moveSet.special && this.moveSet.special[key]) || MOVES.special[key];
+        // 上必殺は空中で1回だけ。使い切っていればきりもみのまま。
         if (move.recoveryBoost && this._usedUpSpecialAirborne) {
           this.tumbling = true;
-          this.hitstun = 1;
           return;
         }
         this.startAttack(move);
@@ -486,22 +489,32 @@ class Fighter {
           this.isDashing = false;
         }
       } else {
-        // 空中：本家同様、速度を直接書き換えず加速度で慣性を変える。
-        // 入力を離しても慣性は残り、進行方向と逆に入れると強めに効いて切り返せる。
+        // ---- 空中：本家同様、速度を直接書き換えず加速度で慣性を変える ----
+        // 大事なのは「空中最高速はあくまで“自分で流せる速さ”の上限」であること。
+        // 吹っ飛びやダッシュジャンプで得た慣性はそれより速く、上限で頭打ちにしない。
+        // 以前は毎フレーム上限で切り落としていたため、のけぞりが切れた瞬間に
+        // 吹っ飛びが急停止し、本家と比べて慣性が無いように感じられていた。
         this.isDashing = false;
         const airMax = Physics.computeMoveSpeed(this.stats.evasion, true) * CONFIG.AIR_MAX_SPEED_RATIO;
+        const speed = Math.abs(this.vx);
         if (absX < CONFIG.WALK_DEADZONE) {
-          this.vx *= CONFIG.AIR_FRICTION;
+          // きりもみ中は update() 側で吹っ飛びの減速をかけているため、
+          // ここで空気抵抗まで足すと二重に減速してしまう。
+          if (!this.tumbling) this.vx *= CONFIG.AIR_FRICTION;
         } else {
           const dir = Math.sign(stickX);
-          const target = dir * airMax * Math.min(1, absX / CONFIG.DASH_TILT_THRESHOLD);
-          const turning = this.vx !== 0 && Math.sign(this.vx) !== dir;
-          const accel = CONFIG.AIR_ACCEL * absX * (turning ? CONFIG.AIR_TURN_BOOST : 1);
-          if (this.vx < target) this.vx = Math.min(target, this.vx + accel);
-          else if (this.vx > target) this.vx = Math.max(target, this.vx - accel);
+          if (speed > airMax && Math.sign(this.vx) === dir) {
+            // すでに上限より速い方向へ入力しても、それ以上は加速しない。
+            // 慣性は空気抵抗でゆっくり抜けていく。
+            this.vx *= CONFIG.AIR_FRICTION;
+          } else {
+            const target = dir * airMax * Math.min(1, absX / CONFIG.DASH_TILT_THRESHOLD);
+            const accel = CONFIG.AIR_ACCEL * absX;
+            if (this.vx < target) this.vx = Math.min(target, this.vx + accel);
+            else if (this.vx > target) this.vx = Math.max(target, this.vx - accel);
+          }
           this.facing = dir;
         }
-        if (Math.abs(this.vx) > airMax) this.vx = Math.sign(this.vx) * airMax;
       }
     }
 
@@ -1318,7 +1331,17 @@ class Fighter {
     const controllable = this.hitstun <= 0 && this.landingLag <= 0 && !this.downed &&
       !this.tumbling && this.dazedTimer <= 0 && this.dodgeTimer <= 0;
     if (!controllable) {
-      this.vx *= this.onGround ? CONFIG.GROUND_FRICTION : CONFIG.KNOCKBACK_DECAY;
+      if (this.onGround) {
+        this.vx *= CONFIG.GROUND_FRICTION;
+      } else {
+        // 空中の吹っ飛びは「一定の割合」ではなく「一定量」ずつ減らす。
+        // 割合で減らすと飛距離が初速に比例するだけなので、どれだけ強く打っても
+        // 遠くへ飛ばず、スマッシュが弱く感じられていた。一定量なら飛距離は
+        // 初速の2乗に比例し、強い技ほど飛躍的に遠くへ飛ぶ（本家の手応え）。
+        const speed = Math.abs(this.vx);
+        this.vx = speed <= CONFIG.KNOCKBACK_DECEL
+          ? 0 : this.vx - Math.sign(this.vx) * CONFIG.KNOCKBACK_DECEL;
+      }
       if (Math.abs(this.vx) < 0.06) this.vx = 0;
     }
 
