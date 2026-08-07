@@ -2034,6 +2034,9 @@ body.layout-pending .screen { visibility: hidden; }
 }
 
 /* ==== スキン変更（色編集） ==== */
+/* IDで display を指定すると .screen.hidden より詳細度が高くなり、
+   隠していても表示されたままになる。同じ詳細度で打ち消しておくこと。 */
+#screen-skin.hidden { display: none; }
 #screen-skin {
   display: flex;
   flex-direction: column;
