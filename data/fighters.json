@@ -6,12 +6,12 @@
     "idleImage": "assets/images/fighter/irumine/idle/frame_001.png",
     "stockIcon": "assets/images/fighter/irumine/stock.png",
     "spriteContentBox": {
-      "left": 0,
-      "top": 1,
-      "right": 209,
-      "bottom": 249
+      "left": 1,
+      "top": 6,
+      "right": 210,
+      "bottom": 244
     },
-    "hurtboxWidth": 54,
+    "hurtboxWidth": 55,
     "hurtboxHeight": 124,
     "fallSpeed": 0.92,
     "stats": {
@@ -32,10 +32,10 @@
         ],
         "frameDuration": 8,
         "contentBox": {
-          "left": 0,
-          "top": 1,
-          "right": 209,
-          "bottom": 249
+          "left": 1,
+          "top": 6,
+          "right": 210,
+          "bottom": 244
         }
       },
       "jump": {
@@ -83,10 +83,14 @@
       }
     },
     "parts": {
-      "neckY": 96,
-      "hipY": 196,
+      "neckY": 94,
+      "hipY": 193,
       "legSplitX": 107,
       "overlap": 6
+    },
+    "proceduralMotion": {
+      "enabled": true,
+      "intensity": 1.5
     }
   },
   "dullahan": {
