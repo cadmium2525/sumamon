@@ -39,6 +39,8 @@ const Studio = {
     this.bindWeapon();
     this.bindParts();
     this.bindMovePower();
+    this.bindSheet();
+    this.bindPreview();
     this.el('btn-diff').addEventListener('click', () => this.showDiff());
     this.el('btn-commit').addEventListener('click', () => this.commit());
 
@@ -55,6 +57,283 @@ const Studio = {
   refreshFallLabel() {
     const value = (Number(this.el('spec-fall').value) || 100) / 100;
     this.el('spec-fall-value').textContent = value.toFixed(2);
+  },
+
+  // ---- モーションの確認 ----
+  // 登録済み・読み込み済みのどちらも再生でき、まだ用意していない技については
+  // 「自動モーション」「体の切り分け」でどう動くかを先に見られるようにする。
+  previewSlot: null,
+
+  bindPreview() {
+    this.el('pv-close').addEventListener('click', () => {
+      StudioPreview.stop();
+      this.el('preview').classList.add('hidden');
+    });
+    this.el('pv-play').addEventListener('click', () => {
+      StudioPreview.setPlaying(!StudioPreview.playing);
+      this.el('pv-play').textContent = StudioPreview.playing ? '停止' : '再生';
+    });
+    this.el('pv-slot').innerHTML = STUDIO_MOTIONS.filter(m => !m.single)
+      .map(m => `<option value="${m.slot}">${m.name}</option>`).join('');
+    this.el('pv-slot').addEventListener('change', () => this.openPreview(this.el('pv-slot').value));
+    for (const kind of ['frames', 'auto']) {
+      this.el(`pv-kind-${kind}`).addEventListener('click', () => {
+        this.previewKind = kind;
+        ['frames', 'auto'].forEach(k => this.el(`pv-kind-${k}`).classList.toggle('seg-on', k === kind));
+        this.el('pv-auto-fields').classList.toggle('hidden', kind !== 'auto');
+        this.renderPreview();
+      });
+    }
+    this.el('pv-parts').addEventListener('change', () => this.renderPreview());
+    this.el('pv-intensity').addEventListener('input', () => {
+      this.el('pv-intensity-value').textContent = this.el('pv-intensity').value;
+      this.renderPreview();
+    });
+    StudioPreview.init(this.el('pv-canvas'));
+  },
+
+  previewKind: 'frames',
+
+  openPreview(slot) {
+    this.previewSlot = slot;
+    const motion = STUDIO_MOTIONS.find(m => m.slot === slot);
+    this.el('preview').classList.remove('hidden');
+    this.el('pv-title').textContent = `${motion ? motion.name : slot} の動き`;
+    this.el('pv-slot').value = slot;
+    // 専用モーションが無いスロットは、最初から自動モーションの確認を見せる
+    const hasFrames = this._previewFrames(slot).length > 0;
+    this.previewKind = hasFrames ? 'frames' : 'auto';
+    ['frames', 'auto'].forEach(k => this.el(`pv-kind-${k}`).classList.toggle('seg-on', k === this.previewKind));
+    this.el('pv-auto-fields').classList.toggle('hidden', this.previewKind !== 'auto');
+    this.el('pv-kind-frames').disabled = !hasFrames;
+    this.el('pv-parts').checked = !!(this.el('spec-parts').checked && this._readParts());
+    this.el('pv-intensity').value = Math.round((Number(this.el('spec-proc-intensity').value) || 100));
+    this.el('pv-intensity-value').textContent = this.el('pv-intensity').value;
+    StudioPreview.setPlaying(true);
+    this.el('pv-play').textContent = '停止';
+    this.renderPreview();
+  },
+
+  // 再生に使うコマ。編集中のものを優先し、無ければ登録済みのものを使う。
+  _previewFrames(slot) {
+    const entry = this.motions[slot];
+    if (entry && entry.canvases && entry.canvases.length) {
+      return entry.canvases.filter((_, i) => entry.used[i]);
+    }
+    const already = (this.existing || {})[slot];
+    return (already && already.srcs) ? already.srcs : [];
+  },
+
+  async renderPreview() {
+    const slot = this.previewSlot;
+    if (!slot) return;
+    const state = this.el('pv-state');
+    const info = this.el('pv-info');
+    if (this.previewKind === 'frames') {
+      const frames = this._previewFrames(slot);
+      const entry = this.motions[slot];
+      const already = (this.existing || {})[slot];
+      const duration = entry ? entry.frameDuration : (already && already.duration) || 6;
+      const ok = await StudioPreview.playFrames(frames, duration);
+      state.textContent = ok
+        ? `${frames.length}コマ／1コマ${duration}フレーム${entry ? '（編集中のもの）' : '（登録済みのもの）'}`
+        : 'コマを読み込めませんでした';
+      info.textContent = '線は地面です。足元が線から離れていないか確認してください。';
+      return;
+    }
+    // 自動モーションの確認には立ち絵が要る
+    const sprite = await this._previewSprite();
+    if (!sprite) {
+      state.textContent = '待機モーションか立ち絵がまだありません。先に待機を用意してください。';
+      StudioPreview.stop();
+      return;
+    }
+    const parts = this.el('pv-parts').checked ? this._readParts() : null;
+    const intensity = (Number(this.el('pv-intensity').value) || 0) / 100;
+    await StudioPreview.playProcedural(sprite, slot, {
+      parts, intensity, enabled: this.el('spec-proc').checked,
+    });
+    state.textContent = `専用モーションが無い場合の動き（強さ ${this.el('pv-intensity').value}%${parts ? '・切り分けあり' : ''}）`;
+    info.textContent = parts
+      ? '頭・胴・左右の脚を付け根で振っています。継ぎ目が見えないか確認してください。'
+      : '立ち絵を上下動・傾き・伸び縮みで動かしています。「体を切り分けて動かす」を入れると脚が振れます。';
+  },
+
+  // 自動モーションの土台になる立ち絵。編集中の待機 → 登録済みの立ち絵 の順に探す。
+  async _previewSprite() {
+    const idle = this.motions.idle;
+    if (idle && idle.canvases && idle.canvases.length) return idle.canvases[0];
+    if (this._existingIdleCanvas) return this._existingIdleCanvas;
+    const key = (this.el('spec-key').value || '').trim();
+    const fighter = this.fightersJson && this.fightersJson[key];
+    const src = fighter && (((fighter.animations || {}).idle || {}).frames || [])[0] || (fighter && fighter.idleImage);
+    return src ? StudioPreview.loadImage(src) : null;
+  },
+
+  // ---- スプライトシートの取り込み ----
+  // 1枚に並んだコマを切り出してモーションにする。分け方は自動で選び、
+  // 外していた時だけ手で切り替えられるようにする（見ないと正解が分からないため）。
+  sheet: null,   // { canvas, rects, used[], mode }
+
+  bindSheet() {
+    this.el('sheet-file').addEventListener('change', async event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      this.el('sheet-info').textContent = '読み込み中…';
+      try {
+        const canvas = await StudioImage.load(file);
+        this.sheet = { canvas, rects: [], used: [], mode: 'auto' };
+        this.detectSheet();
+      } catch (error) {
+        this.el('sheet-info').textContent = String(error.message || error);
+      }
+    });
+
+    for (const mode of ['auto', 'line', 'grid']) {
+      this.el(`sheet-mode-${mode}`).addEventListener('click', () => {
+        if (!this.sheet) return;
+        this.sheet.mode = mode;
+        ['auto', 'line', 'grid'].forEach(m =>
+          this.el(`sheet-mode-${m}`).classList.toggle('seg-on', m === mode));
+        this.el('sheet-grid-fields').classList.toggle('hidden', mode !== 'grid');
+        this.detectSheet({ keepMode: true });
+      });
+    }
+    ['sheet-rows', 'sheet-cols', 'sheet-margin', 'sheet-gutter'].forEach(id =>
+      this.el(id).addEventListener('input', () => this.detectSheet({ keepMode: true })));
+    this.el('sheet-tol').addEventListener('input', () => {
+      this.el('sheet-tol-value').textContent = this.el('sheet-tol').value;
+      this.detectSheet({ keepMode: true });
+    });
+
+    // プレビューをタップして、使わないコマを外す
+    this.el('sheet-preview').addEventListener('click', event => {
+      if (!this.sheet || !this.sheet.rects.length) return;
+      const hit = this._sheetCellAt(event);
+      if (hit < 0) return;
+      this.sheet.used[hit] = !this.sheet.used[hit];
+      this.drawSheetPreview();
+    });
+
+    this.el('sheet-apply').addEventListener('click', () => this.applySheet());
+  },
+
+  // 切り出したコマの背景を、編集画面の設定で先に抜く。
+  // 足元合わせも不良コマの検出も「中身がどこにあるか」を見るため、
+  // 背景が不透明なままだと全面が中身になってしまい何も判定できない。
+  _sheetCutsTransparent(rects) {
+    const cuts = StudioSheet.cut(this.sheet.canvas, rects);
+    const mode = this.el('ed-bgmode').value;
+    if (mode === 'none') return cuts;
+    const threshold = Number(this.el('ed-threshold').value);
+    return cuts.map(c => {
+      try { return StudioImage.removeBackground(c, { mode, threshold }); }
+      catch (e) { return c; }
+    });
+  },
+
+  detectSheet({ keepMode = false } = {}) {
+    const sheet = this.sheet;
+    if (!sheet) return;
+    const tolerance = Number(this.el('sheet-tol').value) || 12;
+    if (!keepMode) {
+      // 初回はいちばん妥当な分け方を自動で選ぶ
+      const best = StudioSheet.analyze(sheet.canvas, { tolerance });
+      sheet.mode = best.mode;
+      ['auto', 'line', 'grid'].forEach(m =>
+        this.el(`sheet-mode-${m}`).classList.toggle('seg-on', m === sheet.mode));
+      this.el('sheet-grid-fields').classList.toggle('hidden', sheet.mode !== 'grid');
+    }
+    if (sheet.mode === 'grid') {
+      sheet.rects = StudioSheet.gridRects(sheet.canvas, {
+        rows: Number(this.el('sheet-rows').value) || 1,
+        cols: Number(this.el('sheet-cols').value) || 1,
+        margin: Number(this.el('sheet-margin').value) || 0,
+        gutter: Number(this.el('sheet-gutter').value) || 0,
+      });
+    } else if (sheet.mode === 'line') {
+      sheet.rects = StudioSheet.lineRects(sheet.canvas, { tolerance });
+    } else {
+      sheet.rects = StudioSheet.autoRects(sheet.canvas, { tolerance });
+    }
+    sheet.used = sheet.rects.map(() => true);
+    // 潰れているコマ・空のコマは、最初から外しておいて理由を伝える
+    const cuts = this._sheetCutsTransparent(sheet.rects);
+    sheet.outliers = StudioSheet.findOutliers(cuts);
+    for (const o of sheet.outliers) sheet.used[o.index] = false;
+    this.drawSheetPreview();
+  },
+
+  _sheetMap: null,
+  _sheetCellAt(event) {
+    const map = this._sheetMap;
+    if (!map) return -1;
+    const canvas = this.el('sheet-preview');
+    const rect = canvas.getBoundingClientRect();
+    const x = (event.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (event.clientY - rect.top) * (canvas.height / rect.height);
+    const ix = (x - map.dx) / map.scale, iy = (y - map.dy) / map.scale;
+    return this.sheet.rects.findIndex(r =>
+      ix >= r.x && iy >= r.y && ix < r.x + r.w && iy < r.y + r.h);
+  },
+
+  drawSheetPreview() {
+    const sheet = this.sheet;
+    const canvas = this.el('sheet-preview');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!sheet) return;
+    const scale = Math.min(canvas.width / sheet.canvas.width, canvas.height / sheet.canvas.height);
+    const dw = sheet.canvas.width * scale, dh = sheet.canvas.height * scale;
+    const dx = (canvas.width - dw) / 2, dy = (canvas.height - dh) / 2;
+    this._sheetMap = { scale, dx, dy };
+    ctx.drawImage(sheet.canvas, dx, dy, dw, dh);
+    let order = 0;
+    sheet.rects.forEach((r, i) => {
+      const on = sheet.used[i];
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = on ? '#ffd45e' : 'rgba(255,120,110,.85)';
+      ctx.strokeRect(dx + r.x * scale, dy + r.y * scale, r.w * scale, r.h * scale);
+      if (!on) {
+        ctx.fillStyle = 'rgba(180,40,30,.35)';
+        ctx.fillRect(dx + r.x * scale, dy + r.y * scale, r.w * scale, r.h * scale);
+      } else {
+        order++;
+        ctx.fillStyle = '#ffd45e';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText(String(order), dx + r.x * scale + 3, dy + r.y * scale + 12);
+      }
+    });
+    const count = sheet.used.filter(Boolean).length;
+    const modeLabel = { auto: '自動', line: '線で分ける', grid: '等間隔' }[sheet.mode];
+    let info = `${modeLabel}で${sheet.rects.length}コマに分けました。使うのは${count}コマです。`;
+    if (sheet.outliers && sheet.outliers.length) {
+      info += `<br>外したコマ: ${sheet.outliers.map(o => `${o.index + 1}番（${o.reason}）`).join('、')}`;
+    }
+    if (!sheet.rects.length) info = 'コマを見つけられませんでした。分け方を切り替えるか、細かさを変えてください。';
+    this.el('sheet-info').innerHTML = info;
+    this.el('sheet-apply').disabled = count < 1;
+  },
+
+  applySheet() {
+    const sheet = this.sheet;
+    if (!sheet || !this.editing) return;
+    const rects = sheet.rects.filter((_, i) => sheet.used[i]);
+    if (!rects.length) return;
+    // 背景を抜いてから足元をそろえる（順序が逆だと中身の位置が分からない）
+    let cuts = this._sheetCutsTransparent(rects);
+    if (this.el('sheet-align').checked) cuts = StudioSheet.alignFeet(cuts);
+    delete this.attacks[this.editing.slot];
+    this.motions[this.editing.slot] = {
+      sources: cuts,
+      canvases: [],
+      used: cuts.map(() => true),
+      frameDuration: Number(this.el('ed-duration').value),
+      // 背景はここで抜き終わっているので、この先では触らない
+      options: { mode: 'none', threshold: Number(this.el('ed-threshold').value) },
+    };
+    this.processFrames();
+    this.el('sheet-info').textContent = `${cuts.length}コマを取り込みました。下のコマ一覧で確認してください。`;
   },
 
   // ---- 技の強さ（モンスターごとの倍率） ----
@@ -504,13 +783,19 @@ const Studio = {
   buildMotionList() {
     const list = this.el('motion-list');
     list.innerHTML = STUDIO_MOTIONS.map(motion => `
-      <button class="motion-row${motion.required ? ' required' : ''}" data-slot="${motion.slot}">
+      <div class="motion-row${motion.required ? ' required' : ''}" data-slot="${motion.slot}">
         <span><b>${motion.name}</b><small>${motion.hint || (motion.single ? '1枚' : 'コマ送り')}</small></span>
         <span class="count" data-count="${motion.slot}"></span>
+        ${motion.single ? '' : `<button class="motion-play" data-play="${motion.slot}" type="button" aria-label="${motion.name}の動きを見る">▶</button>`}
         <span class="chev">›</span>
-      </button>`).join('');
+      </div>`).join('');
     list.querySelectorAll('[data-slot]').forEach(row => {
-      row.addEventListener('click', () => this.openEditor(row.dataset.slot));
+      row.addEventListener('click', event => {
+        // ▶ は「動きの確認」、それ以外の場所は編集画面へ
+        const play = event.target.closest('[data-play]');
+        if (play) { this.openPreview(play.dataset.play); return; }
+        this.openEditor(row.dataset.slot);
+      });
     });
     this.refreshMotionList();
   },
@@ -577,16 +862,25 @@ const Studio = {
     const moveset = this.movesetsJson && this.movesetsJson[key];
     if (fighter && fighter.animations) {
       for (const [slot, animation] of Object.entries(fighter.animations)) {
-        this.existing[slot] = { frames: (animation.frames || []).length };
+        // 確認用に、登録済みのコマの場所も覚えておく（枚数だけだと再生できない）
+        this.existing[slot] = {
+          frames: (animation.frames || []).length,
+          srcs: (animation.frames || []).slice(),
+          duration: animation.frameDuration || 6,
+        };
       }
     }
-    if (fighter && fighter.stockIcon) this.existing.stock = { frames: 1 };
+    if (fighter && fighter.stockIcon) this.existing.stock = { frames: 1, srcs: [fighter.stockIcon], duration: 6 };
     if (moveset) {
       for (const [group, moves] of Object.entries(moveset)) {
         for (const [moveKey, move] of Object.entries(moves || {})) {
           const slot = `move:${group}.${moveKey}`;
           const info = {};
-          if (move.animation) info.frames = (move.animation.frames || []).length;
+          if (move.animation) {
+            info.frames = (move.animation.frames || []).length;
+            info.srcs = (move.animation.frames || []).slice();
+            info.duration = move.animation.frameDuration || 6;
+          }
           if (move.projectile) info.projectile = { ...move.projectile, sprite: move.projectileSprite };
           if (Object.keys(info).length) this.existing[slot] = info;
         }
@@ -659,9 +953,10 @@ const Studio = {
     this.el('ed-close').addEventListener('click', () => this.closeEditor());
     this.el('ed-files').addEventListener('change', event => this.loadFiles(event.target.files));
     this.el('ed-source').addEventListener('change', () => {
-      const isVideo = this.el('ed-source').value === 'video';
-      this.el('ed-source-images').classList.toggle('hidden', isVideo);
-      this.el('ed-source-video').classList.toggle('hidden', !isVideo);
+      const kind = this.el('ed-source').value;
+      this.el('ed-source-images').classList.toggle('hidden', kind !== 'images');
+      this.el('ed-source-video').classList.toggle('hidden', kind !== 'video');
+      this.el('ed-source-sheet').classList.toggle('hidden', kind !== 'sheet');
     });
     this.el('ed-video').addEventListener('change', event => this.loadVideo(event.target.files[0]));
     this.el('ed-apply').addEventListener('click', () => this.processFrames());

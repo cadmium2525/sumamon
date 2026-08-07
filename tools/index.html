@@ -43,7 +43,7 @@ button:disabled { opacity: .45; }
 .status.ng { color: #ffd2c9; background: #33150f; border: 1px solid #a44b39; }
 .status.info { color: #cfe6f7; background: #102231; border: 1px solid #2f5a7d; }
 .motion-list { display: grid; gap: 6px; }
-.motion-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px;
+.motion-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 8px; cursor: pointer;
   padding: 10px 11px; border: 1px solid #22344a; border-radius: 9px; background: #0f1a27; text-align: left; width: 100%; }
 .motion-row.done { border-color: #3f9e63; background: #10251a; }
 .motion-row.required:not(.done) { border-color: #c9973a; }
@@ -60,6 +60,8 @@ button:disabled { opacity: .45; }
 .kept-note { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #10251a; border: 1px solid #2f8a52; color: #b8f5c8; font-size: 11px; line-height: 1.6; }
 .kept-note.hidden { display: none; }
 .chev { color: #5d7590; }
+.motion-play { padding: 5px 9px; border-color: #2b3f57; background: #16324b; font-size: 12px; }
+.motion-play:active { background: #2f81c9; }
 /* 画面いっぱいに出すため body の safe-area 余白が効かない。
    端末の時計やノッチに「戻る」が隠れないよう、ここで直接よける。 */
 .editor { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: #0d1420;
@@ -273,6 +275,34 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
     Service Worker のキャッシュ番号と version.json も自動で1つ上がります。</p>
 </section>
 
+<!-- モーションの確認（登録済み・未登録どちらも見られる） -->
+<div id="preview" class="editor hidden">
+  <div class="editor-head">
+    <button id="pv-close">← 戻る</button>
+    <strong id="pv-title"></strong>
+  </div>
+  <section>
+    <div id="pv-state" class="note" style="margin:0 0 10px"></div>
+    <div class="preview"><canvas id="pv-canvas" width="360" height="260"></canvas></div>
+    <div class="row seg" style="margin-top:10px">
+      <button id="pv-kind-frames" class="seg-on" type="button">専用モーション</button>
+      <button id="pv-kind-auto" type="button">自動モーション</button>
+    </div>
+    <div id="pv-auto-fields" class="hidden">
+      <p class="note" style="margin-top:8px">専用モーションを登録していない技・状態が、ゲーム中どう動くかの確認です。
+        立ち絵を変形させて動かします。</p>
+      <label class="check" style="margin-top:8px"><input id="pv-parts" type="checkbox"> 体を切り分けて動かす（頭・胴・脚）</label>
+      <label>動きの強さ <span id="pv-intensity-value">100</span>%</label>
+      <input id="pv-intensity" type="range" min="0" max="200" value="100">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="pv-play" type="button">停止</button>
+      <select id="pv-slot"></select>
+    </div>
+    <div id="pv-info" class="box-info"></div>
+  </section>
+</div>
+
 <!-- モーション編集画面 -->
 <div id="editor" class="editor hidden">
   <div class="editor-head">
@@ -285,10 +315,40 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
     <select id="ed-source">
       <option value="images">画像から作る（複数選択・順番がコマ順になります）</option>
       <option value="video">動画から作る（自動でコマに切り出します）</option>
+      <option value="sheet">スプライトシートから作る（1枚に並んだコマを切り出します）</option>
     </select>
     <div id="ed-source-images">
       <label>画像を選ぶ</label>
       <input id="ed-files" type="file" accept="image/*" multiple>
+    </div>
+    <div id="ed-source-sheet" class="hidden">
+      <label>スプライトシートを選ぶ</label>
+      <input id="sheet-file" type="file" accept="image/*">
+      <p class="note" style="margin-top:6px">コマの並びを自動で見つけます。うまく分かれない時だけ、
+        下の分け方を切り替えてください。<b>使わないコマはタップで外せます。</b></p>
+      <div class="row seg" style="margin-top:8px">
+        <button id="sheet-mode-auto" class="seg-on" type="button">自動</button>
+        <button id="sheet-mode-line" type="button">線で分ける</button>
+        <button id="sheet-mode-grid" type="button">等間隔</button>
+      </div>
+      <div id="sheet-grid-fields" class="hidden">
+        <div class="row">
+          <div><label>行数</label><input id="sheet-rows" type="number" min="1" value="1"></div>
+          <div><label>列数</label><input id="sheet-cols" type="number" min="1" value="4"></div>
+        </div>
+        <div class="row">
+          <div><label>外側の余白</label><input id="sheet-margin" type="number" min="0" value="0"></div>
+          <div><label>コマのすき間</label><input id="sheet-gutter" type="number" min="0" value="0"></div>
+        </div>
+      </div>
+      <label>分け方の細かさ <span id="sheet-tol-value">12</span></label>
+      <input id="sheet-tol" type="range" min="2" max="40" value="12">
+      <div class="preview pick"><canvas id="sheet-preview" width="360" height="240"></canvas></div>
+      <div id="sheet-info" class="box-info"></div>
+      <label class="check" style="margin-top:10px"><input id="sheet-align" type="checkbox" checked> 足元と体の中心をそろえる</label>
+      <p class="note" style="margin-top:4px">コマごとの余白の差でキャラクターが揺れるのを防ぎます。
+        崖つかまりのように高さが変わるモーションでは外してください。</p>
+      <button id="sheet-apply" class="primary" style="margin-top:10px" disabled>このコマ順で取り込む</button>
     </div>
     <div id="ed-source-video" class="hidden">
       <label>動画を選ぶ</label>
@@ -424,7 +484,10 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
 // ブラウザのHTTPキャッシュを毎回回避する（ファイルは小さく、体感差は無い）。
 (async () => {
   const stamp = Date.now();
-  const files = ['studio-motions', 'studio-image', 'studio-video', 'studio-github', 'studio-build', 'studio-app'];
+  // '../js/procedural-motion.js' はゲーム本体の自動モーション計算。
+  // スタジオ側で作り直すと確認できた動きと本番がずれるため、そのまま読み込む。
+  const files = ['../js/procedural-motion', 'studio-motions', 'studio-image', 'studio-video',
+    'studio-sheet', 'studio-preview', 'studio-github', 'studio-build', 'studio-app'];
   for (const name of files) {
     try {
       await new Promise((resolve, reject) => {
@@ -437,7 +500,7 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
     } catch (error) {
       document.body.insertAdjacentHTML('afterbegin',
         `<div style="margin:12px;padding:12px;border-radius:8px;background:#33150f;color:#ffd2c9">
-          ${error.message}.js を読み込めませんでした。通信状態を確認して再読み込みしてください。</div>`);
+          ${error.message.split('/').pop()}.js を読み込めませんでした。通信状態を確認して再読み込みしてください。</div>`);
       return;
     }
   }
