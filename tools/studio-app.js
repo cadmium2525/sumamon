@@ -914,6 +914,21 @@ const Studio = {
     this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
     this.refreshFallLabel();
     // 技の強さ（倍率）。片方だけ指定されている場合も等倍で埋めておく。
+    // 能力（Lv1時点の素の値）。一部しか登録されていない場合は既定値で埋めて、
+    // ゲーム内で実際に使われる値をそのまま見せる（game.js の resolveStats と同じ扱い）。
+    const baseStats = { life: 100, power: 10, intelligence: 10, accuracy: 10, evasion: 10, defense: 10 };
+    const effectiveStats = { ...baseStats, ...(fighter.stats || {}) };
+    for (const [stat, value] of Object.entries(effectiveStats)) {
+      const input = this.el(`st-${stat}`);
+      if (input) input.value = value;
+    }
+    // 適性。データに無い場合は C（ゲーム側の既定）を出す。
+    const savedAptitudes = fighter.aptitudes || {};
+    for (const stat of Object.keys(baseStats)) {
+      const select = this.el(`apt-${stat}`);
+      if (select) select.value = savedAptitudes[stat] || 'C';
+    }
+
     this.movePower = {};
     for (const [key, value] of Object.entries(fighter.movePower || {})) {
       this.movePower[key] = {
@@ -1713,6 +1728,7 @@ const Studio = {
         hurtboxHeight: Number(this.el('spec-hh').value) || 124,
         hurtboxWidth: Number(this.el('spec-hw').value) || 54,
         fallSpeed: Number((Number(this.el('spec-fall').value) / 100).toFixed(2)) || 1,
+        aptitudes,
         movePower: this._readMovePower(),
         parts: (this.el('spec-parts').checked && this._readParts()) || null,
         weapon: (this.el('spec-weapon').checked && this.weapon.rect && this.weapon.rect.w > 2)
@@ -1771,6 +1787,8 @@ const Studio = {
           ? `あり（首y=${collected.spec.parts.neckY} 腰y=${collected.spec.parts.hipY}）` : 'なし'}`,
         `■ 武器レイヤー: ${collected.spec.weapon
           ? `あり（${collected.spec.weapon.rect.w}×${collected.spec.weapon.rect.h}px）` : 'なし'}`,
+        `■ 適性: ${Object.entries(collected.aptitudes).map(([k, v]) =>
+          `${({ life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' })[k]}${v}`).join(' ')}`,
         `■ 技の強さ: ${collected.spec.movePower
           ? Object.entries(collected.spec.movePower).map(([k, v]) =>
               `${k}(${v.dmg ? `ダメージ${Math.round(v.dmg * 100)}%` : ''}${v.dmg && v.kb ? '・' : ''}${v.kb ? `吹っ飛ばし${Math.round(v.kb * 100)}%` : ''})`).join(' / ')

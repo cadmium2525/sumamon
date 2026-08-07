@@ -43,7 +43,11 @@ const GROWTH = {
     return apt;
   },
 
+  // 適性は data/fighters.json に持たせている（スタジオから編集・確認できるようにするため）。
+  // FIXED_APTITUDES はデータへ移す前からある指定で、まだデータに無いモンスター用に残してある。
   aptitudesFor(baseFighterKey) {
+    const def = (typeof window !== 'undefined' && window.FIGHTERS || {})[baseFighterKey];
+    if (def && def.aptitudes) return { ...def.aptitudes };
     return { ...(this.FIXED_APTITUDES[baseFighterKey] || this.randomAptitudes()) };
   },
 
@@ -180,8 +184,10 @@ const MasmonStore = {
     record.trainingStats = record.trainingStats || {};
     // スキン（色変更）。{ groups:{...}, splits:[...] } / 未設定なら元の色
     record.skin = record.skin || null;
-    if (GROWTH.FIXED_APTITUDES[record.baseFighterKey]) {
-      record.aptitudes = { ...GROWTH.FIXED_APTITUDES[record.baseFighterKey] };
+    // ベースモンスターに適性が決まっていればそれを使う（種族の個性なので育成では変わらない）
+    const fixed = (typeof window !== 'undefined' && window.FIGHTERS || {})[record.baseFighterKey];
+    if ((fixed && fixed.aptitudes) || GROWTH.FIXED_APTITUDES[record.baseFighterKey]) {
+      record.aptitudes = GROWTH.aptitudesFor(record.baseFighterKey);
     } else if (!record.aptitudes) {
       record.aptitudes = GROWTH.randomAptitudes();
     }

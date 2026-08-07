@@ -88,6 +88,10 @@ const StudioBuild = {
     if (spec.spriteContentBox) fighter.spriteContentBox = spec.spriteContentBox;
     if (spec.stats) fighter.stats = spec.stats;
     else delete fighter.stats;
+    // 適性はゲーム側(js/growth-system.js)ではなくデータに持つ。
+    // こうするとスタジオから編集でき、登録済みの値も読み取れる。
+    if (spec.aptitudes) fighter.aptitudes = this.aptitudes(spec.aptitudes);
+    else delete fighter.aptitudes;
     if (spec.animations && Object.keys(spec.animations).length) {
       fighter.animations = { ...(previous.animations || {}), ...spec.animations };
     }

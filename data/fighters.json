@@ -22,6 +22,14 @@
       "evasion": 10,
       "defense": 10
     },
+    "aptitudes": {
+      "life": "C",
+      "power": "A",
+      "intelligence": "D",
+      "accuracy": "B",
+      "evasion": "A",
+      "defense": "D"
+    },
     "animations": {
       "idle": {
         "frames": [
@@ -123,6 +131,14 @@
       "power": 14,
       "defense": 16,
       "evasion": 6
+    },
+    "aptitudes": {
+      "life": "C",
+      "power": "B",
+      "intelligence": "B",
+      "accuracy": "A",
+      "evasion": "E",
+      "defense": "B"
     },
     "weapon": {
       "rect": {
