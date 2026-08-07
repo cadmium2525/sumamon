@@ -30,11 +30,16 @@ const DESERT_REWARD_BASE = { stat: 20, life: 8 };
 // ここに挙げた数値は初速の目安（実測での再調整を前提とした初期案）。
 const SNOW_CONFIG = {
   scrollDelay: 1.4,        // 開始から何秒は不動か（最初の足場を確認する猶予）
-  scrollBaseSpeed: 0.85,   // スクロール速度の初速(px/フレーム)
-  scrollMaxSpeed: 1.9,     // duration経過時点のスクロール速度上限(px/フレーム)
+  scrollBaseSpeed: 0.75,   // スクロール速度の初速(px/フレーム)
+  scrollMaxSpeed: 1.6,     // duration経過時点のスクロール速度上限(px/フレーム)
   killMargin: 34,          // 画面下端からこのぶん出たらゲームオーバー
-  platformGapMin: 100,     // 足場の縦間隔(px)の最小値
-  platformGapMax: 150,     // 足場の縦間隔(px)の最大値
+  // 縦間隔・横間隔はジャンプ力の基準値(JUMP_POWER=-9.75 → 単発で約190px)に合わせてある。
+  // 基準ジャンプ力を変えたらここも必ず測り直すこと（v1.13時点の-13では倍の高さが跳べたため、
+  // 当時の値100〜150pxのままだと最初の足場にすら届かなくなった）。
+  platformGapMin: 62,      // 足場の縦間隔(px)の最小値
+  platformGapMax: 100,     // 足場の縦間隔(px)の最大値
+  platformStepMin: 60,     // 足場の横方向のズレ(px)の最小値
+  platformStepMax: 210,    // 足場の横方向のズレ(px)の最大値（空中で届く範囲に収める）
   platformWidth: [110, 150], // 足場の横幅の範囲(px)
   swayAmpRange: [10, 34],  // 足場が左右に揺れる振幅(px)
   swayPeriodRange: [70, 160], // 揺れの周期(フレーム)
@@ -48,16 +53,20 @@ const SNOW_CONFIG = {
 };
 
 // 到達標高(m。HUD表示と同じ「10px=1m」換算)→ランクのしきい値。これ未満はEランク。
-// Playwrightの疑似プレイで実測して決めた値（感覚ではなく実際の到達可能範囲から逆算）：
-// ノーミスで登り続けるボットは60秒で700m超に到達する一方、時々ミスをする
-// ボットは1回の判断ミスで序盤の即死（1桁m）〜終盤までしのいで800m超まで大きくばらつく。
-// Sは「ほぼノーミスで登り切る」水準、Eはごく序盤で振り落とされる水準に合わせている。
+//
+// Sのしきい値は「60秒を落ちずに登り切ったら必ずS」になるよう、実測値ではなく
+// スクロール量から逆算して決めている。60秒時点のキルラインは y=-3598 まで上がるので、
+// 完走者は必ず (500-(-3598))/10 = 約410m を超えている。その下に置いた400がSの基準。
+// （実測だけで決めると、足場の間隔がランダムなぶん完走でも473mまで落ちる回があり、
+//   しきい値480では「登り切ったのにA」が出てしまった。）
+// 途中で落ちた場合は、落ちた高さでA以下に分かれる。
+// ※スクロール速度・制限時間・killMarginを変えたらこの計算をやり直すこと。
 const SNOW_RANK_ALTITUDE = [
-  { grade: 'S', min: 650 },
-  { grade: 'A', min: 480 },
-  { grade: 'B', min: 320 },
-  { grade: 'C', min: 180 },
-  { grade: 'D', min: 80 },
+  { grade: 'S', min: 400 },
+  { grade: 'A', min: 300 },
+  { grade: 'B', min: 210 },
+  { grade: 'C', min: 130 },
+  { grade: 'D', min: 70 },
 ];
 // Sランク報酬「回避+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
 const SNOW_REWARD_BASE = { stat: 20, life: 8 };
@@ -290,7 +299,7 @@ const PracticeGame = {
       let px = 90, py = groundY, dir = Math.random() < .5 ? 1 : -1;
       for (let i = 1; i <= 60; i++) {
         py -= SNOW_CONFIG.platformGapMin + Math.random() * (SNOW_CONFIG.platformGapMax - SNOW_CONFIG.platformGapMin);
-        px += dir * (70 + Math.random() * 210);
+        px += dir * (SNOW_CONFIG.platformStepMin + Math.random() * (SNOW_CONFIG.platformStepMax - SNOW_CONFIG.platformStepMin));
         if (px < 60) { px = 60; dir = 1; }
         if (px > 760) { px = 760; dir = -1; }
         if (Math.random() < 0.25) dir *= -1;

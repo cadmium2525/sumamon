@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=65">
+<link rel="stylesheet" href="css/style.css?v=66">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.13</small>
+    <small class="home-version">Version 1.14</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.14</time><strong>ジャンプの高さを見直し／パパス雪山の評価を緩和／プリセットの色は解放式に</strong><p><b>ジャンプが高すぎたので、基準を4分の3に下げました。</b>これまでは足場をあまりにも軽々と飛び越えてしまい、間合いを測る楽しさが薄れていました。跳ぶ高さは338px→<b>190px</b>になります（跳ぶ高さは踏み切りの速さの2乗で効くため、見た目には半分ほど低くなります）。あわせて<b>モンスターごとにジャンプ力を設定できる</b>ようにしました。落下速度と同じく育成では変わらない種族の個性で、身軽なモンスターは高く、重いモンスターは低く跳ぶ、といった差を付けられます。作成スタジオの「能力と適性」から倍率で設定でき、実際に跳ぶ高さも画面に出ます。<br><b>パパス雪山の評価を甘くしました。</b>時間いっぱい登り切ってもA評価止まりだったので、<b>60秒を落ちずに登り切れば必ずSランク</b>になるようランクの基準を引き下げ、途中で落ちた場合もA〜Eが取りやすくなりました。ジャンプが低くなったぶん足場の間隔も詰めてあるので、登りやすさは変わりません。<br><b>プリセットの色を「解放式」に変えました。</b>これまで無料だったプリセット（クリムゾン等の7色）は、1色につき<b>虹彩の染色セットを1個</b>使って解放する形になります。<b>一度解放すれば、そのマスモンでは何度でも無料</b>で着せ替えられます。まだ解放していない色には<b>鍵マーク</b>が付き、解放済みかどうかがひと目で分かります。選んで確かめるだけなら無料なので、決める前に試着してください。「もとの色」に戻すのはこれまでどおり無料で、<b>すでに着せている色はそのまま解放済み</b>として引き継がれます。</p></article>
           <article><time>Version 1.13</time><strong>「パパス雪山」の修行をリニューアル：強制スクロール＋ツララの登山アクションに</strong><p>修行のミニゲーム「パパス雪山」を作り直しました。これまでは崩れる足場をただ登るだけでしたが、これからは<b>アイスクライマー風の強制縦スクロール</b>になります。画面は自動で上へ進み続け、追いつかれて画面の下に出てしまうとその時点でゲームオーバーです。<br>足場はすべて氷でできており、<b>左右にゆっくり揺れます</b>。揺れの速さと大きさは足場ごとにランダムなので、毎回違う登り方になります。残り時間の後半（開始24秒後）からは、画面上から<b>ツララ</b>が降ってくるようになります。影が伸びたら落下の合図、ジャンプや回避行動でかわしましょう。<br>評価はゲームオーバーになった時点ではなく、<b>そこまでに登った最高到達標高</b>で決まります。最高評価（Sランク）を取ると、マスモンの<b>回避+20・ライフ+8</b>が手に入ります。開始前には操作方法とルールの説明画面も追加しました。</p></article>
           <article><time>Version 1.12</time><strong>スタジオ：登録済みの能力と適性を読み込むようにしました</strong><p>モンスター作成スタジオで既存のモンスターを選ぶと、<b>能力（ライフ・ちから等）と育成適性（A〜E）が登録済みの値で埋まる</b>ようになりました。これまでは毎回初期値が表示されていたため、既存のモンスターを編集すると気付かないうちに能力が上書きされてしまう状態でした。一部しか登録していない能力は、ゲーム内で実際に使われる既定値で埋めて表示します。<br>あわせて、これまで<b>適性がスタジオから保存されていなかった</b>問題も直しました。画面で選んでも保存先が無く、登録しても反映されない状態でした。適性の置き場所をゲームのプログラム側からデータ側（data/fighters.json）へ移し、スタジオから編集・保存できるようにしています。既存のイルミネ・デュラハンの適性はそのまま移してあるので、ゲームの手応えは変わりません。</p></article>
           <article><time>Version 1.11</time><strong>スタジオ：モーションの確認機能・スプライトシートからの取り込みを追加</strong><p>モンスター作成スタジオを強化しました（ゲーム側の見た目・遊びは変わりません）。<br><b>モーションの動きを確認できるようになりました。</b>モーション一覧の各行に<b>▶</b>が付き、押すとその動きを再生します。<b>登録済みのモーションも見られます</b>ので、作り直す前に今どう動いているか確かめられます。地面の線を出しているので、足元が浮いていないかもすぐ分かります。<br><b>まだ用意していない技も、事前に動きを見られます。</b>専用モーションが無い技は「自動モーション」で立ち絵を変形させて動きますが、その結果を登録前に確認できるようにしました。<b>体の切り分け（頭・胴・脚）</b>を入れた時の見え方や、<b>動きの強さ</b>を変えた時の違いもその場で比べられます。継ぎ目が見えないか、強すぎないかを、コミットする前に判断できます。<br><b>スプライトシートから取り込めるようになりました。</b>1枚に並んだコマを自動で切り分けます。並びが不均等でも、区切り線があっても、等間隔でも対応します。<b>どの分け方が妥当かは自動で判定</b>するので、外していた時だけ切り替えてください。<br>取り込みでは2つの助けを入れています。1つは<b>おかしなコマの自動検出</b>で、1コマだけ縦に潰れている・ほとんど空、といったコマを見つけて最初から外し、理由を表示します（もちろん手動で戻せます）。もう1つは<b>足元と体の中心そろえ</b>で、コマごとの余白の違いでキャラクターが小刻みに揺れるのを防ぎます。崖つかまりのように高さが変わるモーションでは外せます。<br>不要なコマはプレビュー上でタップして外せます。残したコマには再生順の番号が付きます。</p></article>
@@ -438,7 +439,7 @@
           <label class="skin-free-color">自由に選ぶ<input type="color" id="skin-color-input" value="#e01818"></label>
         </section>
         <section class="skin-section">
-          <h3>プリセット<small>無料</small></h3>
+          <h3>プリセット<small>🔒は染色セット1個で解放</small></h3>
           <div id="skin-preset-list" class="skin-preset-list"></div>
         </section>
       </div>
@@ -576,21 +577,21 @@
 
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=7"></script>
+  <script src="js/config.js?v=8"></script>
   <script src="js/audio.js?v=6"></script>
   <script src="js/moves.js?v=30"></script>
-  <script src="js/physics.js?v=34"></script>
+  <script src="js/physics.js?v=35"></script>
   <script src="js/procedural-motion.js?v=3"></script>
   <script src="js/skin.js?v=2"></script>
-  <script src="js/skin-editor.js?v=2"></script>
-  <script src="js/fighter.js?v=52"></script>
-  <script src="js/fighters-data.js?v=9"></script>
+  <script src="js/skin-editor.js?v=3"></script>
+  <script src="js/fighter.js?v=53"></script>
+  <script src="js/fighters-data.js?v=10"></script>
   <script src="js/debug-mode.js?v=11"></script>
   <script src="js/stage.js?v=32"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=3"></script>
-  <script src="js/growth-system.js?v=41"></script>
-  <script src="js/practice.js?v=10"></script>
+  <script src="js/growth-system.js?v=42"></script>
+  <script src="js/practice.js?v=11"></script>
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=3"></script>
   <script src="js/game.js?v=45"></script>

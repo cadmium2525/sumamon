@@ -69,6 +69,19 @@ const Physics = {
     return Number.isFinite(value) && value > 0 ? value : CONFIG.DEFAULT_FALL_SPEED;
   },
 
+  // ジャンプ力倍率。落下速度と同じく、育成ではなくモンスターごとの固定値。
+  // ここを育成で動かすと足場の届く/届かないが途中で変わり、
+  // 覚えた間合いが通用しなくなるため、種族の個性として固定している。
+  jumpMultiplier(jumpPower) {
+    const value = Number(jumpPower);
+    return Number.isFinite(value) && value > 0 ? value : CONFIG.DEFAULT_JUMP_POWER;
+  },
+
+  // このモンスターのジャンプ初速（負の値＝上向き）
+  jumpVelocity(jumpPower) {
+    return CONFIG.JUMP_POWER * this.jumpMultiplier(jumpPower);
+  },
+
   // 通常の終端速度と急降下時の終端速度
   terminalFallSpeed(fallSpeed, fastFalling) {
     return CONFIG.MAX_FALL_SPEED * this.fallMultiplier(fallSpeed) * (fastFalling ? CONFIG.FAST_FALL_MULTIPLIER : 1);

@@ -2268,6 +2268,13 @@ body.layout-pending .screen { visibility: hidden; }
 .skin-preset span { width: 100%; height: 14px; border-radius: 4px; display: block; }
 .skin-preset small { font-size: 8px; line-height: 1.1; text-align: center; }
 .skin-preset.selected { border-color: #ffe36a; }
+/* 未解放プリセット：色見本を淡くし、破線の枠と鍵マークで「まだ持っていない」ことを示す。
+   押せなくはしない（試着は無料で、染色セットを使うのは決定した時だけ）。 */
+.skin-preset.locked { border-style: dashed; border-color: rgba(255,255,255,.28); }
+.skin-preset.locked span { opacity: .42; }
+.skin-preset.locked small { color: #b9c6d8; }
+.skin-preset.locked.selected { border-style: solid; border-color: #ffe36a; }
+.skin-preset.locked.selected span { opacity: 1; }
 
 .skin-footer {
   flex: 0 0 auto;

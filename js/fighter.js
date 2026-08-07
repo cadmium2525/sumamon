@@ -101,6 +101,10 @@ class Fighter {
     // 大きいほど速く落ち、コンボは抜けやすいが復帰は難しくなる。
     this.fallSpeed = Physics.fallMultiplier(options.fallSpeed);
 
+    // ジャンプ力もモンスターごとの個性（育成では変わらない）。
+    // 倍率で持ち、実際の初速は Physics.jumpVelocity() で求める。
+    this.jumpPower = Physics.jumpMultiplier(options.jumpPower);
+
     // 自動モーション：専用モーションが無い状態・技を、立ち絵の変形で動かす。
     // モンスターごとに切ったり動きの強さを変えたりできる。
     this.proceduralEnabled = options.proceduralMotion?.enabled !== false;
@@ -343,7 +347,7 @@ class Fighter {
         (canTumbleJump || tumbleAttackCancel || tumbleSpecialCancel)) {
       this.tumbling = false;
       if (canTumbleJump) {
-        this.vy = CONFIG.JUMP_POWER;
+        this.vy = Physics.jumpVelocity(this.jumpPower);
         this.jumpsUsed++;
         this.jumpAnimTimer = 0;
         this.prevJumpHeld = true;
@@ -523,7 +527,7 @@ class Fighter {
     const jumpHeldCombined = input.jump || (tapJumpEnabled && input.up);
     const jumpPressed = jumpHeldCombined && !this.prevJumpHeld;
     if (jumpPressed && this.jumpsUsed < CONFIG.MAX_JUMPS) {
-      this.vy = CONFIG.JUMP_POWER;
+      this.vy = Physics.jumpVelocity(this.jumpPower);
       this.jumpsUsed++;
       this.onGround = false;
       this.jumpFrames = 0;
@@ -651,7 +655,7 @@ class Fighter {
       this.ledgeCooldown = Math.max(this.ledgeCooldown, 60);
     }
     if (withJump) {
-      this.vy = CONFIG.JUMP_POWER;
+      this.vy = Physics.jumpVelocity(this.jumpPower);
       this.jumpsUsed = 1;
       this.invincible = Math.max(this.invincible, 10);
       this.jumpAnimTimer = 0;

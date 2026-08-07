@@ -140,6 +140,26 @@ const SkinEditor = {
   _buildPresets() {
     this.presets = SKIN_PRESETS.map(p => ({ ...p, skin: this._presetSkin(p) }));
     this.presetKeys = new Set(['', ...this.presets.map(p => Skin.cacheKey(p.skin))]);
+    // 「今の下書きがどのプリセットか」を引くための逆引き。解放済み判定に使う。
+    this.presetKeyByCache = new Map(this.presets.map(p => [Skin.cacheKey(p.skin), p.key]));
+  },
+
+  // このマスモンで解放済みのプリセット（解放はマスモンごと。色は個体の元の色から
+  // 作られるので、同じ「クリムゾン」でも個体によって出る色が違うため）
+  _unlockedSet() {
+    const set = new Set(this.monster?.unlockedPresets || []);
+    // 旧仕様（プリセットは無料）の時に既に着せていた色は、解放済みとして扱う。
+    // これが無いと、前から使っていた色に戻すだけで染色セットを要求されてしまう。
+    const worn = this.presetKeyByCache?.get(Skin.cacheKey(this.monster?.skin));
+    if (worn) set.add(worn);
+    return set;
+  },
+
+  // 下書きが未解放のプリセットなら、そのプリセットのキーを返す（解放済み/プリセット外はnull）
+  _lockedPresetOfDraft() {
+    const presetKey = this.presetKeyByCache?.get(Skin.cacheKey(this._draft()));
+    if (!presetKey) return null;
+    return this._unlockedSet().has(presetKey) ? null : presetKey;
   },
 
   // ---- 表示（ズーム・移動） ----
@@ -261,23 +281,31 @@ const SkinEditor = {
   renderPresets() {
     const list = document.getElementById('skin-preset-list');
     const currentKey = Skin.cacheKey(this._draft());
-    const cell = (key, label, skin) => {
+    const unlocked = this._unlockedSet();
+    const cell = (key, label, skin, locked) => {
       const stops = (skin.materials || []).map(m => m.color).filter(Boolean).slice(0, 3);
       const use = stops.length ? stops : this.materials.slice(0, 3).map(m => m.hex);
       const bg = use.length > 1
         ? `linear-gradient(135deg, ${use.map((c, i) => `${c} ${Math.round(i * 100 / use.length)}% ${Math.round((i + 1) * 100 / use.length)}%`).join(',')})`
         : use[0] || '#666';
       const on = currentKey === Skin.cacheKey(skin);
-      return `<button class="skin-preset${on ? ' selected' : ''}" data-preset="${key}">
-        <span style="background:${bg}"></span><small>${label}</small></button>`;
+      // 未解放は鍵マークと暗い表示で区別する（選ぶこと自体は自由。試着は無料で、
+      // 染色セットを使うのは「決定」を押した時だけ）
+      return `<button class="skin-preset${on ? ' selected' : ''}${locked ? ' locked' : ''}" data-preset="${key}">
+        <span style="background:${bg}"></span><small>${locked ? '🔒' : ''}${label}</small></button>`;
     };
-    list.innerHTML = cell('original', 'もとの色', { version: 2, materials: [] }) +
-      this.presets.map(p => cell(p.key, p.label, p.skin)).join('');
+    list.innerHTML = cell('original', 'もとの色', { version: 2, materials: [] }, false) +
+      this.presets.map(p => cell(p.key, p.label, p.skin, !unlocked.has(p.key))).join('');
   },
 
-  // 消費の判定：プリセットと元の色は無料、それ以外は染色セット1個
+  // 消費の判定：もとの色と「解放済みプリセット」は無料。
+  // 未解放プリセットの解放とオリジナルカラーは染色セット1個。
   costOfDraft() {
-    return this.presetKeys.has(Skin.cacheKey(this._draft())) ? 0 : 1;
+    const key = Skin.cacheKey(this._draft());
+    if (key === '') return 0;                       // もとの色に戻すのは無料
+    const presetKey = this.presetKeyByCache.get(key);
+    if (presetKey) return this._unlockedSet().has(presetKey) ? 0 : 1;
+    return 1;                                        // オリジナルカラー
   },
 
   renderFooter() {
@@ -294,15 +322,19 @@ const SkinEditor = {
       confirm.textContent = '決定';
       return;
     }
+    const lockedPreset = this._lockedPresetOfDraft();
     confirm.disabled = cost > 0 && owned < cost;
     if (cost === 0) {
-      label.textContent = 'このいろは無料';
+      label.textContent = '解放済みのいろ：無料';
       label.classList.remove('warn');
       confirm.textContent = '決定';
     } else if (owned >= cost) {
-      label.textContent = 'オリジナルカラー：染色セット1個';
+      const name = lockedPreset && this.presets.find(p => p.key === lockedPreset)?.label;
+      label.textContent = lockedPreset
+        ? `${name}を解放：染色セット1個（次回から無料）`
+        : 'オリジナルカラー：染色セット1個';
       label.classList.remove('warn');
-      confirm.textContent = '決定（1個つかう）';
+      confirm.textContent = lockedPreset ? '解放（1個つかう）' : '決定（1個つかう）';
     } else {
       label.textContent = '染色セットが足りません';
       label.classList.add('warn');
@@ -352,10 +384,16 @@ const SkinEditor = {
 
   confirm() {
     const cost = this.costOfDraft();
+    // 消費の前に「何を解放しようとしているか」を控える。決済後に下書きから引き直すと、
+    // 解放済みになった時点で null に変わってしまい、記録できない。
+    const unlocking = this._lockedPresetOfDraft();
     if (cost > 0 && !UserProfileStore.consumeItem('dye_kit', cost)) {
       this.setHint('虹彩の染色セットが足りません');
       this.renderFooter();
       return;
+    }
+    if (unlocking) {
+      this.monster.unlockedPresets = [...new Set([...(this.monster.unlockedPresets || []), unlocking])];
     }
     const draft = this._draft();
     this.monster.skin = Skin.isEmpty(draft) ? null : draft;

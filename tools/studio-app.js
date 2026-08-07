@@ -35,6 +35,7 @@ const Studio = {
     this.el('spec-existing').addEventListener('change', () => this.loadExisting());
     this.el('spec-key').addEventListener('input', () => this.refreshExistingMotions());
     this.el('spec-fall').addEventListener('input', () => this.refreshFallLabel());
+    this.el('spec-jump').addEventListener('input', () => this.refreshJumpLabel());
     this.el('spec-proc-intensity').addEventListener('input', () => this.refreshProcLabel());
     this.bindWeapon();
     this.bindParts();
@@ -57,6 +58,16 @@ const Studio = {
   refreshFallLabel() {
     const value = (Number(this.el('spec-fall').value) || 100) / 100;
     this.el('spec-fall-value').textContent = value.toFixed(2);
+  },
+
+  // ジャンプ力も同じくモンスターごとの個性。倍率だけでは高さの感覚が掴めないので、
+  // ゲーム側と同じ式（高さ = 初速^2 / 2g）で実際に跳ぶ高さ(px)も併記する。
+  // ゲーム側の基準値: JUMP_POWER=-9.75 / GRAVITY=0.25
+  refreshJumpLabel() {
+    const value = (Number(this.el('spec-jump').value) || 100) / 100;
+    this.el('spec-jump-value').textContent = value.toFixed(2);
+    const velocity = 9.75 * value;
+    this.el('spec-jump-height').textContent = Math.round(velocity * velocity / (2 * 0.25));
   },
 
   // ---- モーションの確認 ----
@@ -913,6 +924,8 @@ const Studio = {
     this.el('spec-hw').value = fighter.hurtboxWidth || 54;
     this.el('spec-fall').value = Math.round((fighter.fallSpeed || 1) * 100);
     this.refreshFallLabel();
+    this.el('spec-jump').value = Math.round((fighter.jumpPower || 1) * 100);
+    this.refreshJumpLabel();
     // 技の強さ（倍率）。片方だけ指定されている場合も等倍で埋めておく。
     // 能力（Lv1時点の素の値）。一部しか登録されていない場合は既定値で埋めて、
     // ゲーム内で実際に使われる値をそのまま見せる（game.js の resolveStats と同じ扱い）。
@@ -1728,6 +1741,7 @@ const Studio = {
         hurtboxHeight: Number(this.el('spec-hh').value) || 124,
         hurtboxWidth: Number(this.el('spec-hw').value) || 54,
         fallSpeed: Number((Number(this.el('spec-fall').value) / 100).toFixed(2)) || 1,
+        jumpPower: Number((Number(this.el('spec-jump').value) / 100).toFixed(2)) || 1,
         aptitudes,
         movePower: this._readMovePower(),
         parts: (this.el('spec-parts').checked && this._readParts()) || null,
@@ -1782,7 +1796,7 @@ const Studio = {
       this.pending = built;
       const lines = [
         `■ モンスター: ${collected.displayName}（${collected.key}）`,
-        `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth} / 落下速度 ${collected.spec.fallSpeed}倍`,
+        `■ 体格: 高さ ${collected.spec.hurtboxHeight} / 幅 ${collected.spec.hurtboxWidth} / 落下速度 ${collected.spec.fallSpeed}倍 / ジャンプ力 ${collected.spec.jumpPower}倍`,
         `■ パーツ分割: ${collected.spec.parts
           ? `あり（首y=${collected.spec.parts.neckY} 腰y=${collected.spec.parts.hipY}）` : 'なし'}`,
         `■ 武器レイヤー: ${collected.spec.weapon

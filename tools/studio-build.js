@@ -77,6 +77,7 @@ const StudioBuild = {
       hurtboxWidth: spec.hurtboxWidth,
       hurtboxHeight: spec.hurtboxHeight,
       fallSpeed: spec.fallSpeed,
+      jumpPower: spec.jumpPower,
       proceduralMotion: spec.proceduralMotion,
     };
     // 技の強さ（倍率）。全て標準ならキーごと消して、余計な記述を残さない。

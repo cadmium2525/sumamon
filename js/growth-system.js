@@ -184,6 +184,9 @@ const MasmonStore = {
     record.trainingStats = record.trainingStats || {};
     // スキン（色変更）。{ groups:{...}, splits:[...] } / 未設定なら元の色
     record.skin = record.skin || null;
+    // 解放済みのプリセット色（マスモンごと）。プリセットは1色につき染色セット1個で
+    // 解放し、解放後はそのマスモンで何度でも無料で選び直せる。
+    record.unlockedPresets = Array.isArray(record.unlockedPresets) ? record.unlockedPresets : [];
     // ベースモンスターに適性が決まっていればそれを使う（種族の個性なので育成では変わらない）
     const fixed = (typeof window !== 'undefined' && window.FIGHTERS || {})[record.baseFighterKey];
     if ((fixed && fixed.aptitudes) || GROWTH.FIXED_APTITUDES[record.baseFighterKey]) {
