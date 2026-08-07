@@ -9,7 +9,7 @@ const SHOP_ITEMS = [
   { id: 'skill_tonic', name: '技巧の小薬', price: 200, image: 'assets/images/items/potion-b-small.png', effect: '命中か回避を10アップ' },
   { id: 'might_elixir', name: '闘知の霊薬', price: 350, image: 'assets/images/items/potion-c-large.png', effect: 'ちからかかしこさを20アップ' },
   { id: 'might_tonic', name: '闘知の小薬', price: 200, image: 'assets/images/items/potion-c-small.png', effect: 'ちからかかしこさを10アップ' },
-  { id: 'dye_kit', name: '虹彩の染色セット', price: 800, image: 'assets/images/items/dye-kit.png', effect: 'スキンの色を変更（今後実装）', comingSoon: true },
+  { id: 'dye_kit', name: '虹彩の染色セット', price: 800, image: 'assets/images/items/dye-kit.png', effect: 'マスモンをオリジナルカラーに染める（1個で1回）' },
 ];
 
 const STAT_ITEM_EFFECTS = {
@@ -550,6 +550,11 @@ const AppFlow = {
           this.openMasmonManage();
           return;
         }
+        // スキン変更は選んでいるマスモンの絵を読み込んでから開く
+        if (btn.dataset.back === 'skin') {
+          this.openSkinEditor();
+          return;
+        }
         this.showScreen(btn.dataset.back);
       });
     });
@@ -588,6 +593,18 @@ const AppFlow = {
       this.selectedManageMasmonId = list[0]?.id || null;
     }
     this.renderMasmonManage();
+  },
+
+  openSkinEditor() {
+    const monster = this._selectedManageMasmon();
+    if (!monster) {
+      alert('先にマスモンを選んでください');
+      return;
+    }
+    if (!window.SkinEditor || !SkinEditor.open(monster)) return;
+    this.showScreen('skin');
+    // 画面が出てから測らないと、プレビューの大きさが0のままになる
+    requestAnimationFrame(() => { SkinEditor.resetView(); SkinEditor.render(); });
   },
 
   // ステータス表示の共通定義（ラベル／アイコン／バー色／ゲーム内での効果）。

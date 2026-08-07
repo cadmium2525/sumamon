@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=62">
+<link rel="stylesheet" href="css/style.css?v=63">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.04</small>
+    <small class="home-version">Version 1.05</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.05</time><strong>スキン変更を実装しました（プリセット＋オリジナルカラー）</strong><p>マスモン管理の<b>スキン変更</b>から、マスモンの色を自由に変えられるようになりました。絵をタップするとその色のなかまが選ばれ、パレットか自由色で塗り替えられます。指でつまんで拡大・引っぱって移動できるので、細かい所も狙えます。目と靴のように「別のパーツなのに同じ色」を分けたい時は<b>範囲でわける</b>を押して、絵の上をなぞって囲んでください。その範囲だけ別の色にできます。<br>色は明るさ（陰影とハイライト）を残したまま置き換えるため、べた塗りにならず立体感が保たれます。バトル中の全モーション・HUD・リザルト・選択画面まで反映され、マルチ対戦では相手の画面にも同期します。<br>用意した<b>プリセット（7色）と「もとの色」は何度でも無料</b>です。自分で色を作って確定する時だけ<b>虹彩の染色セットを1個</b>使います。決める前のプレビューは無料なので、納得いくまで試せます。あわせてアイテム販売所で虹彩の染色セットを購入できるようにしました。</p></article>
           <article><time>Version 1.04</time><strong>スキン（色変更）の下準備：塗り替えた色が全画面に行きわたるようになりました</strong><p>「虹彩の染色セット」でマスモンの色を変えられるようにするための土台を入れました。色は<b>色相のまとまりごと</b>に置き換え、明るさ（陰影とハイライト）は元のまま残すので、べた塗りにならず立体感が保たれます。塗り替えた色は、バトル中のスプライトはもちろん、専用モーションの全コマ・体の切り分け・武器・歩行アニメ、そしてHUDのストックアイコン・リザルト・ファイター選択・マスモン管理・修行画面・マルチのロビーまで、同じ絵を使う所すべてに反映されます。マルチ対戦では相手の画面にも同期します。<b>色を選ぶ編集画面は次のバージョンで追加</b>するため、今回の更新で見た目が変わることはありません。</p></article>
           <article><time>Version 1.03</time><strong>起動直後に更新を促されてしまう問題を修正</strong><p>起動するたびに更新のお知らせが出てしまっていた問題を直しました。原因は、更新の準備でアプリの中身を毎回すべて（60MB以上）取り直しており、準備が整う頃にはもう遊び始めていたためです。更新の準備では変更のないファイルを取り直さないようにし、画像や音声は待たずに裏で取るようにしたので、準備は数秒で終わります。あわせて、起動時に始めた更新が遊び始めたあとに届いた場合は、その場で割り込まず次回の起動時に静かに適用するようにしました。お知らせが出るのは、遊んでいる最中に新しいバージョンが公開された時だけです。</p></article>
           <article><time>Version 1.02</time><strong>背景透過をキャラクター保護型に変更・スポイト追加／スタジオのプレビュー修正</strong><p>背景の抜き方を変えました。これまでは画像全体から一致する色を消していたため、背景と同じ色の服や装備まで欠けたり、グラデーションの背景が抜けきらなかったりしていました。これからは<b>画像の縁からつながっている範囲だけ</b>を抜くので、キャラクターの内側は守られます。背景の代表色も縁を一周サンプルして複数拾うため、空のようなグラデーション背景にも対応します。それでも抜け残る場合のために<b>スポイト</b>を追加しました。ボタンを押してからプレビューの残った背景をタップすると、その色も背景として抜かれます。何度でも足せて、色をタップすれば取り消せます。また、登録済みのモンスターを編集する時に「体を切り分けて動かす」と「武器を振らせる」のプレビューが出なかった問題を修正しました。</p></article>
@@ -395,9 +396,48 @@
   </div>
 
   <div id="screen-skin" class="screen hidden">
-    <div class="screen-heading">スキン変更</div>
-    <div class="coming-soon-panel">スキン変更は近日実装予定です</div>
-    <button class="back-btn" data-back="masmon-manage">戻る</button>
+    <div class="skin-topbar">
+      <button class="back-btn skin-back" data-back="masmon-manage">戻る</button>
+      <div class="skin-title">スキン変更<small id="skin-monster-name"></small></div>
+      <div class="skin-stock" title="虹彩の染色セットの所持数">
+        <img src="assets/images/items/dye-kit.png" alt="虹彩の染色セット"><span id="skin-dye-count">0</span>
+      </div>
+    </div>
+    <div class="skin-body">
+      <div class="skin-preview-wrap">
+        <canvas id="skin-canvas"></canvas>
+        <div class="skin-zoom-buttons">
+          <button id="skin-zoom-in" aria-label="拡大">＋</button>
+          <button id="skin-zoom-out" aria-label="縮小">－</button>
+          <button id="skin-zoom-reset" aria-label="表示を元に戻す">⟲</button>
+        </div>
+        <div id="skin-hint" class="skin-hint"></div>
+      </div>
+      <div class="skin-panel">
+        <section class="skin-section">
+          <h3>色のなかま<button id="skin-split-toggle" class="skin-split-toggle">範囲でわける</button></h3>
+          <div id="skin-group-list" class="skin-group-list"></div>
+        </section>
+        <section class="skin-section hidden" id="skin-split-section">
+          <h3>わけた範囲</h3>
+          <div id="skin-split-list" class="skin-split-list"></div>
+        </section>
+        <section class="skin-section">
+          <h3>パレット</h3>
+          <div id="skin-palette" class="skin-palette"></div>
+          <label class="skin-free-color">自由に選ぶ<input type="color" id="skin-color-input" value="#e01818"></label>
+        </section>
+        <section class="skin-section">
+          <h3>プリセット<small>無料</small></h3>
+          <div id="skin-preset-list" class="skin-preset-list"></div>
+        </section>
+      </div>
+    </div>
+    <div class="skin-footer">
+      <button id="skin-reset" class="skin-foot-btn">ぜんぶ元に戻す</button>
+      <span id="skin-cost" class="skin-cost"></span>
+      <button id="skin-confirm" class="skin-foot-btn primary">決定</button>
+    </div>
   </div>
 
   <!-- 5. 地形選択 -->
@@ -532,6 +572,7 @@
   <script src="js/physics.js?v=34"></script>
   <script src="js/procedural-motion.js?v=3"></script>
   <script src="js/skin.js?v=1"></script>
+  <script src="js/skin-editor.js?v=1"></script>
   <script src="js/fighter.js?v=51"></script>
   <script src="js/fighters-data.js?v=7"></script>
   <script src="js/debug-mode.js?v=10"></script>
@@ -543,7 +584,7 @@
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=3"></script>
   <script src="js/game.js?v=44"></script>
-    <script src="js/flow.js?v=55"></script>
+    <script src="js/flow.js?v=56"></script>
   <script src="js/pwa.js?v=13"></script>
 </body>
 </html>
