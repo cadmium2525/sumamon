@@ -3,7 +3,7 @@ const PRACTICE_COURSES = {
   jungle: { name: 'パレパレジャングル', stat: 'intelligence', statLabel: 'かしこさ', color: '#4eaa56', duration: 60, description: '石板の紋章を1から順に砕く。速さと正確さでスコアを競う' },
   coast: { name: 'トーブル海岸', stat: 'accuracy', statLabel: '命中', color: '#42b7dd', duration: 60, description: '砂浜・海中・洞窟を駆け巡り、60秒で20個の標的を壊す' },
   snow: { name: 'パパス雪山', stat: 'evasion', statLabel: '回避', color: '#a9dcf2', duration: 60, description: '強制スクロールする雪山を、落ちないよう登り続けろ' },
-  volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 50, description: '火山弾と溶岩から生き残る', level: 10 },
+  volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 60, description: '降り注ぐ火山弾をシールドで凌ぐ。最後の巨岩はジャストガードで', level: 10 },
 };
 
 // ==== 「マンディー砂漠」＝技の練習場 ====
@@ -197,6 +197,57 @@ const COAST_REWARDS = {
   D: { stat: 2,  life: 1 },
   E: { stat: 0,  life: 0 },
 };
+
+// ==== 「カウレア火山」＝シールドの練習場 ====
+// 画面奥の火山から降ってくる火山弾を、シールドで受けるか避けるかを選び続ける。
+// シールドは張りっぱなしだと削れて割れる（SHIELD_DRAIN_PER_FRAMEで約3.7秒）ので、
+// 「受ける／避ける」の判断そのものが遊びになる。
+// 最後の巨岩だけは避けられない大きさで、ジャストガードでしか凌げない。
+const VOLCANO_CONFIG = {
+  groundY: 470,
+  readyFrames: 240,        // 事前説明4秒（この間は時間が減らない）
+  // バーストライン。ここから出たら終了。画面(960x540)より少し外側に取る。
+  blast: { left: -80, right: 1040, top: -160, bottom: 660 },
+  introEnd: 10,            // 0〜10秒：小さい弾で慣らし
+  assaultEnd: 50,          // 10〜50秒：猛攻
+  // 火山弾の出現間隔(フレーム)。導入は緩く、猛攻に入ると詰まる。
+  intervalIntro: [70, 95],
+  intervalAssault: [42, 20], // 猛攻の開始→終了にかけてこの値へ線形に詰める
+  warnFrames: 38,          // 落下点に赤い警戒ラインを出す時間
+  rockSpeed: [4.6, 7.4],   // 落下速度の範囲
+  rockSizeIntro: [26, 38],
+  rockSizeAssault: [34, 68],
+  // ギガ・メテオストーン（クライマックス）
+  gigaTime: 50,            // 何秒で噴火するか
+  gigaWarnFrames: 170,     // 暗転・スローで見せる予兆の長さ
+  gigaSize: 240,
+  gigaSpeed: 1.5,          // 低速で落ちてくる
+  // 得点
+  scoreGuard: 40,          // 通常ガード成功
+  scoreJust: 150,          // ジャストガード成功
+  scoreDodge: 12,          // 当たらずに落ちきった弾
+  scoreGigaJust: 900,      // 巨岩をジャストガード
+  scoreGigaGuard: 200,     // 巨岩を通常ガードで耐えた（シールドは割れる）
+  scorePerSecond: 18,      // 生き残り1秒あたり
+  scoreShieldLeft: 3,      // 終了時の残りシールド1あたり
+  hitPenalty: -60,         // 直撃をもらった時
+};
+
+// 合計スコア→ランク。Playwrightの疑似プレイ22回の分布から決めている。
+// 実測：ジャストガードを狙い続ける達人ボットが2444〜5592点（多くがS）、
+// 反応に誤差を入れたボットが599〜3366点、誤差を大きくしたボットが953〜2718点。
+// 60秒生き残るだけで約1080点（生存18点/秒）入るので、Dはほぼ「最後まで立っていた」水準。
+// Sには巨岩のジャストガード(+900)かジャスト10回以上が要る。
+// ※得点配分・制限時間・巨岩の配点を変えたら測り直すこと。
+const VOLCANO_RANK_SCORES = [
+  { grade: 'S', min: 3200 },
+  { grade: 'A', min: 2400 },
+  { grade: 'B', min: 1700 },
+  { grade: 'C', min: 1100 },
+  { grade: 'D', min: 500 },
+];
+// Sランク報酬「丈夫さ+20 / ライフ+8」。他ランクは既存のグレード倍率で按分する。
+const VOLCANO_REWARD_BASE = { stat: 20, life: 8 };
 
 // 「パパス雪山」専用パラメータ。強制縦スクロールで追い立てられながら、
 // 左右に揺れる足場を渡り、後半はツララを避けて少しでも高く登る。
@@ -392,6 +443,8 @@ const PracticeGame = {
     let text = course.description;
     if (this.courseKey === 'desert') {
       text = `灼熱の砂漠に築かれた、技を鍛えるための関門。制限時間1分でスコアを稼げ！\n道をふさぐ石柱には黒い鉄板が打ち付けられ、「横スマ」「下強」といった技の名前が白いチョークで書かれている。書かれた技をその石柱に当てれば、一撃で砕け散る。\n違う技を当てると弾き返され、スコアが下がる。鉄板をよく読んでから振ろう。\n石柱は天井まで届いているので、ジャンプや上必殺で飛び越えることはできない。正面から技で突破するしかない。\n落とし穴に落ちてもゲームオーバーにはならず、直前の関門からやり直しになる。失うのは時間だけだ。\n指定される技は毎回ランダムに変わる。全${DESERT_CONFIG.gateCount}関門を、ミスなく速く抜けるほど高得点。`;
+    } else if (this.courseKey === 'volcano') {
+      text = 'カウレア火山での耐久特訓！\n画面奥の火山から降り注ぐ火山弾を、シールドで受けるか避けるかを見極めろ。\nシールドは張り続けると削れて小さくなり、割れると無防備になる。落下点に出る赤い警戒ラインを見て、受ける弾と避ける弾を選び分けよう。\n残り10秒、火山が大噴火する。避けられない巨岩が落ちてくるので、引きつけて「ジャストガード」で受け止めろ。\n画面の外まで吹き飛ばされたらそこで終了だ。';
     } else if (this.courseKey === 'coast') {
       text = 'トーブル海岸での猛特訓！\n制限時間は60秒。自慢のワザを駆使して、マップに隠されたターゲットを壊しまくれ！\nギミックを見極め、すべての標的を破壊して最高ランクを目指せ！';
     } else if (this.courseKey === 'jungle') {
@@ -410,6 +463,14 @@ const PracticeGame = {
         ].map(line => `<li><b>■</b>${this.escape(line)}</li>`)
       : this.courseKey === 'snow'
       ? ['強制スクロール：一定時間後、画面が自動で上へ進み続ける', '揺れる足場：周期も振幅もランダムで、乗るたびに揺れ方が変わる', 'ツララ：影の予告後に落下。当たるとノックバックして怯む', '評価：制限時間中に到達した最高標高でS〜Eを判定'].map(text2 => `<li><b>❄</b>${this.escape(text2)}</li>`)
+      : this.courseKey === 'volcano'
+      ? [
+          `ガード成功：+${VOLCANO_CONFIG.scoreGuard}点／ジャストガード：+${VOLCANO_CONFIG.scoreJust}点`,
+          'ジャストガード＝シールドを張った直後に受けること（張りっぱなしでは出ない）',
+          `生き残り1秒：+${VOLCANO_CONFIG.scorePerSecond}点／終了時の残りシールドも加点`,
+          `最後の巨岩をジャストガード：+${VOLCANO_CONFIG.scoreGigaJust}点`,
+          '画面外へ吹き飛ばされたらその時点で終了',
+        ].map(line => `<li><b>▲</b>${this.escape(line)}</li>`)
       : this.courseKey === 'coast'
       ? [
           '砂浜・海中・洞窟の3エリア。標的は全20個',
@@ -458,9 +519,11 @@ const PracticeGame = {
     // 画面全体が前のコースのカメラ位置ぶんずれて何も見えなくなる。
     this.cameraX = 0;
     this.cameraY = 0;
-    // ヒットストップは_tickを丸ごと止めるので、残したまま別コースを始めると
-    // 開始直後に固まったように見える。必ずここで戻す。
+    // ヒットストップとスローは_tickを止める/間引くので、残したまま別コースを
+    // 始めると開始直後に固まったように見える。必ずここで戻す。
     this.hitstop = 0;
+    this.slowmo = 0;
+    this._slowAcc = 0;
     // 地面(y=485、雪山のみy=500)の上にきちんと立った状態でスタートする
     // （キャラごとに身長(hurtboxHeight)が異なるため、固定値ではなく実際の高さから逆算する）
     const groundY = this.courseKey === 'snow' ? 500 : 485;
@@ -497,8 +560,7 @@ const PracticeGame = {
       this.nextIcicle = 0;
       this.iceHits = 0;
     } else if (this.courseKey === 'volcano') {
-      f.x = 460;
-      this.nextHazard = 20;
+      this._setupVolcano(f);
     }
   },
 
@@ -980,6 +1042,13 @@ const PracticeGame = {
     // 各コースのupdateの中で止めても、その時点では既にFighterの更新も
     // 当たり判定も済んでいるため、見た目には何も起きない。
     if (this.hitstop > 0) { this.hitstop--; return; }
+    // スローモーション。巨岩が迫る間だけ、進めるフレームを間引いて時間を伸ばす。
+    // 構える猶予を作るための演出なので、制限時間もいっしょに遅くなる。
+    if (this.slowmo > 0) {
+      this._slowAcc = (this._slowAcc || 0) + Math.max(0.18, 1 - this.slowmo * 0.78);
+      if (this._slowAcc < 1) { this._drawTickOnly = true; return; }
+      this._slowAcc -= 1;
+    }
     this.frame++;
     this.elapsed += 1 / 60;
     // 足場の揺れはFighter.updateの当たり判定より前に反映する（同フレームでズレないように）
@@ -991,9 +1060,13 @@ const PracticeGame = {
     this._prevX = f.x;
     f.applyInput(inp);
     f.update(this.platforms, this.blastBounds);
-    // 練習コースの外へ出ないよう左端だけ簡易クランプ（右端は各コースのゴール/画面設計に任せる）
-    f.x = Math.max(0, f.x);
-    if (this.courseKey !== 'desert') f.x = Math.min(this.worldWidth - f.w, f.x);
+    // 練習コースの外へ出ないよう左端だけ簡易クランプ（右端は各コースのゴール/画面設計に任せる）。
+    // 火山だけは「左右のバーストラインまで吹き飛ばされたら終了」が仕様なので、
+    // ここでクランプすると横方向に一生バーストできなくなる。除外する。
+    if (this.courseKey !== 'volcano') {
+      f.x = Math.max(0, f.x);
+      if (this.courseKey !== 'desert') f.x = Math.min(this.worldWidth - f.w, f.x);
+    }
 
     this._checkMeleeHit();
     this._updateProjectiles();
@@ -1006,8 +1079,9 @@ const PracticeGame = {
 
     if (this.courseKey === 'jungle' || this.courseKey === 'coast') this._updateJungleEffects();
 
+    // 火山は「画面外へ吹き飛ばされたら終了」が仕様なので、ここで拾い上げてはいけない
     if (this.courseKey !== 'snow' && this.courseKey !== 'desert' && this.courseKey !== 'jungle'
-        && this.courseKey !== 'coast' && f.y > 570) {
+        && this.courseKey !== 'coast' && this.courseKey !== 'volcano' && f.y > 570) {
       f.x = 60; f.y = 390; f.vx = 0; f.vy = 0;
       this.score = Math.max(0, this.score - 5);
     }
@@ -1518,25 +1592,270 @@ const PracticeGame = {
     this.icicles = this.icicles.filter(ice => !ice.hit && ice.y < this.scrollTop + 640);
   },
 
-  _updateVolcano() {
-    const f = this.fighter;
-    this.nextHazard--;
-    if (this.nextHazard <= 0) {
-      this.nextHazard = Math.max(18, 50 - this.elapsed * 0.45);
-      this.hazards.push({ x: 35 + Math.random() * 880, y: -40, vx: (Math.random() - .5) * 2, vy: 4 + Math.random() * 3, w: 30 + Math.random() * 24, h: 30 + Math.random() * 24, type: 'rock' });
-    }
-    for (const hazard of this.hazards) {
-      hazard.x += hazard.vx; hazard.y += hazard.vy;
-      if (!hazard.hit && Physics.rectsOverlap(f.getHurtbox(), hazard)) {
-        hazard.hit = true;
-        if (f.shielding) { this.avoided++; this.score += 4; }
-        else { this.hp--; f.vy = -7; this.score = Math.max(0, this.score - 8); }
+  // ---- カウレア火山 ----
+  _setupVolcano(f) {
+    const V = VOLCANO_CONFIG;
+    this.worldWidth = 960;
+    this.readyTimer = V.readyFrames;
+    this.hazards = [];
+    this.particles = [];
+    this.floatTexts = [];
+    this.nextHazard = 40;
+    this.guards = 0;
+    this.justGuards = 0;
+    this.directHits = 0;
+    this.gigaState = null;     // null → 'warn' → 'fall' → 'done'
+    this.gigaRock = null;
+    this.gigaResult = null;    // 'just' | 'guard' | 'hit'
+    this.slowmo = 0;
+    this.flash = 0;
+    this.shake = 0;
+    this.burst = false;
+
+    // 足場はゲーム開始時にランダム生成し、以後は動かさない。
+    // メインの地面は必ず全幅（solidにして下強・下スマも出せるようにする）。
+    this.platforms = [{ x: 0, y: V.groundY, w: 960, h: 70, solid: true, kind: 'ground' }];
+    // 空中の足場は2〜3枚。左右に散らして、逃げ場と「登って避ける」選択肢を作る。
+    const bands = [356, 264];
+    for (const bandY of bands) {
+      const count = Math.random() < 0.35 ? 1 : 2;
+      const slots = count === 1 ? [180 + Math.random() * 560] : [90 + Math.random() * 250, 560 + Math.random() * 250];
+      for (const x of slots) {
+        this.platforms.push({
+          x, y: bandY + (Math.random() - 0.5) * 24,
+          w: 120 + Math.random() * 70, h: 16, kind: 'basalt',
+          seed: Math.random() * 100,
+        });
       }
-      if (!hazard.hit && hazard.y > 540) { hazard.hit = true; this.avoided++; this.score += 2; }
     }
-    this.hazards = this.hazards.filter(hazard => !hazard.hit);
-    if (this.hp <= 0) this.finish(false);
+    f.x = 460;
+    f.y = V.groundY - f.h;
   },
+
+  _updateVolcano() {
+    const V = VOLCANO_CONFIG;
+    const f = this.fighter;
+
+    // 事前説明。この間は時間が減らず、弾も降らない。
+    if (this.readyTimer > 0) {
+      this.readyTimer--;
+      this.elapsed = 0;
+      return;
+    }
+    if (this.flash > 0) this.flash--;
+    if (this.shake > 0) this.shake--;
+
+    // バーストライン判定：画面外へ吹っ飛ばされたら即終了
+    const b = V.blast;
+    if (f.x + f.w < b.left || f.x > b.right || f.y + f.h < b.top || f.y > b.bottom) {
+      this.burst = true;
+      this.finish(false, 'burst');
+      return;
+    }
+
+    this._updateVolcanoGiga();
+    // 巨岩の予兆中は通常の火山弾を止める（画面を巨岩に集中させる）
+    if (!this.gigaState) this._spawnVolcanoRocks();
+    this._updateVolcanoRocks();
+    this._updateJungleEffects();
+  },
+
+  // 火山弾の生成。導入は緩く、猛攻に入るほど間隔が詰まり弾が大きくなる。
+  _spawnVolcanoRocks() {
+    const V = VOLCANO_CONFIG;
+    this.nextHazard--;
+    if (this.nextHazard > 0) return;
+    const intro = this.elapsed < V.introEnd;
+    let interval, size;
+    if (intro) {
+      interval = V.intervalIntro[0] + Math.random() * (V.intervalIntro[1] - V.intervalIntro[0]);
+      size = V.rockSizeIntro[0] + Math.random() * (V.rockSizeIntro[1] - V.rockSizeIntro[0]);
+    } else {
+      const t = Math.min(1, (this.elapsed - V.introEnd) / (V.assaultEnd - V.introEnd));
+      interval = V.intervalAssault[0] + (V.intervalAssault[1] - V.intervalAssault[0]) * t;
+      size = V.rockSizeAssault[0] + Math.random() * (V.rockSizeAssault[1] - V.rockSizeAssault[0]);
+    }
+    this.nextHazard = Math.max(14, Math.round(interval));
+    const w = Math.round(size), h = Math.round(size * (0.85 + Math.random() * 0.3));
+    // 猛攻の後半は、たまに2発同時に降らせて「両方は受けきれない」場面を作る
+    const volley = !intro && this.elapsed > 26 && Math.random() < 0.28 ? 2 : 1;
+    for (let i = 0; i < volley; i++) {
+      const x = 40 + Math.random() * (880 - w);
+      this.hazards.push({
+        x, y: -h - 30, w, h, type: 'rock',
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: V.rockSpeed[0] + Math.random() * (V.rockSpeed[1] - V.rockSpeed[0]),
+        warn: V.warnFrames, hit: false, spin: (Math.random() - 0.5) * 0.14, angle: 0,
+        seed: Math.random() * 100,
+      });
+    }
+  },
+
+  _updateVolcanoRocks() {
+    const V = VOLCANO_CONFIG;
+    const f = this.fighter;
+    for (const r of this.hazards) {
+      if (r.hit) continue;
+      // 予兆（落下点の赤い警戒ライン）の間はまだ落ちてこない
+      if (r.warn > 0) { r.warn--; continue; }
+      r.x += r.vx;
+      r.y += r.vy;
+      r.angle += r.spin;
+      if (Physics.rectsOverlap(f.getHurtbox(), r)) {
+        this._resolveVolcanoHit(r, false);
+        continue;
+      }
+      if (r.y > V.groundY - 6) {
+        // 地面に落ちて砕ける。避け切れたぶんも少しだけ加点する。
+        r.hit = true;
+        this.score += V.scoreDodge;
+        this._spawnVolcanoDebris(r.x + r.w / 2, V.groundY, r.w, false);
+        this.shake = Math.max(this.shake, Math.min(10, r.w / 8));
+      }
+    }
+    this.hazards = this.hazards.filter(r => !r.hit);
+  },
+
+  // 火山弾がプレイヤーに当たった時。シールドの有無とジャストガードで結果が分かれる。
+  _resolveVolcanoHit(rock, isGiga) {
+    const V = VOLCANO_CONFIG;
+    const f = this.fighter;
+    rock.hit = true;
+    const power = isGiga ? 46 : rock.w * 0.42;
+    // ジャストガード＝シールドを張った直後(JUST_SHIELD_WINDOW以内)に受けた
+    const just = f.shielding && f.shieldHeldFrames <= CONFIG.JUST_SHIELD_WINDOW;
+
+    if (f.shielding && just) {
+      this.justGuards++;
+      this.score += isGiga ? V.scoreGigaJust : V.scoreJust;
+      f.justShieldFlash = CONFIG.JUST_SHIELD_FLASH_FRAMES;
+      this._addFloatText(f.x + f.w / 2, f.y - 16, isGiga ? 'PERFECT GUARD!' : 'JUST!', '#ffe27a');
+      this._spawnVolcanoDebris(rock.x + rock.w / 2, rock.y + rock.h / 2, rock.w, true);
+      this.flash = isGiga ? 26 : 10;
+      this.shake = isGiga ? 26 : 8;
+      if (isGiga) { this.gigaResult = 'just'; this.slowmo = 0; }
+      if (window.AudioManager) {
+        AudioManager.playTone({ freq: 1200, toFreq: 2100, type: 'sine', dur: 0.16, volume: 0.5 });
+        AudioManager.playTone({ freq: 620, toFreq: 240, type: 'triangle', dur: 0.3, volume: 0.3, delay: 0.02 });
+      }
+      return;
+    }
+
+    if (f.shielding) {
+      // 通常ガード：シールドが削れる。巨岩は削り量が大きく、まず割れる。
+      this.guards++;
+      this.score += isGiga ? V.scoreGigaGuard : V.scoreGuard;
+      f.shieldHP -= isGiga ? 999 : power;
+      this._spawnVolcanoDebris(rock.x + rock.w / 2, rock.y + rock.h / 2, rock.w, false);
+      this.shake = Math.max(this.shake, isGiga ? 20 : 6);
+      f.vx += (f.x + f.w / 2 < rock.x + rock.w / 2 ? -1 : 1) * Math.min(6, power * 0.16);
+      if (isGiga) this.gigaResult = 'guard';
+      if (window.AudioManager) {
+        AudioManager.playTone({ freq: 260, toFreq: 150, type: 'square', dur: 0.12, volume: 0.32 });
+      }
+      if (f.shieldHP <= 0) {
+        // シールドブレイク。ピヨって無防備になる（巨岩ならほぼ致命的）
+        f.breakShield();
+        this._addFloatText(f.x + f.w / 2, f.y - 16, 'SHIELD BREAK', '#ff9b9b');
+        if (window.AudioManager) AudioManager.playTone({ freq: 900, toFreq: 120, type: 'sawtooth', dur: 0.5, volume: 0.4 });
+      }
+      return;
+    }
+
+    // 直撃：吹っ飛ぶ。バーストラインまで飛べばそこで終了。
+    this.directHits++;
+    this.score = Math.max(0, this.score + V.hitPenalty);
+    f.damagePercent += isGiga ? 60 : rock.w * 0.5;
+    const dir = f.x + f.w / 2 < rock.x + rock.w / 2 ? -1 : 1;
+    const kb = isGiga ? 26 : 5 + rock.w * 0.12;
+    f.vx = dir * kb * 0.7;
+    f.vy = -kb * 0.55;
+    f.hitstun = Math.round(isGiga ? 60 : 14 + rock.w * 0.2);
+    f.tumbling = true;
+    f.onGround = false;
+    this.shake = Math.max(this.shake, isGiga ? 30 : 12);
+    this._spawnVolcanoDebris(rock.x + rock.w / 2, rock.y + rock.h / 2, rock.w, false);
+    this._addFloatText(f.x + f.w / 2, f.y - 16, `${V.hitPenalty}`, '#ff9b9b');
+    if (isGiga) this.gigaResult = 'hit';
+    if (window.AudioManager) AudioManager.playTone({ freq: 180, toFreq: 70, type: 'sawtooth', dur: 0.3, volume: 0.42 });
+  },
+
+  // クライマックス：ギガ・メテオストーン
+  _updateVolcanoGiga() {
+    const V = VOLCANO_CONFIG;
+    const f = this.fighter;
+    if (this.gigaState === 'done') return;
+    if (!this.gigaState) {
+      if (this.elapsed < V.gigaTime) return;
+      // 噴火。予兆の間は画面が暗転気味になり、スローがかかる。
+      this.gigaState = 'warn';
+      this.gigaTimer = V.gigaWarnFrames;
+      this.hazards = []; // 画面を巨岩に集中させる
+      this._addFloatText(480, 180, '大 噴 火', '#ff8a5a');
+      if (window.AudioManager) {
+        AudioManager.playTone({ freq: 90, toFreq: 40, type: 'sawtooth', dur: 1.4, volume: 0.45 });
+        AudioManager.playTone({ freq: 140, toFreq: 60, type: 'square', dur: 1.2, volume: 0.22, delay: 0.1 });
+      }
+      return;
+    }
+    if (this.gigaState === 'warn') {
+      this.gigaTimer--;
+      this.slowmo = 1;
+      this.shake = Math.max(this.shake, 6);
+      if (this.gigaTimer <= 0) {
+        this.gigaState = 'fall';
+        this.gigaRock = {
+          x: 480 - V.gigaSize / 2, y: -V.gigaSize - 40,
+          w: V.gigaSize, h: V.gigaSize, vx: 0, vy: V.gigaSpeed,
+          warn: 0, hit: false, angle: 0, spin: 0.006, seed: 7, giga: true,
+        };
+      }
+      return;
+    }
+    if (this.gigaState === 'fall') {
+      const g = this.gigaRock;
+      // 接近するほどスローが強くなる（構える時間を作る）
+      const dist = (V.groundY - 40) - (g.y + g.h);
+      this.slowmo = Math.max(0, Math.min(1, 1 - dist / 260));
+      g.y += g.vy;
+      g.angle += g.spin;
+      if (!g.hit && Physics.rectsOverlap(f.getHurtbox(), g)) {
+        this._resolveVolcanoHit(g, true);
+        this.gigaState = 'done';
+        this.slowmo = 0;
+        this._spawnVolcanoDebris(480, g.y + g.h / 2, 300, this.gigaResult === 'just');
+        return;
+      }
+      if (g.y + g.h > V.groundY + 20) {
+        // 避け切った（避けられない大きさなので基本は起きないが、端に居れば通る）
+        g.hit = true;
+        this.gigaState = 'done';
+        this.slowmo = 0;
+        this.shake = 30;
+        this._spawnVolcanoDebris(480, V.groundY, 300, false);
+      }
+    }
+  },
+
+  _spawnVolcanoDebris(cx, cy, size, bright) {
+    this.particles = this.particles || [];
+    const count = Math.min(48, Math.round(size * 0.6));
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = 1.4 + Math.random() * (size * 0.09);
+      this.particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * speed, vy: Math.sin(a) * speed - 1.6,
+        size: 2 + Math.random() * (size * 0.09),
+        life: 26 + Math.random() * 30,
+        color: bright ? (Math.random() < 0.5 ? '#fff2c0' : '#ffd06a')
+                      : (Math.random() < 0.45 ? '#ff8a3c' : '#4a3b36'),
+        gravity: 0.34, shape: Math.random() < 0.4 ? 'circle' : 'square',
+        angle: Math.random() * Math.PI, spin: (Math.random() - 0.5) * 0.4,
+      });
+    }
+  },
+
 
   // 毎フレーム呼ばれるため、要素参照をキャッシュし表示が変わった時だけ書き換える
   _updateHud() {
@@ -1553,6 +1872,8 @@ const PracticeGame = {
       : this.courseKey === 'jungle' ? `${this.score}点　次 ${this.nextOrder || 1}／${this.phaseTargets || 0}${this.combo > 0 ? `　${this.combo}コンボ ×${this._jungleMultiplier().toFixed(2)}` : ''}`
       : this.courseKey === 'coast' ? `標的 ${this.destroyedTotal || 0}／${COAST_CONFIG.targetCount}${this.combo > 1 ? `　${this.combo}連続` : ''}`
       : this.courseKey === 'snow' ? `標高 ${this.bestAltitudeM || 0}m${this.elapsed >= SNOW_CONFIG.icicleStartTime ? '　⚠ツララ注意' : ''}`
+      : this.courseKey === 'volcano'
+      ? `${this.score}点　ガード ${this.guards || 0}　ジャスト ${this.justGuards || 0}　シールド ${Math.max(0, Math.round(this.fighter.shieldHP))}%`
       : `耐久 ♥${this.hp}　防御 ${this.avoided}`;
     if (status !== this._hudLastStatus) {
       this._hudLastStatus = status;
@@ -1595,6 +1916,14 @@ const PracticeGame = {
       const found = SNOW_RANK_ALTITUDE.find(rank => altitudeM >= rank.min);
       grade = found ? found.grade : 'E';
       normalized = Math.max(0, Math.min(100, Math.round(altitudeM / SNOW_RANK_ALTITUDE[0].min * 100)));
+    } else if (this.courseKey === 'volcano') {
+      // 生き残った時間と残りシールドを最後にまとめて加算する
+      this.timeBonus = Math.round(Math.min(this.course.duration, this.elapsed) * VOLCANO_CONFIG.scorePerSecond);
+      this.shieldBonus = this.burst ? 0 : Math.round(Math.max(0, this.fighter.shieldHP) * VOLCANO_CONFIG.scoreShieldLeft);
+      this.score += this.timeBonus + this.shieldBonus;
+      const found = VOLCANO_RANK_SCORES.find(rank => this.score >= rank.min);
+      grade = found ? found.grade : 'E';
+      normalized = this.score;
     } else normalized = Math.min(100, this.elapsed / this.course.duration * 75 + this.avoided * 2 + (this.hp > 0 ? 10 : 0));
     normalized = Math.max(0, Math.round(normalized));
     if (!grade) grade = normalized >= 90 ? 'S' : normalized >= 75 ? 'A' : normalized >= 55 ? 'B' : normalized >= 30 ? 'C' : 'D';
@@ -1603,7 +1932,8 @@ const PracticeGame = {
     if (!this.admin && this.monster.id) {
       const rewardBase = this.courseKey === 'desert' ? DESERT_REWARD_BASE
         : this.courseKey === 'snow' ? SNOW_REWARD_BASE
-        : this.courseKey === 'jungle' ? JUNGLE_REWARD_BASE : null;
+        : this.courseKey === 'jungle' ? JUNGLE_REWARD_BASE
+        : this.courseKey === 'volcano' ? VOLCANO_REWARD_BASE : null;
       let growth;
       if (this.courseKey === 'coast') {
         // 海岸はランクごとの上昇量が決まっている（Eは上昇なし）
@@ -1622,6 +1952,7 @@ const PracticeGame = {
     document.getElementById('practice-result-grade').textContent = grade;
     document.getElementById('practice-result-title').textContent = cleared ? `${this.course.name} 修行成功！`
       : this.courseKey === 'snow' ? (reason === 'timeup' ? `${this.course.name} タイムアップ！` : `${this.course.name} 雪崩に飲まれた…`)
+      : this.courseKey === 'volcano' ? (reason === 'burst' ? `${this.course.name} 吹き飛ばされた…` : `${this.course.name} 生き残った！`)
       : `${this.course.name} 修行終了`;
     document.getElementById('practice-result-score').textContent = this.courseKey === 'desert'
       ? (cleared
@@ -1633,6 +1964,10 @@ const PracticeGame = {
       ? `スコア ${this.score}（石板 ${this.destroyedTotal || 0}個　完答 ${this.clearedPhases || 0}／${(this.clearedPhases || 0) + (this.failedPhases || 0)}フェーズ　最大 ${this.bestCombo || 0}コンボ）`
       : this.courseKey === 'coast'
       ? `破壊 ${this.destroyedTotal || 0}／${COAST_CONFIG.targetCount}個　残り ${Math.max(0, COAST_CONFIG.targetCount - (this.destroyedTotal || 0))}個`
+      : this.courseKey === 'volcano'
+      ? `スコア ${this.score}（ガード ${this.guards || 0}　ジャスト ${this.justGuards || 0}　被弾 ${this.directHits || 0}`
+        + `　生存 +${this.timeBonus || 0}　残シールド +${this.shieldBonus || 0}`
+        + `${this.gigaResult === 'just' ? '　巨岩ジャストガード成功！' : this.gigaResult === 'guard' ? '　巨岩を耐えた' : ''}）`
       : `評価スコア ${normalized}／100`;
     document.getElementById('practice-result-growth').textContent = growthText;
     document.getElementById('practice-result-modal').classList.remove('hidden');
@@ -1668,8 +2003,15 @@ const PracticeGame = {
     const [top, bottom] = themes[this.courseKey];
     const gradient = ctx.createLinearGradient(0, 0, 0, 540); gradient.addColorStop(0, top); gradient.addColorStop(1, bottom);
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, 960, 540);
-    const offsetY = -(this.cameraY || 0);
-    const offsetX = -(this.cameraX || 0);
+    let offsetY = -(this.cameraY || 0);
+    let offsetX = -(this.cameraX || 0);
+    // 着弾・被弾・ジャストガードの画面揺れ（火山のみ）。
+    // 乱数ではなく減衰する三角関数で振るので、フレームごとにガタつかない。
+    if (this.shake > 0) {
+      const amp = Math.min(14, this.shake) * 0.7;
+      offsetX += Math.sin(this.frame * 1.7) * amp;
+      offsetY += Math.cos(this.frame * 2.3) * amp * 0.6;
+    }
     if (this.courseKey === 'snow') {
       // 奥の山脈（スクロールに合わせてゆっくり流れる視差背景）
       const parallax = ((this.cameraY || 0) * 0.16) % 320;
@@ -1690,6 +2032,7 @@ const PracticeGame = {
     if (this.courseKey === 'desert') this._drawDesertSky(ctx);
     if (this.courseKey === 'jungle') this._drawJungleBackground(ctx);
     if (this.courseKey === 'coast') this._drawCoastBackground(ctx);
+    if (this.courseKey === 'volcano') this._drawVolcanoBackground(ctx);
     ctx.save(); ctx.translate(offsetX, offsetY);
     if (this.courseKey === 'coast') this._drawCoastTerrain(ctx);
     if (this.courseKey === 'desert') {
@@ -1700,6 +2043,7 @@ const PracticeGame = {
         if (this.courseKey === 'snow' && platform.swayAmp) { this._drawIcePlatform(ctx, platform); continue; }
         if (this.courseKey === 'jungle') { this._drawJunglePlatform(ctx, platform); continue; }
         if (this.courseKey === 'coast') { this._drawCoastPlatform(ctx, platform); continue; }
+        if (this.courseKey === 'volcano') { this._drawVolcanoPlatform(ctx, platform); continue; }
         ctx.fillStyle = this.courseKey === 'snow' ? '#e8f8ff' : this.courseKey === 'volcano' ? '#34242a' : '#5b4937';
         ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
         ctx.fillStyle = this.courseKey === 'snow' ? '#8bd5ef' : '#d8aa5a'; ctx.fillRect(platform.x, platform.y, platform.w, 4);
@@ -1714,6 +2058,7 @@ const PracticeGame = {
       else { ctx.fillStyle = '#7d6a58'; ctx.fillRect(target.x,target.y,target.w,target.h); ctx.fillStyle='#ffd96b';ctx.fillRect(target.x,target.y,target.w*(target.hp/target.maxHp),5); }
     }
     for (const hazard of this.hazards) {
+      if (this.courseKey === 'volcano') continue; // 火山弾は _drawVolcanoForeground で描く
       ctx.fillStyle = hazard.type === 'spikes' ? '#dce7ed' : '#4a2020';
       if (hazard.type === 'spikes') { ctx.beginPath(); ctx.moveTo(hazard.x,hazard.y+hazard.h);ctx.lineTo(hazard.x+hazard.w/2,hazard.y);ctx.lineTo(hazard.x+hazard.w,hazard.y+hazard.h);ctx.fill(); }
       else { ctx.beginPath();ctx.arc(hazard.x+hazard.w/2,hazard.y+hazard.h/2,hazard.w/2,0,Math.PI*2);ctx.fill(); }
@@ -1724,6 +2069,7 @@ const PracticeGame = {
     this.fighter.draw(ctx);
     if (this.courseKey === 'jungle') this._drawJungleEffects(ctx);
     if (this.courseKey === 'coast') this._drawCoastForeground(ctx);
+    if (this.courseKey === 'volcano') this._drawVolcanoForeground(ctx);
     if (this.courseKey === 'snow') {
       // 強制スクロールに置き去りにされる境界＝ここより下に出ると即アウト
       const killY = (this.scrollTop || 0) + 540 + SNOW_CONFIG.killMargin;
@@ -2033,6 +2379,317 @@ const PracticeGame = {
       ctx.fillRect(-d.size / 2, -d.size / 2, d.size, Math.max(1, d.size * 0.25));
       ctx.restore();
     }
+    ctx.globalAlpha = 1;
+  },
+
+  // ---- カウレア火山の描画 ----
+
+  // 画面奥の活火山、立ちのぼる熱気、舞う火山灰
+  _drawVolcanoBackground(ctx) {
+    const V = VOLCANO_CONFIG;
+    // 空：噴煙で赤黒く濁っている。巨岩の予兆中はさらに暗く落とす。
+    const dark = this.gigaState === 'warn' || this.gigaState === 'fall' ? 0.5 : 0;
+    const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+    const sky = ctx.createLinearGradient(0, 0, 0, 540);
+    sky.addColorStop(0, `rgb(${lerp(74, 24, dark)},${lerp(26, 8, dark)},${lerp(38, 16, dark)})`);
+    sky.addColorStop(0.55, `rgb(${lerp(148, 52, dark)},${lerp(52, 18, dark)},${lerp(38, 14, dark)})`);
+    sky.addColorStop(1, `rgb(${lerp(52, 18, dark)},${lerp(16, 6, dark)},${lerp(20, 8, dark)})`);
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, 960, 540);
+
+    // 奥の巨大な活火山（左右対称の山体と、噴き上がる噴煙）
+    const erupt = this.gigaState ? 1 : 0.35 + 0.15 * Math.sin(this.frame / 90);
+    const mountain = () => {
+      ctx.beginPath();
+      ctx.moveTo(190, 470); ctx.lineTo(470, 92); ctx.lineTo(560, 92); ctx.lineTo(830, 470);
+      ctx.closePath();
+    };
+    ctx.fillStyle = 'rgba(28,14,16,.9)';
+    mountain(); ctx.fill();
+    // 山頂から流れ落ちる溶岩の脈。
+    // 山体でクリップしないと、脈が山の外まではみ出して宙に浮いた線に見える。
+    ctx.save();
+    mountain(); ctx.clip();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) {
+      const bx = 480 + (i - 1.5) * 42;
+      const pulse = 0.45 + 0.55 * Math.sin(this.frame / (44 + i * 13) + i);
+      ctx.strokeStyle = `rgba(255,${110 + i * 20},40,${(0.35 + 0.4 * pulse) * (0.6 + erupt * 0.6)})`;
+      ctx.lineWidth = 4 + i;
+      ctx.beginPath();
+      ctx.moveTo(bx, 100);
+      for (let y = 100; y < 470; y += 40) {
+        ctx.lineTo(bx + Math.sin((y + i * 60 + this.frame * 0.4) / 70) * (14 + i * 5) + (bx - 480) * (y - 100) / 300, y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    // 火口の光（山体の外へも滲ませたいのでクリップの外で描く）
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(515, 96, 4, 515, 96, 130 * (0.7 + erupt * 0.6));
+    glow.addColorStop(0, `rgba(255,220,140,${0.55 * (0.5 + erupt)})`);
+    glow.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(515, 96, 130 * (0.7 + erupt * 0.6), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // 噴煙（火口から立ちのぼる）
+    ctx.fillStyle = `rgba(40,26,26,${0.3 + erupt * 0.25})`;
+    for (let i = 0; i < 9; i++) {
+      const t = ((this.frame * 0.5 + i * 44) % 400) / 400;
+      const px = 515 + Math.sin(i * 2 + t * 3) * (24 + t * 90);
+      const py = 96 - t * 130;
+      ctx.beginPath(); ctx.arc(px, py, 16 + t * 46, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 上昇する熱気（画面の揺らぎの代わりに、透明度の波を重ねる）
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 8; i++) {
+      const hx = (i * 137 + Math.sin((this.frame + i * 50) / 60) * 20) % 1000 - 20;
+      const g = ctx.createLinearGradient(hx, 540, hx, 240);
+      g.addColorStop(0, 'rgba(255,150,70,.10)');
+      g.addColorStop(1, 'rgba(255,150,70,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(hx, 240, 70, 300);
+    }
+    ctx.restore();
+
+    // 舞い散る火山灰
+    ctx.fillStyle = 'rgba(220,200,190,.35)';
+    for (let i = 0; i < 40; i++) {
+      const px = (i * 113 + Math.sin((this.frame + i * 30) / 80) * 34 - this.frame * 0.35) % 990 - 15;
+      const py = (i * 71 + this.frame * 0.8) % 560 - 10;
+      ctx.fillRect(px < 0 ? px + 990 : px, py, 2.4, 2.4);
+    }
+  },
+
+  // 黒ずんだ玄武岩の足場。赤熱した亀裂が走っている。
+  _drawVolcanoPlatform(ctx, p) {
+    const isGround = p.h >= 40;
+    const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+    g.addColorStop(0, '#4a4045'); g.addColorStop(0.35, '#2c2428'); g.addColorStop(1, '#14100f');
+    ctx.fillStyle = g;
+    if (isGround) ctx.fillRect(p.x, p.y, p.w, p.h);
+    else { ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, 4); ctx.fill(); }
+
+    // 上面の縁（冷えて固まった溶岩の角）
+    ctx.fillStyle = '#5e5257';
+    ctx.fillRect(p.x, p.y, p.w, 3);
+    // ゴツゴツした岩肌
+    ctx.fillStyle = 'rgba(255,255,255,.06)';
+    for (let x = p.x + 6; x < p.x + p.w - 6; x += 17) {
+      ctx.fillRect(x, p.y + 5 + this._noise(x + (p.seed || 0)) * (isGround ? 22 : 5), 9, 2);
+    }
+    // 赤熱した亀裂（脈打つ）
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const seed = p.seed || p.x;
+    const cracks = isGround ? 7 : 2;
+    for (let i = 0; i < cracks; i++) {
+      const cx = p.x + 20 + this._noise(seed + i * 7.3) * (p.w - 40);
+      const pulse = 0.5 + 0.5 * Math.sin((this.frame + i * 40 + seed) / 48);
+      ctx.strokeStyle = `rgba(255,${90 + pulse * 70},30,${0.35 + pulse * 0.45})`;
+      ctx.lineWidth = 1.6 + pulse;
+      ctx.beginPath();
+      ctx.moveTo(cx, p.y + 2);
+      const len = isGround ? 26 + this._noise(seed + i) * 30 : 8;
+      ctx.lineTo(cx + (this._noise(seed + i * 3.7) - 0.5) * 16, p.y + 2 + len);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  // 火山弾・予兆・巨岩・演出
+  _drawVolcanoForeground(ctx) {
+    const V = VOLCANO_CONFIG;
+    // --- 落下点の赤い警戒ライン ---
+    for (const r of this.hazards) {
+      if (r.hit || r.warn <= 0) continue;
+      const t = 1 - r.warn / V.warnFrames;
+      const cx = r.x + r.w / 2;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createLinearGradient(0, 0, 0, V.groundY);
+      g.addColorStop(0, `rgba(255,60,40,${0.06 + t * 0.14})`);
+      g.addColorStop(1, `rgba(255,60,40,${0.16 + t * 0.30})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(r.x, 0, r.w, V.groundY);
+      // 着弾点のリング
+      ctx.strokeStyle = `rgba(255,90,60,${0.5 + t * 0.5})`;
+      ctx.lineWidth = 2 + t * 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, V.groundY - 4, r.w * (0.5 + t * 0.3), 8 + t * 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // --- 火山弾 ---
+    for (const r of this.hazards) {
+      if (r.hit || r.warn > 0) continue;
+      this._drawVolcanoRock(ctx, r);
+    }
+    // --- 巨岩 ---
+    if (this.gigaRock && this.gigaState === 'fall') {
+      this._drawVolcanoRock(ctx, this.gigaRock, true);
+    }
+
+    // --- 破片・吹き出し ---
+    for (const p of (this.particles || [])) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 24));
+      if (p.shape === 'circle') {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    for (const t of (this.floatTexts || [])) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, t.life / 26));
+      ctx.font = 'bold 22px "Hiragino Kaku Gothic ProN", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.75)';
+      ctx.strokeText(t.text, t.x, t.y);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    // --- クライマックスの暗転 ---
+    if (this.gigaState === 'warn' || this.gigaState === 'fall') {
+      ctx.fillStyle = `rgba(0,0,0,${this.gigaState === 'warn' ? 0.34 : 0.22})`;
+      ctx.fillRect(0, 0, 960, 540);
+      if (this.gigaState === 'warn') {
+        const t = this.gigaTimer / VOLCANO_CONFIG.gigaWarnFrames;
+        ctx.save();
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.globalAlpha = Math.min(1, (1 - t) * 3) * Math.min(1, t * 4);
+        ctx.font = 'bold 44px "Hiragino Kaku Gothic ProN", sans-serif';
+        ctx.shadowColor = 'rgba(255,120,50,.95)'; ctx.shadowBlur = 22;
+        ctx.fillStyle = '#ffdca8';
+        ctx.fillText('ギガ・メテオストーン 接近', 480, 210);
+        ctx.shadowBlur = 0;
+        ctx.font = 'bold 20px "Hiragino Kaku Gothic ProN", sans-serif';
+        ctx.fillStyle = '#ffb27a';
+        ctx.fillText('引きつけて ジャストガード で受け止めろ', 480, 258);
+        ctx.restore();
+      }
+    }
+
+    // --- ジャストガード成功のフラッシュと衝撃波 ---
+    if (this.flash > 0) {
+      const t = this.flash / 26;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,240,200,${t * 0.6})`;
+      ctx.fillRect(0, 0, 960, 540);
+      const f = this.fighter;
+      const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+      for (let i = 0; i < 3; i++) {
+        const rr = (1 - t) * (260 + i * 120);
+        ctx.strokeStyle = `rgba(255,${220 - i * 40},140,${t * 0.7})`;
+        ctx.lineWidth = 6 - i * 1.6;
+        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // --- 事前説明 ---
+    if (this.readyTimer > 0) this._drawVolcanoReady(ctx);
+  },
+
+  _drawVolcanoRock(ctx, r, giga) {
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(r.angle || 0);
+    // 赤熱した外殻の光
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, 0, r.w * 0.2, 0, 0, r.w * (giga ? 0.9 : 0.8));
+    g.addColorStop(0, `rgba(255,150,60,${giga ? 0.55 : 0.4})`);
+    g.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, r.w * (giga ? 0.9 : 0.8), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    // 岩体：多角形でゴツゴツさせる
+    const sides = giga ? 11 : 7;
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * Math.PI * 2;
+      const rad = r.w / 2 * (0.78 + this._noise((r.seed || 0) + i * 3.3) * 0.34);
+      const px = Math.cos(a) * rad, py = Math.sin(a) * rad * (r.h / r.w);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    const body = ctx.createLinearGradient(0, -r.h / 2, 0, r.h / 2);
+    body.addColorStop(0, '#5a4a44'); body.addColorStop(0.5, '#33272a'); body.addColorStop(1, '#1a1213');
+    ctx.fillStyle = body;
+    ctx.fill();
+    // 表面の赤熱した割れ目
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 0.5 + 0.5 * Math.sin(this.frame / 20 + (r.seed || 0));
+    ctx.strokeStyle = `rgba(255,${110 + pulse * 60},40,${0.6 + pulse * 0.4})`;
+    ctx.lineWidth = giga ? 5 : 2;
+    for (let i = 0; i < (giga ? 7 : 3); i++) {
+      const a = this._noise((r.seed || 0) + i * 5.1) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r.w * 0.1, Math.sin(a) * r.h * 0.1);
+      ctx.lineTo(Math.cos(a) * r.w * 0.42, Math.sin(a) * r.h * 0.42);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // 引きずる炎の尾
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const tail = ctx.createLinearGradient(0, -r.h * 0.5, 0, -r.h * (giga ? 1.6 : 1.3));
+    tail.addColorStop(0, `rgba(255,170,70,${giga ? 0.5 : 0.35})`);
+    tail.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = tail;
+    ctx.beginPath();
+    ctx.moveTo(-r.w * 0.32, -r.h * 0.4);
+    ctx.lineTo(0, -r.h * (giga ? 1.7 : 1.4));
+    ctx.lineTo(r.w * 0.32, -r.h * 0.4);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  },
+
+  _drawVolcanoReady(ctx) {
+    const t = this.readyTimer;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, t / 20);
+    ctx.fillStyle = 'rgba(28,10,10,.74)';
+    ctx.fillRect(0, 132, 960, 232);
+    ctx.strokeStyle = 'rgba(255,140,80,.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 132); ctx.lineTo(960, 132);
+    ctx.moveTo(0, 364); ctx.lineTo(960, 364); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 32px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.shadowColor = 'rgba(255,140,60,.95)'; ctx.shadowBlur = 18;
+    ctx.fillStyle = '#ffe0bc';
+    ctx.fillText('降り注ぐ火山弾をシールドで凌げ！', 480, 174);
+    ctx.shadowBlur = 0;
+    ctx.font = '17px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.fillStyle = '#f0bda0';
+    ctx.fillText('赤い警戒ラインが落下点。受ける弾と避ける弾を選び分けろ', 480, 216);
+    ctx.fillText('シールドは張りっぱなしだと削れて割れる。こまめに張り直すこと', 480, 246);
+    ctx.fillText('シールドを張った直後に受けると「ジャストガード」＝削られず高得点', 480, 276);
+    ctx.fillStyle = '#ffd08a';
+    ctx.fillText('残り10秒、避けられない巨岩が落ちてくる。ジャストガードで受け止めろ', 480, 310);
+    ctx.font = 'bold 26px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.fillStyle = '#ffe27a';
+    ctx.fillText(String(Math.ceil(t / 60)), 480, 344);
+    ctx.restore();
     ctx.globalAlpha = 1;
   },
 
