@@ -1,7 +1,7 @@
 const PRACTICE_COURSES = {
   desert: { name: 'マンディー砂漠', stat: 'power', statLabel: 'ちから', color: '#d79b43', duration: 60, description: '鉄板に書かれた技を出して関門を突破する。スコアを競う技の練習場' },
   jungle: { name: 'パレパレジャングル', stat: 'intelligence', statLabel: 'かしこさ', color: '#4eaa56', duration: 60, description: '石板の紋章を1から順に砕く。速さと正確さでスコアを競う' },
-  coast: { name: 'トーブル海岸', stat: 'accuracy', statLabel: '命中', color: '#42b7dd', duration: 50, description: '動くターゲットを正確に狙う' },
+  coast: { name: 'トーブル海岸', stat: 'accuracy', statLabel: '命中', color: '#42b7dd', duration: 60, description: '砂浜・海中・洞窟を駆け巡り、60秒で20個の標的を壊す' },
   snow: { name: 'パパス雪山', stat: 'evasion', statLabel: '回避', color: '#a9dcf2', duration: 60, description: '強制スクロールする雪山を、落ちないよう登り続けろ' },
   volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 50, description: '火山弾と溶岩から生き残る', level: 10 },
 };
@@ -133,6 +133,67 @@ const JUNGLE_RANK_SCORES = [
 ];
 // Sランク報酬「かしこさ+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率で按分する
 const JUNGLE_REWARD_BASE = { stat: 20, life: 8 };
+
+// ==== 「トーブル海岸」＝広いマップを駆け巡る破壊ミッション ====
+// 砂浜／海中／洞窟の3エリアが横に繋がった広大なマップに20個の標的を置く。
+// 60秒で全部壊せるかどうかは、移動の無駄をどれだけ削れるかで決まる。
+const COAST_CONFIG = {
+  // マップの広さと標的のHPは「無駄なく動けば60秒でちょうど全部壊せる」ように実測で詰めてある。
+  // 最初は幅3600・HP半分で作ったが、雑に動くボットでも48秒で全破壊できてしまい、
+  // 誰でもSが取れる状態だった。往復距離とHPを上げて、最適ルートで50秒前後になるよう調整している。
+  worldWidth: 4600,
+  readyFrames: 180,     // カウントダウン3秒（この間は時間が減らない）
+  panFrames: 96,        // マップ全体を見せるカメラパン。パンが終わってから数え始める
+  groundY: 490,
+  ceilingY: 40,
+  // エリア境界（x座標）
+  beachEnd: 1500,
+  waterEnd: 3100,
+  waterSurfaceY: 322,   // 海面。これより下が水中
+  // 海底は砂浜・洞窟の地面と必ず同じ高さにする。
+  // 少しでも低くすると、海底を東へ歩いて洞窟へ渡る時に「段差を上がれず落ちる」。
+  // このエンジンは横からの衝突で押し上げてくれないので、低い床から高い床へは
+  // 歩いて移れず、床の切れ目からそのまま奈落へ落ちてしまう。
+  // 海の深さは床を下げるのではなく、海面(waterSurfaceY)を高く取ることで出す。
+  seabedY: 490,
+  caveCeilingY: 132,
+  targetCount: 20,
+  // 水中の挙動。Fighterには手を入れず、ここで毎フレーム速度を補正して表現する
+  // （fighter.js を触るとバトル本編の挙動まで変わってしまうため）
+  waterSinkDamp: 0.86,  // 沈む速さを毎フレームこの割合まで落とす（浮力）
+  waterMaxFall: 2.7,    // 水中での最大落下速度
+  waterRiseCap: -6.2,   // 水中で上がれる最大速度（ひとかき）
+  waterDrag: 0.93,      // 横方向の水の抵抗
+  hitstopFrames: 5,     // 標的を壊した時のヒットストップ
+};
+
+// 標的の種類。エリアごとに置くものを変え、HPと壊れ方も変える。
+// 弱攻撃(dmgBase=3)の連打でも壊せるが、スマッシュ(11〜13)なら1〜2発で砕ける。
+const COAST_TARGET_TYPES = {
+  sandcastle: { label: '砂の城',   hp: 20, w: 62, h: 58, zone: 'beach' },
+  chest:      { label: '宝箱',     hp: 26, w: 54, h: 42, zone: 'beach' },
+  ball:       { label: 'ビーチボール', hp: 11, w: 42, h: 42, zone: 'water' },
+  pearl:      { label: '真珠貝',   hp: 30, w: 60, h: 52, zone: 'cave' },
+};
+
+// 破壊数→ランク。仕様で個数が決まっているのでそのまま持つ。
+const COAST_RANK_TARGETS = [
+  { grade: 'S', min: 20 },
+  { grade: 'A', min: 16 },
+  { grade: 'B', min: 12 },
+  { grade: 'C', min: 8 },
+  { grade: 'D', min: 4 },
+];
+// ランクごとの上昇量も仕様で決め打ち。Eは修行失敗＝上昇なし。
+// 適性倍率は他の修行と同じように掛かるので、適性Cでちょうどこの値になる。
+const COAST_REWARDS = {
+  S: { stat: 20, life: 8 },
+  A: { stat: 15, life: 6 },
+  B: { stat: 10, life: 4 },
+  C: { stat: 5,  life: 2 },
+  D: { stat: 2,  life: 1 },
+  E: { stat: 0,  life: 0 },
+};
 
 // 「パパス雪山」専用パラメータ。強制縦スクロールで追い立てられながら、
 // 左右に揺れる足場を渡り、後半はツララを避けて少しでも高く登る。
@@ -328,6 +389,8 @@ const PracticeGame = {
     let text = course.description;
     if (this.courseKey === 'desert') {
       text = `灼熱の砂漠に築かれた、技を鍛えるための関門。制限時間1分でスコアを稼げ！\n道をふさぐ石柱には黒い鉄板が打ち付けられ、「横スマ」「下強」といった技の名前が白いチョークで書かれている。書かれた技をその石柱に当てれば、一撃で砕け散る。\n違う技を当てると弾き返され、スコアが下がる。鉄板をよく読んでから振ろう。\n石柱は天井まで届いているので、ジャンプや上必殺で飛び越えることはできない。正面から技で突破するしかない。\n落とし穴に落ちてもゲームオーバーにはならず、直前の関門からやり直しになる。失うのは時間だけだ。\n指定される技は毎回ランダムに変わる。全${DESERT_CONFIG.gateCount}関門を、ミスなく速く抜けるほど高得点。`;
+    } else if (this.courseKey === 'coast') {
+      text = 'トーブル海岸での猛特訓！\n制限時間は60秒。自慢のワザを駆使して、マップに隠されたターゲットを壊しまくれ！\nギミックを見極め、すべての標的を破壊して最高ランクを目指せ！';
     } else if (this.courseKey === 'jungle') {
       text = '古代遺跡の石板を、紋章に刻まれた番号の順（1→2→3…）に砕け！\n石板は毎回1〜5個、ランダムに組み直される足場の上に現れる。順番を間違えるとそのフェーズは失敗となり、残りの石板は黒く焦げて崩れ落ちる。\n成功でも失敗でもすぐ次のフェーズが始まる。1分間でどれだけ稼げるかを競おう。\n素早くノーミスで完答し続けるとコンボが繋がり、獲得スコアに最大3倍の倍率がかかる。時間が経つほど石板は増え、足場も動き出す。';
     } else if (this.courseKey === 'snow') {
@@ -344,6 +407,14 @@ const PracticeGame = {
         ].map(line => `<li><b>■</b>${this.escape(line)}</li>`)
       : this.courseKey === 'snow'
       ? ['強制スクロール：一定時間後、画面が自動で上へ進み続ける', '揺れる足場：周期も振幅もランダムで、乗るたびに揺れ方が変わる', 'ツララ：影の予告後に落下。当たるとノックバックして怯む', '評価：制限時間中に到達した最高標高でS〜Eを判定'].map(text2 => `<li><b>❄</b>${this.escape(text2)}</li>`)
+      : this.courseKey === 'coast'
+      ? [
+          '砂浜・海中・洞窟の3エリア。標的は全20個',
+          '弱攻撃の連打でも壊せます（スマッシュなら1〜2発）',
+          '海に入ると泳げます。ジャンプでひとかき',
+          '足場は流木・ウミガメ・サンゴの石柱・間欠泉の岩が動きます',
+          '評価：S=20個 / A=16個 / B=12個 / C=8個 / D=4個',
+        ].map(line => `<li><b>≋</b>${this.escape(line)}</li>`)
       : this.courseKey === 'jungle'
       ? [
           `正しい順で砕く：1個 +${JUNGLE_CONFIG.scorePerTarget}点（コンボ倍率あり）`,
@@ -384,6 +455,9 @@ const PracticeGame = {
     // 画面全体が前のコースのカメラ位置ぶんずれて何も見えなくなる。
     this.cameraX = 0;
     this.cameraY = 0;
+    // ヒットストップは_tickを丸ごと止めるので、残したまま別コースを始めると
+    // 開始直後に固まったように見える。必ずここで戻す。
+    this.hitstop = 0;
     // 地面(y=485、雪山のみy=500)の上にきちんと立った状態でスタートする
     // （キャラごとに身長(hurtboxHeight)が異なるため、固定値ではなく実際の高さから逆算する）
     const groundY = this.courseKey === 'snow' ? 500 : 485;
@@ -395,8 +469,7 @@ const PracticeGame = {
     } else if (this.courseKey === 'jungle') {
       this._setupJungle(f);
     } else if (this.courseKey === 'coast') {
-      this.platforms.push({ x: 360, y: 415, w: 240, h: 16 });
-      for (let i = 0; i < 5; i++) this._spawnCoastTarget(i);
+      this._setupCoast(f);
     } else if (this.courseKey === 'snow') {
       this._snowGroundY = groundY;
       this.platforms = [{ x: 20, y: groundY, w: 230, h: 20 }];
@@ -746,7 +819,8 @@ const PracticeGame = {
     if (this.particles && this.particles.length) {
       for (const p of this.particles) {
         p.x += p.vx; p.y += p.vy;
-        p.vy += p.kind === 'good' ? 0.13 : 0.3;
+        // 海岸は破片ごとに重力を持たせている（砂は重く、真珠の光は軽く漂う）
+        p.vy += p.gravity != null ? p.gravity : (p.kind === 'good' ? 0.13 : 0.3);
         p.vx *= 0.985;
         p.angle += p.spin;
         p.life--;
@@ -759,8 +833,104 @@ const PracticeGame = {
     }
   },
 
-  _spawnCoastTarget(id) {
-    this.targets[id] = { id, x: 300 + Math.random() * 570, y: 105 + Math.random() * 260, w: 34, h: 34, vx: (Math.random() < .5 ? -1 : 1) * (1.2 + Math.random() * 1.8), target: true };
+  // ---- トーブル海岸 ----
+  _setupCoast(f) {
+    const C = COAST_CONFIG;
+    this.worldWidth = C.worldWidth;
+    this.readyTimer = C.readyFrames;
+    this.panTimer = C.panFrames;
+    this.destroyedTotal = 0;
+    this.particles = [];
+    this.floatTexts = [];
+    this.bubbles = [];
+    this.hitstop = 0;
+    this.waveSeed = Math.random() * 1000;
+    f.x = 110;
+    f.y = C.groundY - f.h;
+
+    // ---- 地形 ----
+    // 地面はすべて solid（下入力ですり抜けない）。砂浜と洞窟は陸、その間が海。
+    this.platforms = [
+      { x: 0, y: C.groundY, w: C.beachEnd, h: 60, solid: true, zone: 'beach' },
+      { x: C.beachEnd, y: C.seabedY, w: C.waterEnd - C.beachEnd, h: 40, solid: true, zone: 'sea' },
+      { x: C.waterEnd, y: C.groundY, w: C.worldWidth - C.waterEnd, h: 60, solid: true, zone: 'cave' },
+    ];
+
+    // 砂浜：足場になる岩と、波打ち際へ張り出した桟橋
+    this.platforms.push(
+      { x: 330, y: 396, w: 150, h: 16, zone: 'beach', kind: 'rock' },
+      { x: 700, y: 322, w: 130, h: 16, zone: 'beach', kind: 'rock' },
+      { x: 1010, y: 400, w: 170, h: 16, zone: 'beach', kind: 'wood' },
+      { x: 1290, y: 336, w: 140, h: 16, zone: 'beach', kind: 'rock' },
+    );
+
+    // 海：波間を漂う巨大な流木（横移動）と、ウミガメの背中（横移動・周回）
+    this.platforms.push(
+      this._movingPlatform(1620, C.waterSurfaceY - 16, 170, 'x', 130, 300, 'driftwood'),
+      this._movingPlatform(2120, C.waterSurfaceY - 10, 140, 'x', 190, 380, 'turtle'),
+      this._movingPlatform(2660, C.waterSurfaceY - 16, 160, 'x', 110, 260, 'driftwood'),
+    );
+    // 潮の満ち引きで浮き沈みするサンゴの石柱（縦移動）
+    this.platforms.push(
+      this._movingPlatform(1860, 410, 120, 'y', 74, 250, 'coral'),
+      this._movingPlatform(2400, 430, 120, 'y', 86, 310, 'coral'),
+      this._movingPlatform(2900, 415, 120, 'y', 80, 280, 'coral'),
+    );
+
+    // 洞窟：間欠泉に吹き上げられる岩（縦移動）と、光る鉱石の棚
+    this.platforms.push(
+      { x: 3200, y: 392, w: 150, h: 16, zone: 'cave', kind: 'rock' },
+      this._movingPlatform(3480, 400, 120, 'y', 96, 210, 'geyser'),
+      { x: 3760, y: 322, w: 160, h: 16, zone: 'cave', kind: 'ore' },
+      this._movingPlatform(4040, 396, 130, 'y', 70, 260, 'geyser'),
+      { x: 4300, y: 380, w: 150, h: 16, zone: 'cave', kind: 'ore' },
+    );
+
+    // ---- 標的20個 ----
+    // エリアごとに置く物を変える。個数配分は砂浜7・海6・洞窟7。
+    this.targets = [];
+    const put = (type, x, y, extra = {}) => {
+      const t = COAST_TARGET_TYPES[type];
+      this.targets.push({
+        id: this.targets.length, coast: true, type,
+        x: x - t.w / 2, y: y - t.h, w: t.w, h: t.h,
+        baseX: x - t.w / 2, baseY: y - t.h,
+        hp: t.hp, maxHp: t.hp, destroyed: false, flash: 0, shake: 0,
+        seed: Math.random() * 1000, ...extra,
+      });
+    };
+    // 砂浜（砂の城・宝箱）
+    put('sandcastle', 260, C.groundY);
+    put('sandcastle', 405, 396);          // 岩の上
+    put('chest', 560, C.groundY);
+    put('chest', 765, 322);               // 高い岩の上
+    put('sandcastle', 900, C.groundY);
+    put('chest', 1095, 400);              // 桟橋の上
+    put('sandcastle', 1360, 336);         // 波打ち際の岩の上
+    // 海（ビーチボールは海面に浮いて上下する。宝箱は海底に半分埋まっている）
+    put('ball', 1700, C.waterSurfaceY, { float: true });
+    put('chest', 1900, C.seabedY);
+    put('ball', 2180, C.waterSurfaceY, { float: true });
+    put('chest', 2500, C.seabedY);
+    put('ball', 2740, C.waterSurfaceY, { float: true });
+    put('ball', 2980, C.waterSurfaceY, { float: true });
+    // 洞窟（真珠貝）
+    put('pearl', 3265, 392);              // 岩棚の上
+    put('pearl', 3400, C.groundY);
+    put('pearl', 3660, C.groundY);
+    put('pearl', 3840, 322);              // 光る鉱石の棚の上
+    put('pearl', 4130, C.groundY);
+    put('pearl', 4375, 380);              // 奥の鉱石棚の上
+    put('pearl', 4520, C.groundY);
+  },
+
+  // 往復する足場を1枚作る。ジャングルと同じ持ち方（baseX/baseY + moveAxis）。
+  _movingPlatform(x, y, w, axis, amp, period, kind) {
+    return {
+      x, y, w, h: 16, baseX: x, baseY: y, zone: 'sea', kind,
+      moveAxis: axis, moveAmp: amp, movePeriod: period,
+      movePhase: Math.random() * Math.PI * 2,
+    };
   },
 
   // ---- メインループ：本番バトルと同じ「固定60fpsステップ」で進める ----
@@ -791,6 +961,10 @@ const PracticeGame = {
   },
 
   _tick() {
+    // 破壊時のヒットストップ。ここで丸ごと止めることで「止まった」手応えが出る。
+    // 各コースのupdateの中で止めても、その時点では既にFighterの更新も
+    // 当たり判定も済んでいるため、見た目には何も起きない。
+    if (this.hitstop > 0) { this.hitstop--; return; }
     this.frame++;
     this.elapsed += 1 / 60;
     // 足場の揺れはFighter.updateの当たり判定より前に反映する（同フレームでズレないように）
@@ -815,9 +989,10 @@ const PracticeGame = {
     else if (this.courseKey === 'snow') this._updateSnow();
     else if (this.courseKey === 'volcano') this._updateVolcano();
 
-    if (this.courseKey === 'jungle') this._updateJungleEffects();
+    if (this.courseKey === 'jungle' || this.courseKey === 'coast') this._updateJungleEffects();
 
-    if (this.courseKey !== 'snow' && this.courseKey !== 'desert' && this.courseKey !== 'jungle' && f.y > 570) {
+    if (this.courseKey !== 'snow' && this.courseKey !== 'desert' && this.courseKey !== 'jungle'
+        && this.courseKey !== 'coast' && f.y > 570) {
       f.x = 60; f.y = 390; f.vx = 0; f.vy = 0;
       this.score = Math.max(0, this.score - 5);
     }
@@ -916,10 +1091,8 @@ const PracticeGame = {
   _applyHitToTarget(target) {
     if (target.jungle) {
       this._resolveJungleHit(target);
-    } else if (target.target) {
-      this.hits++; this.combo++; this.bestCombo = Math.max(this.bestCombo, this.combo);
-      this.score += 4 + Math.min(6, this.combo);
-      this._spawnCoastTarget(target.id);
+    } else if (target.coast) {
+      this._resolveCoastHit(target);
     }
   },
 
@@ -1076,10 +1249,186 @@ const PracticeGame = {
 
 
   _updateCoast() {
-    this.targets.forEach(target => {
-      target.x += target.vx;
-      if (target.x < 260 || target.x > 915) target.vx *= -1;
+    const C = COAST_CONFIG;
+    const f = this.fighter;
+
+    // 開始演出：まずマップ全体を左から右へ流し見せ、そのあと自機に寄ってカウントダウン。
+    // どちらの間も制限時間は減らさない（_tickで加算済みのぶんを戻す）。
+    if (this.readyTimer > 0) {
+      this.elapsed = 0;
+      if (this.panTimer > 0) {
+        this.panTimer--;
+        const t = 1 - this.panTimer / C.panFrames;
+        // 端から端まで見せてから自機の位置へ寄る（最後の1/4で寄せる）
+        const sweep = Math.min(1, t / 0.75);
+        const far = (C.worldWidth - 960) * sweep;
+        const back = t > 0.75 ? (t - 0.75) / 0.25 : 0;
+        this.cameraX = far * (1 - back) + this._coastCameraTarget() * back;
+        return;
+      }
+      this.readyTimer--;
+      this.cameraX = this._coastCameraTarget();
+      this._updateCoastScenery();
+      return;
+    }
+
+    this.cameraX = this._coastCameraTarget();
+
+    // 水中の挙動。Fighter本体には手を入れず、ここで速度を補正して「泳ぎ」を作る。
+    const inWater = this._coastInWater(f);
+    if (inWater) {
+      if (f.vy > 0) f.vy = Math.min(f.vy * C.waterSinkDamp, C.waterMaxFall);
+      if (f.vy < C.waterRiseCap) f.vy = C.waterRiseCap;
+      f.vx *= C.waterDrag;
+      // 水中では何度でもひとかきできる（スマブラの水泳と同じ感覚）
+      f.jumpsUsed = 0;
+      f.fastFalling = false;
+      if (this.frame % 7 === 0) this._spawnCoastBubble(f.x + f.w / 2, f.y + f.h * 0.3);
+    }
+
+    this._updateCoastScenery();
+
+    // 海面に浮かぶ標的は波に合わせて上下する
+    for (const t of this.targets) {
+      if (!t.float || t.destroyed) continue;
+      t.y = t.baseY + Math.sin((this.frame + t.seed) / 46) * 9;
+    }
+    for (const t of this.targets) {
+      if (t.flash > 0) t.flash--;
+      if (t.shake > 0) t.shake--;
+    }
+
+    // 万一どこかで床を踏み外しても、進行度を失わせない。
+    // 全コース共通の復帰処理はスタート地点(x=60)へ戻してしまい、
+    // 広いマップでは「洞窟まで来たのに砂浜へ戻される」ことになるため使わない。
+    // ここでは今いる場所の真上に戻すだけにする。
+    if (f.y > 560) {
+      f.y = C.groundY - f.h;
+      f.vy = 0;
+    }
+  },
+
+  // カメラは自機を中央に置きつつ、マップの端では止める
+  _coastCameraTarget() {
+    const f = this.fighter;
+    return Math.max(0, Math.min(COAST_CONFIG.worldWidth - 960, f.x + f.w / 2 - 480));
+  },
+
+  // 自機が水中にいるか（海のエリアかつ海面より下）
+  _coastInWater(f) {
+    const C = COAST_CONFIG;
+    const cx = f.x + f.w / 2, cy = f.y + f.h * 0.55;
+    return cx > C.beachEnd && cx < C.waterEnd && cy > C.waterSurfaceY;
+  },
+
+  // 足場の往復移動と、泡・波の演出を進める
+  _updateCoastScenery() {
+    for (const p of this.platforms) {
+      if (!p.moveAxis) continue;
+      const t = Math.sin((this.frame + p.movePhase * 40) / p.movePeriod * Math.PI * 2) * p.moveAmp;
+      if (p.moveAxis === 'x') p.x = p.baseX + t; else p.y = p.baseY + t;
+    }
+    if (this.bubbles && this.bubbles.length) {
+      for (const b of this.bubbles) {
+        b.y -= b.speed;
+        b.x += Math.sin((this.frame + b.seed) / 18) * 0.5;
+        b.life--;
+        if (b.y < COAST_CONFIG.waterSurfaceY) b.life = 0; // 海面で消える
+      }
+      this.bubbles = this.bubbles.filter(b => b.life > 0);
+    }
+  },
+
+  _spawnCoastBubble(x, y) {
+    this.bubbles = this.bubbles || [];
+    if (this.bubbles.length > 90) return;
+    this.bubbles.push({
+      x: x + (Math.random() - 0.5) * 22, y,
+      r: 1.6 + Math.random() * 3.4,
+      speed: 0.7 + Math.random() * 1.1,
+      life: 90 + Math.random() * 70,
+      seed: Math.random() * 100,
     });
+  },
+
+  // 標的に攻撃が当たった時。HP制なので弱攻撃の連打でも壊せる。
+  _resolveCoastHit(target) {
+    const C = COAST_CONFIG;
+    const f = this.fighter;
+    // 技の威力ぶん削る。技が取れない時は弱攻撃相当の3として扱う。
+    const damage = Math.max(1, Math.round(f.currentMove?.dmgBase || 3));
+    target.hp -= damage;
+    target.flash = 8;
+    target.shake = 10;
+    this.hits++;
+    if (target.hp > 0) {
+      // まだ壊れていない：軽い手応えだけ返す
+      this._spawnCoastParticles(target, false);
+      if (window.AudioManager) {
+        AudioManager.playTone({ freq: 320, toFreq: 210, type: 'square', dur: 0.06, volume: 0.22 });
+      }
+      return;
+    }
+    // 破壊：ヒットストップ＋種類ごとのエフェクトとSE
+    target.destroyed = true;
+    this.destroyedTotal++;
+    this.combo++;
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    this.hitstop = C.hitstopFrames;
+    this._spawnCoastParticles(target, true);
+    this._addFloatText(target.x + target.w / 2, target.y, `${this.destroyedTotal}／${C.targetCount}`, '#bff0ff');
+    this._playCoastBreakSe(target.type);
+  },
+
+  _playCoastBreakSe(type) {
+    if (!window.AudioManager) return;
+    const A = AudioManager;
+    if (type === 'sandcastle') {
+      // 砂が崩れる：低くこもった音
+      A.playTone({ freq: 240, toFreq: 90, type: 'sawtooth', dur: 0.22, volume: 0.34 });
+      A.playTone({ freq: 150, toFreq: 70, type: 'square', dur: 0.18, volume: 0.16, delay: 0.02 });
+    } else if (type === 'chest') {
+      // 宝箱：木が割れて、金属が鳴る
+      A.playTone({ freq: 300, toFreq: 160, type: 'square', dur: 0.12, volume: 0.3 });
+      A.playTone({ freq: 1180, type: 'sine', dur: 0.3, volume: 0.3, delay: 0.05 });
+      A.playTone({ freq: 1560, type: 'sine', dur: 0.26, volume: 0.2, delay: 0.09 });
+    } else if (type === 'ball') {
+      // ビーチボール：弾けて水しぶき
+      A.playTone({ freq: 820, toFreq: 1500, type: 'sine', dur: 0.1, volume: 0.34 });
+      A.playTone({ freq: 460, toFreq: 240, type: 'triangle', dur: 0.16, volume: 0.2, delay: 0.04 });
+    } else {
+      // 真珠貝：澄んだ和音
+      [0, 0.05, 0.1].forEach((d, i) => A.playTone({
+        freq: [880, 1320, 1760][i], type: 'sine', dur: 0.34, volume: 0.3, delay: d,
+      }));
+    }
+  },
+
+  // 種類ごとに違う破壊エフェクト
+  _spawnCoastParticles(target, broke) {
+    this.particles = this.particles || [];
+    const cx = target.x + target.w / 2, cy = target.y + target.h / 2;
+    const style = {
+      sandcastle: { colors: ['#e8d09a', '#d4b476', '#f2e3c0'], gravity: 0.34, shape: 'square' },
+      chest:      { colors: ['#8a5a2c', '#c8992f', '#ffe9a8'], gravity: 0.3,  shape: 'square' },
+      ball:       { colors: ['#9fe8ff', '#ffffff', '#5ec7f0'], gravity: 0.22, shape: 'circle' },
+      pearl:      { colors: ['#ffffff', '#cfeaff', '#ffe9f6'], gravity: 0.12, shape: 'circle' },
+    }[target.type];
+    const count = broke ? 34 : 8;
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = (broke ? 1.4 : 0.7) + Math.random() * (broke ? 5 : 1.8);
+      this.particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * speed, vy: Math.sin(a) * speed - (broke ? 1.6 : 0.4),
+        size: 2 + Math.random() * (broke ? 5.5 : 3),
+        life: (broke ? 34 : 16) + Math.random() * 28,
+        color: style.colors[Math.floor(Math.random() * style.colors.length)],
+        gravity: style.gravity, shape: style.shape,
+        angle: Math.random() * Math.PI, spin: (Math.random() - 0.5) * 0.4,
+        kind: 'coast',
+      });
+    }
   },
 
   _updateSnow() {
@@ -1164,7 +1513,7 @@ const PracticeGame = {
     }
     const status = this.courseKey === 'desert' ? `関門 ${this.gates.filter(g => g.broken).length}/${this.gates.length}　スコア ${this.score}　ミス ${this.wrongHits || 0}`
       : this.courseKey === 'jungle' ? `${this.score}点　次 ${this.nextOrder || 1}／${this.phaseTargets || 0}${this.combo > 0 ? `　${this.combo}コンボ ×${this._jungleMultiplier().toFixed(2)}` : ''}`
-      : this.courseKey === 'coast' ? `命中 ${this.hits}　COMBO ${this.combo}`
+      : this.courseKey === 'coast' ? `標的 ${this.destroyedTotal || 0}／${COAST_CONFIG.targetCount}${this.combo > 1 ? `　${this.combo}連続` : ''}`
       : this.courseKey === 'snow' ? `標高 ${this.bestAltitudeM || 0}m${this.elapsed >= SNOW_CONFIG.icicleStartTime ? '　⚠ツララ注意' : ''}`
       : `耐久 ♥${this.hp}　防御 ${this.avoided}`;
     if (status !== this._hudLastStatus) {
@@ -1197,7 +1546,12 @@ const PracticeGame = {
       grade = found ? found.grade : 'E';
       normalized = this.score;
     }
-    else if (this.courseKey === 'coast') normalized = Math.min(100, this.hits * 4 + this.bestCombo * 3 - this.misses * 2);
+    else if (this.courseKey === 'coast') {
+      const broken = this.destroyedTotal || 0;
+      const found = COAST_RANK_TARGETS.find(rank => broken >= rank.min);
+      grade = found ? found.grade : 'E';
+      normalized = Math.round(broken / COAST_CONFIG.targetCount * 100);
+    }
     else if (this.courseKey === 'snow') {
       const altitudeM = this.bestAltitudeM || 0;
       const found = SNOW_RANK_ALTITUDE.find(rank => altitudeM >= rank.min);
@@ -1212,11 +1566,20 @@ const PracticeGame = {
       const rewardBase = this.courseKey === 'desert' ? DESERT_REWARD_BASE
         : this.courseKey === 'snow' ? SNOW_REWARD_BASE
         : this.courseKey === 'jungle' ? JUNGLE_REWARD_BASE : null;
-      const growth = rewardBase
-        ? GROWTH.applyPracticeResult(this.monster, this.course.stat, grade, rewardBase.stat, rewardBase.life)
-        : GROWTH.applyPracticeResult(this.monster, this.course.stat, grade);
+      let growth;
+      if (this.courseKey === 'coast') {
+        // 海岸はランクごとの上昇量が決まっている（Eは上昇なし）
+        const reward = COAST_REWARDS[grade] || COAST_REWARDS.E;
+        growth = GROWTH.applyFixedPracticeResult(this.monster, this.course.stat, reward.stat, reward.life);
+      } else if (rewardBase) {
+        growth = GROWTH.applyPracticeResult(this.monster, this.course.stat, grade, rewardBase.stat, rewardBase.life);
+      } else {
+        growth = GROWTH.applyPracticeResult(this.monster, this.course.stat, grade);
+      }
       MasmonStore.update(this.monster);
-      growthText = `${this.course.statLabel} +${growth[this.course.stat]}　ライフ +${growth.life}`;
+      growthText = (growth[this.course.stat] || growth.life)
+        ? `${this.course.statLabel} +${growth[this.course.stat]}　ライフ +${growth.life}`
+        : '修行失敗… 能力は上がりませんでした';
     }
     document.getElementById('practice-result-grade').textContent = grade;
     document.getElementById('practice-result-title').textContent = cleared ? `${this.course.name} 修行成功！`
@@ -1230,6 +1593,8 @@ const PracticeGame = {
       ? `到達標高 ${this.bestAltitudeM || 0}m　ツララ被弾 ${this.iceHits || 0}回　回避 ${this.avoided || 0}回`
       : this.courseKey === 'jungle'
       ? `スコア ${this.score}（石板 ${this.destroyedTotal || 0}個　完答 ${this.clearedPhases || 0}／${(this.clearedPhases || 0) + (this.failedPhases || 0)}フェーズ　最大 ${this.bestCombo || 0}コンボ）`
+      : this.courseKey === 'coast'
+      ? `破壊 ${this.destroyedTotal || 0}／${COAST_CONFIG.targetCount}個　残り ${Math.max(0, COAST_CONFIG.targetCount - (this.destroyedTotal || 0))}個`
       : `評価スコア ${normalized}／100`;
     document.getElementById('practice-result-growth').textContent = growthText;
     document.getElementById('practice-result-modal').classList.remove('hidden');
@@ -1286,7 +1651,9 @@ const PracticeGame = {
     }
     if (this.courseKey === 'desert') this._drawDesertSky(ctx);
     if (this.courseKey === 'jungle') this._drawJungleBackground(ctx);
+    if (this.courseKey === 'coast') this._drawCoastBackground(ctx);
     ctx.save(); ctx.translate(offsetX, offsetY);
+    if (this.courseKey === 'coast') this._drawCoastTerrain(ctx);
     if (this.courseKey === 'desert') {
       this._drawDesertGround(ctx);
     } else {
@@ -1294,6 +1661,7 @@ const PracticeGame = {
         if (platform.gone) continue;
         if (this.courseKey === 'snow' && platform.swayAmp) { this._drawIcePlatform(ctx, platform); continue; }
         if (this.courseKey === 'jungle') { this._drawJunglePlatform(ctx, platform); continue; }
+        if (this.courseKey === 'coast') { this._drawCoastPlatform(ctx, platform); continue; }
         ctx.fillStyle = this.courseKey === 'snow' ? '#e8f8ff' : this.courseKey === 'volcano' ? '#34242a' : '#5b4937';
         ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
         ctx.fillStyle = this.courseKey === 'snow' ? '#8bd5ef' : '#d8aa5a'; ctx.fillRect(platform.x, platform.y, platform.w, 4);
@@ -1301,8 +1669,9 @@ const PracticeGame = {
     }
     if (this.courseKey === 'desert') this._drawDesertGates(ctx);
     if (this.courseKey === 'jungle') this._drawJungleTargets(ctx);
+    if (this.courseKey === 'coast') this._drawCoastTargets(ctx);
     for (const target of this.targets) {
-      if (!target || target.destroyed || target.jungle) continue;
+      if (!target || target.destroyed || target.jungle || target.coast) continue;
       if (target.target) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(target.x + target.w/2, target.y + target.h/2, target.w/2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#ff3d45'; ctx.beginPath(); ctx.arc(target.x+target.w/2,target.y+target.h/2,9,0,Math.PI*2);ctx.fill(); }
       else { ctx.fillStyle = '#7d6a58'; ctx.fillRect(target.x,target.y,target.w,target.h); ctx.fillStyle='#ffd96b';ctx.fillRect(target.x,target.y,target.w*(target.hp/target.maxHp),5); }
     }
@@ -1316,6 +1685,7 @@ const PracticeGame = {
     // ---- プレイヤー：本番と同じFighter.draw()でそのまま描画（全モーション対応）----
     this.fighter.draw(ctx);
     if (this.courseKey === 'jungle') this._drawJungleEffects(ctx);
+    if (this.courseKey === 'coast') this._drawCoastForeground(ctx);
     if (this.courseKey === 'snow') {
       // 強制スクロールに置き去りにされる境界＝ここより下に出ると即アウト
       const killY = (this.scrollTop || 0) + 540 + SNOW_CONFIG.killMargin;
@@ -1625,6 +1995,533 @@ const PracticeGame = {
       ctx.fillRect(-d.size / 2, -d.size / 2, d.size, Math.max(1, d.size * 0.25));
       ctx.restore();
     }
+    ctx.globalAlpha = 1;
+  },
+
+  // ---- トーブル海岸の描画 ----
+
+  // 空と遠景。カメラのx位置に応じて、砂浜→海→洞窟へ空気の色が移り変わる。
+  _drawCoastBackground(ctx) {
+    const C = COAST_CONFIG;
+    const cam = this.cameraX || 0;
+    const center = cam + 480;
+    // 洞窟に入るほど暗く沈ませる
+    const caveMix = Math.max(0, Math.min(1, (center - (C.waterEnd - 220)) / 420));
+    const sky = ctx.createLinearGradient(0, 0, 0, 540);
+    const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+    const top = `rgb(${lerp(126, 12, caveMix)},${lerp(216, 26, caveMix)},${lerp(244, 52, caveMix)})`;
+    const bottom = `rgb(${lerp(52, 6, caveMix)},${lerp(150, 16, caveMix)},${lerp(196, 34, caveMix)})`;
+    sky.addColorStop(0, top); sky.addColorStop(1, bottom);
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, 960, 540);
+
+    if (caveMix < 0.98) {
+      ctx.save();
+      ctx.globalAlpha = 1 - caveMix;
+      // 太陽と、水平線の向こうの島影（視差でゆっくり流れる）
+      ctx.fillStyle = 'rgba(255,250,214,.85)';
+      ctx.beginPath(); ctx.arc(760 - cam * 0.02, 88, 42, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(120,190,215,.5)';
+      for (let i = 0; i < 8; i++) {
+        const bx = (i * 460 - cam * 0.12) % 1800 - 200;
+        ctx.beginPath();
+        ctx.moveTo(bx, 300); ctx.lineTo(bx + 130, 214 + this._noise(i) * 40); ctx.lineTo(bx + 280, 300);
+        ctx.fill();
+      }
+      // 雲
+      ctx.fillStyle = 'rgba(255,255,255,.42)';
+      for (let i = 0; i < 7; i++) {
+        const bx = (i * 330 - cam * 0.05) % 1500 - 180;
+        const by = 50 + this._noise(i * 3.7) * 70;
+        ctx.beginPath();
+        ctx.ellipse(bx, by, 66, 20, 0, 0, Math.PI * 2);
+        ctx.ellipse(bx + 46, by + 8, 46, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  },
+
+  // 地形（砂浜の砂、海、洞窟の岩壁）。ワールド座標で描くのでtranslate後に呼ぶ。
+  _drawCoastTerrain(ctx) {
+    const C = COAST_CONFIG;
+    const cam = this.cameraX || 0;
+    const left = cam - 40, right = cam + 1000;
+
+    // --- 洞窟の岩壁（奥の壁と天井）---
+    if (right > C.waterEnd - 120) {
+      const x0 = Math.max(left, C.waterEnd - 120);
+      ctx.fillStyle = '#0b1c30';
+      ctx.fillRect(x0, 0, right - x0, C.groundY);
+      // 天井から下がる鍾乳石
+      ctx.fillStyle = '#122840';
+      ctx.fillRect(x0, 0, right - x0, C.caveCeilingY);
+      for (let x = Math.floor(x0 / 46) * 46; x < right; x += 46) {
+        if (x < C.waterEnd - 120) continue;
+        const h = 18 + this._noise(x * 0.37) * 44;
+        ctx.beginPath();
+        ctx.moveTo(x, C.caveCeilingY); ctx.lineTo(x + 23, C.caveCeilingY + h); ctx.lineTo(x + 46, C.caveCeilingY);
+        ctx.fill();
+      }
+      // 光る鉱石とサンゴ（仄かに周囲を照らす）
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let x = Math.floor(x0 / 130) * 130; x < right; x += 130) {
+        if (x < C.waterEnd - 100) continue;
+        const gy = 190 + this._noise(x * 0.11) * 230;
+        const pulse = 0.55 + 0.45 * Math.sin((this.frame + x) / 70);
+        const g = ctx.createRadialGradient(x, gy, 2, x, gy, 58);
+        g.addColorStop(0, `rgba(120,220,255,${0.34 * pulse})`);
+        g.addColorStop(1, 'rgba(120,220,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, gy, 58, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(190,245,255,${0.75 * pulse})`;
+        ctx.beginPath();
+        ctx.moveTo(x, gy - 9); ctx.lineTo(x + 6, gy); ctx.lineTo(x, gy + 9); ctx.lineTo(x - 6, gy);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // --- 海 ---
+    if (right > C.beachEnd && left < C.waterEnd) {
+      const wx0 = Math.max(left, C.beachEnd), wx1 = Math.min(right, C.waterEnd);
+      const water = ctx.createLinearGradient(0, C.waterSurfaceY, 0, C.seabedY + 40);
+      water.addColorStop(0, 'rgba(58,168,214,.78)');
+      water.addColorStop(1, 'rgba(8,54,96,.94)');
+      ctx.fillStyle = water;
+      ctx.fillRect(wx0, C.waterSurfaceY, wx1 - wx0, C.seabedY + 40 - C.waterSurfaceY);
+      // 海底の砂
+      ctx.fillStyle = '#5b6f7e';
+      ctx.fillRect(wx0, C.seabedY, wx1 - wx0, 40);
+      // 水中を差し込む光のゆらめき
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 12; i++) {
+        const sx = C.beachEnd + i * 108 + Math.sin((this.frame + i * 60) / 120) * 26;
+        if (sx < wx0 - 120 || sx > wx1 + 120) continue;
+        const g = ctx.createLinearGradient(sx, C.waterSurfaceY, sx - 60, C.seabedY);
+        g.addColorStop(0, 'rgba(190,245,255,.20)');
+        g.addColorStop(1, 'rgba(190,245,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(sx - 16, C.waterSurfaceY); ctx.lineTo(sx + 26, C.waterSurfaceY);
+        ctx.lineTo(sx - 38, C.seabedY); ctx.lineTo(sx - 78, C.seabedY);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+      // 海面の波（寄せては返す）
+      ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let x = wx0; x <= wx1; x += 12) {
+        const y = C.waterSurfaceY + Math.sin((x + this.frame * 1.6) / 58) * 5
+                + Math.sin((x - this.frame * 0.9) / 27) * 2.4;
+        x === wx0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // --- 砂浜 ---
+    if (left < C.beachEnd) {
+      const bx1 = Math.min(right, C.beachEnd);
+      const sand = ctx.createLinearGradient(0, C.groundY, 0, C.groundY + 60);
+      sand.addColorStop(0, '#f6e8c4'); sand.addColorStop(1, '#cbb185');
+      ctx.fillStyle = sand;
+      ctx.fillRect(left, C.groundY, bx1 - left, 60);
+      // 陽光の反射（きらめき）
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let x = Math.floor(left / 24) * 24; x < bx1; x += 24) {
+        const n = this._noise(x * 0.5);
+        const tw = 0.5 + 0.5 * Math.sin((this.frame + x) / 26 + n * 6);
+        ctx.fillStyle = `rgba(255,255,240,${0.28 * tw * n})`;
+        ctx.fillRect(x, C.groundY + 5 + n * 26, 3, 2);
+      }
+      ctx.restore();
+      // 波打ち際：砂へ寄せては返す薄い水
+      const tide = Math.sin(this.frame / 96) * 46;
+      const edge = C.beachEnd - 120 + tide;
+      if (right > edge) {
+        ctx.fillStyle = 'rgba(150,225,245,.5)';
+        ctx.beginPath();
+        ctx.moveTo(edge, C.groundY + 60);
+        for (let x = edge; x <= bx1; x += 10) {
+          ctx.lineTo(x, C.groundY + 4 + Math.sin((x + this.frame * 2) / 34) * 3);
+        }
+        ctx.lineTo(bx1, C.groundY + 60);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.72)';
+        for (let x = edge; x <= bx1; x += 10) {
+          ctx.fillRect(x, C.groundY + 2 + Math.sin((x + this.frame * 2) / 34) * 3, 8, 2.5);
+        }
+      }
+    }
+  },
+
+  // 足場。kind ごとに見た目を変える（流木・ウミガメ・サンゴ・間欠泉・岩・木・鉱石）
+  _drawCoastPlatform(ctx, p) {
+    const C = COAST_CONFIG;
+    const cam = this.cameraX || 0;
+    if (p.x + p.w < cam - 60 || p.x > cam + 1020) return; // 画面外は描かない
+    // 地面（砂浜・海底・洞窟の床）は _drawCoastTerrain 側で描いているので飛ばす
+    if (p.h >= 40) return;
+    const kind = p.kind || 'rock';
+
+    if (kind === 'turtle') {
+      // ウミガメ：甲羅の六角模様と、ゆっくり動く四肢
+      const cx = p.x + p.w / 2, cy = p.y + 8;
+      ctx.fillStyle = '#3f6b4e';
+      const flap = Math.sin(this.frame / 26) * 6;
+      ctx.beginPath(); ctx.ellipse(p.x + 12, cy + 14 + flap, 20, 9, -0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x + p.w - 12, cy + 14 - flap, 20, 9, 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4c7d5b';
+      ctx.beginPath(); ctx.ellipse(cx + p.w * 0.5, cy + 4, 15, 11, 0, 0, Math.PI * 2); ctx.fill();
+      const shell = ctx.createLinearGradient(0, p.y - 10, 0, p.y + 18);
+      shell.addColorStop(0, '#6b8f5a'); shell.addColorStop(1, '#3b5a3c');
+      ctx.fillStyle = shell;
+      ctx.beginPath(); ctx.ellipse(cx, cy, p.w / 2, 17, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(20,40,25,.5)'; ctx.lineWidth = 1.5;
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath(); ctx.ellipse(cx + i * 24, cy - 1, 11, 8, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      return;
+    }
+    if (kind === 'driftwood') {
+      // 流木：木肌の縦筋と、水面に触れている所の泡
+      const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+      g.addColorStop(0, '#a4835a');
+      g.addColorStop(1, '#5d4630');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, 8); ctx.fill();
+      ctx.strokeStyle = 'rgba(40,26,14,.45)'; ctx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        const yy = p.y + p.h * (i / 4);
+        ctx.beginPath(); ctx.moveTo(p.x + 6, yy); ctx.lineTo(p.x + p.w - 6, yy); ctx.stroke();
+      }
+      ctx.fillStyle = '#c3a074';
+      ctx.beginPath(); ctx.ellipse(p.x + 3, p.y + p.h / 2, 4, p.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      for (let i = 0; i < 6; i++) {
+        const bx = p.x + 10 + this._noise(i + p.baseX) * (p.w - 20);
+        ctx.beginPath(); ctx.arc(bx, p.y + p.h + 2, 2 + this._noise(i * 3) * 2, 0, Math.PI * 2); ctx.fill();
+      }
+      return;
+    }
+    if (kind === 'coral') {
+      // サンゴの石柱：下へ伸びる柱と、上面の枝サンゴ
+      ctx.fillStyle = 'rgba(214,120,132,.55)';
+      ctx.fillRect(p.x + p.w * 0.3, p.y + p.h, p.w * 0.4, C.seabedY - p.y);
+      const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+      g.addColorStop(0, '#f0a0ad'); g.addColorStop(1, '#b25f70');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, 5); ctx.fill();
+      ctx.fillStyle = '#ffc2cb';
+      for (let i = 0; i < 5; i++) {
+        const bx = p.x + 12 + i * (p.w - 24) / 4;
+        const h = 8 + this._noise(i + p.baseY) * 12;
+        ctx.beginPath();
+        ctx.moveTo(bx - 4, p.y); ctx.lineTo(bx, p.y - h); ctx.lineTo(bx + 4, p.y); ctx.fill();
+      }
+      return;
+    }
+    if (kind === 'geyser') {
+      // 間欠泉の岩：下から噴き上がる水柱の上に乗っている
+      const jet = p.baseY + p.moveAmp - p.y + 20;
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      const g = ctx.createLinearGradient(0, p.y + p.h, 0, p.y + p.h + jet);
+      g.addColorStop(0, 'rgba(200,245,255,.9)'); g.addColorStop(1, 'rgba(200,245,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(p.x + p.w * 0.22, p.y + p.h, p.w * 0.56, jet);
+      ctx.restore();
+      ctx.fillStyle = 'rgba(230,250,255,.75)';
+      for (let i = 0; i < 5; i++) {
+        const sx = p.x + p.w * 0.3 + this._noise(i + this.frame * 0.02) * p.w * 0.4;
+        ctx.beginPath(); ctx.arc(sx, p.y + p.h + 8 + ((this.frame * 2 + i * 30) % jet), 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // 岩・木・鉱石の共通描画
+    const palette = {
+      rock: ['#8d8d84', '#5c5c54', '#3a3a34'],
+      wood: ['#a4835a', '#7a5c3c', '#4a3722'],
+      ore:  ['#5f7f9c', '#3c5570', '#22354a'],
+      geyser: ['#7f9aa8', '#54707e', '#33454e'],
+    }[kind] || ['#8d8d84', '#5c5c54', '#3a3a34'];
+    const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+    g.addColorStop(0, palette[0]); g.addColorStop(0.55, palette[1]); g.addColorStop(1, palette[2]);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, 5); ctx.fill();
+    if (kind === 'ore') {
+      // 光る鉱石が埋まっている
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 4; i++) {
+        const bx = p.x + 16 + i * (p.w - 32) / 3;
+        const pulse = 0.5 + 0.5 * Math.sin((this.frame + i * 40) / 60);
+        ctx.fillStyle = `rgba(130,225,255,${0.75 * pulse})`;
+        ctx.beginPath(); ctx.arc(bx, p.y + p.h / 2, 3.4, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    } else if (kind === 'rock' || kind === 'geyser') {
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      for (let x = p.x + 8; x < p.x + p.w - 8; x += 18) ctx.fillRect(x, p.y + 4, 8, 2);
+    }
+    // 濡れた岩に付く貝と藻
+    ctx.fillStyle = 'rgba(80,140,110,.6)';
+    for (let i = 0; i < 3; i++) {
+      const bx = p.x + 10 + this._noise(i * 4.7 + p.baseX) * (p.w - 20);
+      ctx.beginPath(); ctx.ellipse(bx, p.y + p.h - 1, 6, 3, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  },
+
+  // 標的4種。絵文字は使わず、すべてcanvasで描く。
+  _drawCoastTargets(ctx) {
+    const cam = this.cameraX || 0;
+    for (const t of this.targets) {
+      if (!t || t.destroyed) continue;
+      if (t.x + t.w < cam - 60 || t.x > cam + 1020) continue;
+      const shake = t.shake > 0 ? (this._noise(this.frame * 3.7 + t.id) - 0.5) * 6 : 0;
+      ctx.save();
+      ctx.translate(t.x + t.w / 2 + shake, t.y + t.h);
+      const hurt = t.hp < t.maxHp;
+      if (t.type === 'sandcastle') this._drawSandcastle(ctx, t, hurt);
+      else if (t.type === 'chest') this._drawChest(ctx, t, hurt);
+      else if (t.type === 'ball') this._drawBeachBall(ctx, t);
+      else this._drawPearl(ctx, t);
+      // 被弾の白フラッシュ
+      if (t.flash > 0) {
+        ctx.globalAlpha = t.flash / 8 * 0.75;
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-t.w / 2, -t.h, t.w, t.h);
+      }
+      ctx.restore();
+      // 体力バー（削れている時だけ出す）
+      if (hurt) {
+        const bw = t.w * 0.86;
+        ctx.fillStyle = 'rgba(0,0,0,.5)';
+        ctx.fillRect(t.x + (t.w - bw) / 2, t.y - 9, bw, 4);
+        ctx.fillStyle = '#8ef0a8';
+        ctx.fillRect(t.x + (t.w - bw) / 2, t.y - 9, bw * Math.max(0, t.hp / t.maxHp), 4);
+      }
+    }
+  },
+
+  // 砂の城：三段の塔と胸壁、旗
+  _drawSandcastle(ctx, t, hurt) {
+    const w = t.w, h = t.h;
+    const g = ctx.createLinearGradient(0, -h, 0, 0);
+    g.addColorStop(0, '#f0dcae'); g.addColorStop(1, '#c8a874');
+    ctx.fillStyle = g;
+    ctx.fillRect(-w / 2, -h * 0.55, w, h * 0.55);                 // 土台
+    ctx.fillRect(-w * 0.34, -h * 0.85, w * 0.24, h * 0.32);       // 左の塔
+    ctx.fillRect(w * 0.1, -h * 0.85, w * 0.24, h * 0.32);         // 右の塔
+    ctx.fillRect(-w * 0.13, -h, w * 0.26, h * 0.48);              // 中央の塔
+    // 胸壁のギザギザ
+    ctx.fillStyle = '#dcc494';
+    for (let i = 0; i < 5; i++) ctx.fillRect(-w / 2 + i * (w / 5), -h * 0.6, w / 10, 6);
+    // 崩れかけの表現
+    if (hurt) {
+      ctx.fillStyle = 'rgba(120,96,60,.4)';
+      for (let i = 0; i < 5; i++) {
+        const n = this._noise(t.seed + i);
+        ctx.fillRect(-w / 2 + n * w, -h * 0.5 + this._noise(t.seed + i * 3) * h * 0.4, 7 + n * 6, 5);
+      }
+    }
+    // 旗
+    ctx.strokeStyle = '#7a5a34'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -h); ctx.lineTo(0, -h - 14); ctx.stroke();
+    ctx.fillStyle = '#e8574a';
+    const wave = Math.sin(this.frame / 14 + t.seed) * 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -h - 14); ctx.lineTo(15, -h - 10 + wave); ctx.lineTo(0, -h - 6); ctx.fill();
+  },
+
+  // アンティークな宝箱：木の胴と金の帯、錠前
+  _drawChest(ctx, t, hurt) {
+    const w = t.w, h = t.h;
+    const body = ctx.createLinearGradient(0, -h, 0, 0);
+    body.addColorStop(0, '#9a6b3c');
+    body.addColorStop(1, '#5e3d20');
+    ctx.fillStyle = body;
+    ctx.fillRect(-w / 2, -h * 0.6, w, h * 0.6);
+    // 蓋（かまぼこ型）
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h * 0.6);
+    ctx.quadraticCurveTo(0, -h * 1.12, w / 2, -h * 0.6);
+    ctx.closePath(); ctx.fill();
+    // 金の帯
+    ctx.fillStyle = '#d8a838';
+    ctx.fillRect(-w / 2, -h * 0.63, w, 5);
+    ctx.fillRect(-w * 0.4, -h * 0.6, 6, h * 0.6);
+    ctx.fillRect(w * 0.34, -h * 0.6, 6, h * 0.6);
+    // 錠前
+    ctx.fillStyle = '#f0cf6a';
+    ctx.fillRect(-7, -h * 0.5, 14, 13);
+    ctx.fillStyle = '#6b4a1c';
+    ctx.fillRect(-2, -h * 0.45, 4, 6);
+    if (hurt) {
+      ctx.strokeStyle = 'rgba(30,18,8,.65)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.3, -h * 0.6); ctx.lineTo(-w * 0.1, -h * 0.15);
+      ctx.moveTo(w * 0.2, -h * 0.55); ctx.lineTo(w * 0.05, -h * 0.1);
+      ctx.stroke();
+    }
+  },
+
+  // ビーチボール：色分割と光沢
+  _drawBeachBall(ctx, t) {
+    const r = t.w / 2;
+    ctx.translate(0, -r);
+    const spin = (this.frame + t.seed) / 40;
+    const colors = ['#ff5f5f', '#ffd94a', '#4ad0ff', '#ffffff', '#66e07a', '#ff8ad0'];
+    for (let i = 0; i < 6; i++) {
+      ctx.fillStyle = colors[i];
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, spin + i * Math.PI / 3, spin + (i + 1) * Math.PI / 3);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, r - 1, 0, Math.PI * 2); ctx.stroke();
+    // 光沢
+    ctx.fillStyle = 'rgba(255,255,255,.6)';
+    ctx.beginPath(); ctx.ellipse(-r * 0.34, -r * 0.4, r * 0.24, r * 0.16, -0.6, 0, Math.PI * 2); ctx.fill();
+  },
+
+  // 巨大な真珠貝：二枚貝と、中で光る真珠
+  _drawPearl(ctx, t) {
+    const w = t.w, h = t.h;
+    const pulse = 0.55 + 0.45 * Math.sin((this.frame + t.seed) / 44);
+    // 貝殻（下）
+    const shell = ctx.createLinearGradient(0, -h, 0, 0);
+    shell.addColorStop(0, '#c9b6d8'); shell.addColorStop(1, '#7d6b95');
+    ctx.fillStyle = shell;
+    ctx.beginPath(); ctx.ellipse(0, -h * 0.16, w / 2, h * 0.3, 0, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -h * 0.16, w / 2, h * 0.22, 0, 0, Math.PI); ctx.fill();
+    // 真珠（発光）
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(0, -h * 0.42, 2, 0, -h * 0.42, 30);
+    g.addColorStop(0, `rgba(255,255,255,${0.8 * pulse})`);
+    g.addColorStop(1, 'rgba(200,235,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, -h * 0.42, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#fdfbff';
+    ctx.beginPath(); ctx.arc(0, -h * 0.42, w * 0.19, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.beginPath(); ctx.arc(-w * 0.06, -h * 0.48, w * 0.06, 0, Math.PI * 2); ctx.fill();
+    // 貝殻（上のふた）
+    const lid = ctx.createLinearGradient(0, -h, 0, -h * 0.3);
+    lid.addColorStop(0, '#e0d2ee'); lid.addColorStop(1, '#9c8ab4');
+    ctx.fillStyle = lid;
+    ctx.beginPath(); ctx.ellipse(0, -h * 0.62, w / 2, h * 0.34, 0, Math.PI, 0); ctx.fill();
+    // 貝の筋
+    ctx.strokeStyle = 'rgba(90,74,110,.5)'; ctx.lineWidth = 1.4;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, -h * 0.62);
+      ctx.lineTo(i * w * 0.2, -h * 0.62 - h * 0.3 + Math.abs(i) * 6);
+      ctx.stroke();
+    }
+  },
+
+  // 泡・破片・開始演出。translate後の座標系で呼ぶ。
+  _drawCoastForeground(ctx) {
+    // 泡
+    for (const b of (this.bubbles || [])) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, b.life / 40) * 0.75;
+      ctx.strokeStyle = 'rgba(220,250,255,.9)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.3)';
+      ctx.beginPath(); ctx.arc(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.35, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    // 破片
+    for (const p of (this.particles || [])) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 26));
+      if (p.shape === 'circle') {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    // 得点の吹き出し
+    for (const t of (this.floatTexts || [])) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, t.life / 26));
+      ctx.font = 'bold 20px "Hiragino Kaku Gothic ProN", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.72)';
+      ctx.strokeText(t.text, t.x, t.y);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    if (this.readyTimer > 0) this._drawCoastReady(ctx);
+  },
+
+  // 開始演出。カメラパン中はエリア名を、寄ったあとはルール説明とカウントダウンを出す。
+  _drawCoastReady(ctx) {
+    const C = COAST_CONFIG;
+    const cam = this.cameraX || 0;
+    ctx.save();
+    ctx.translate(cam, 0); // 画面に固定して描く
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+    if (this.panTimer > 0) {
+      // パン中：今映っているエリアの名前を大きく出す
+      const center = cam + 480;
+      const zone = center < C.beachEnd ? '砂 浜' : center < C.waterEnd ? '海 中' : '洞 窟';
+      ctx.globalAlpha = 0.9;
+      ctx.font = 'bold 46px "Hiragino Kaku Gothic ProN", sans-serif';
+      ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 14;
+      ctx.fillStyle = '#eaffff';
+      ctx.fillText(zone, 480, 452);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      return;
+    }
+
+    const t = this.readyTimer;
+    ctx.globalAlpha = Math.min(1, t / 20);
+    ctx.fillStyle = 'rgba(4,26,42,.7)';
+    ctx.fillRect(0, 150, 960, 190);
+    ctx.strokeStyle = 'rgba(150,235,255,.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 150); ctx.lineTo(960, 150);
+    ctx.moveTo(0, 340); ctx.lineTo(960, 340); ctx.stroke();
+
+    ctx.font = 'bold 30px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.shadowColor = 'rgba(120,230,255,.9)'; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#eaffff';
+    ctx.fillText('トーブル海岸での猛特訓！', 480, 188);
+    ctx.shadowBlur = 0;
+    ctx.font = '17px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.fillStyle = '#bfe6f5';
+    ctx.fillText('制限時間は60秒。自慢のワザを駆使して、', 480, 224);
+    ctx.fillText('マップに隠されたターゲットを壊しまくれ！', 480, 250);
+    ctx.fillText('ギミックを見極め、すべての標的を破壊して最高ランクを目指せ！', 480, 276);
+    // カウントダウン
+    const count = Math.ceil(t / 60);
+    const beat = 1 - ((t % 60) / 60);
+    ctx.save();
+    ctx.translate(480, 314);
+    ctx.scale(1 + beat * 0.25, 1 + beat * 0.25);
+    ctx.font = 'bold 32px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.shadowColor = 'rgba(255,225,120,.9)'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#ffe27a';
+    ctx.fillText(String(count), 0, 0);
+    ctx.restore();
+    ctx.restore();
     ctx.globalAlpha = 1;
   },
 

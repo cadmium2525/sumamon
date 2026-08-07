@@ -121,6 +121,26 @@ const GROWTH = {
     return { [mainStat]: apply(mainStat, mainBase), life: apply('life', lifeBase) };
   },
 
+  // ランクごとの上昇量が仕様で決め打ちされている修行用（トーブル海岸）。
+  // applyPracticeResult はSを基準にランク倍率で按分するので、
+  // 「Aは+15、Bは+10」のように段ごとの値が決まっている場合は使えない。
+  // 適性倍率だけは他の修行と同じように掛ける（適性Cで指定どおりの値になる）。
+  // 0を渡した時は「上昇なし」を意味するので、最低1の下駄は履かせない。
+  applyFixedPracticeResult(masmon, mainStat, mainAmount, lifeAmount) {
+    const apply = (stat, base) => {
+      if (!base) return 0;
+      const aptitude = masmon.aptitudes?.[stat] || 'C';
+      const aptitudeMultiplier = this.APTITUDE_MULTIPLIER[aptitude] || 1;
+      const amount = Math.max(1, Math.round(base * aptitudeMultiplier));
+      masmon.trainingStats = { ...(masmon.trainingStats || {}) };
+      const current = Math.max(0, Number(masmon.trainingStats[stat]) || 0);
+      const next = Math.min(this.STAT_MAX, current + amount);
+      masmon.trainingStats[stat] = next;
+      return next - current;
+    };
+    return { [mainStat]: apply(mainStat, mainAmount), life: apply('life', lifeAmount) };
+  },
+
   // 対戦結果からEXP量を算出（暫定式）
   computeExpGain(placement, totalFighters, cpuLevel) {
     const base = 60;
