@@ -583,7 +583,7 @@ const PracticeGame = {
       id: i, order: i + 1, jungle: true,
       anchor: entry.spot.index, offsetX: entry.spot.offsetX,
       w: C.targetW, h: C.targetH,
-      x: entry.rect.x, y: entry.rect.y, destroyed: false, charred: 0, pop: 0,
+      x: entry.rect.x, y: entry.rect.y, destroyed: false, charred: 0,
       // 紋章の光り方を石板ごとにずらす（全部同時に脈打つと機械的に見える）
       glowSeed: Math.random() * Math.PI * 2,
     }));
@@ -630,7 +630,6 @@ const PracticeGame = {
       if (this.phaseGap === 0) this._startJunglePhase();
       return;
     }
-    for (const t of this.targets) if (t.pop > 0) t.pop--;
 
     // 落下しても即やり直せるよう、地面へ戻すだけにする（このコースに穴は無い）
     if (f.y > 600) { f.x = 460; f.y = C.groundY - f.h; f.vx = 0; f.vy = 0; }
