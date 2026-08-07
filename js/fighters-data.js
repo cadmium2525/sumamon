@@ -85,6 +85,7 @@ function buildFighterOptions(def, masmon) {
     proceduralMotion: def.proceduralMotion,
     weapon: def.weapon,
     parts: def.parts,
+    skin: masmon ? masmon.skin : null,
     spriteContentBox: def.spriteContentBox,
     animations: def.animations,
     walkSheetSrc: def.walkSheetSrc,

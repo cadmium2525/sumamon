@@ -101,6 +101,8 @@ class Fighter {
     // パーツ分割：頭・胴・左右の脚を付け根で振る（立ち絵のピクセル座標で指定）
     this.partsSpec = options.parts || null;
     this.partsLayer = null;
+    // スキン（色変更）。スプライトはこれを通してから切り分ける。
+    this.skin = options.skin || null;
     this.weaponSpec = options.weapon || null;
     this.weaponLayer = null;      // { weapon: canvas, body: canvas, pivotX, pivotY }
     // 斬撃の軌跡（攻撃判定の通り道）を数フレームぶん覚えておく

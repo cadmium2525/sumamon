@@ -178,6 +178,8 @@ const MasmonStore = {
     record.exp = record.exp || 0;
     record.trainingTickets = record.trainingTickets || 0;
     record.trainingStats = record.trainingStats || {};
+    // スキン（色変更）。{ groups:{...}, splits:[...] } / 未設定なら元の色
+    record.skin = record.skin || null;
     if (GROWTH.FIXED_APTITUDES[record.baseFighterKey]) {
       record.aptitudes = { ...GROWTH.FIXED_APTITUDES[record.baseFighterKey] };
     } else if (!record.aptitudes) {

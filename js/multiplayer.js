@@ -72,6 +72,7 @@ const Multiplayer = {
       name: monster.name,
       level: monster.level,
       trainingStats: { ...(monster.trainingStats || {}) },
+        skin: monster.skin || null,
       aptitudes: { ...(monster.aptitudes || GROWTH.aptitudesFor(monster.baseFighterKey)) },
     };
   },
