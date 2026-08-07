@@ -842,6 +842,9 @@ window.startBattle = function startBattle(options) {
         level: Math.max(1, Number(entry.level) || 1),
         trainingStats: { ...(entry.trainingStats || {}) },
         aptitudes: { ...(entry.aptitudes || GROWTH.aptitudesFor(def.key)) },
+        // スキン（色変更）。相手の画面でも同じ色で表示されるよう、
+        // ロースターで受け取ったものをそのままファイターへ渡す。
+        skin: entry.skin || null,
       };
       const baseStats = resolveStats(def, masmon);
       const stats = entry.isCpu ? applyCpuLevelStats(baseStats, def, masmon, 9) : baseStats;

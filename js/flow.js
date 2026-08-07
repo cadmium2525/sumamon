@@ -699,7 +699,7 @@ const AppFlow = {
       clearInterval(this.manageIdleTimer);
       this.manageIdleTimer = null;
     }
-    const frames = base.idleFrameSrcs?.length ? base.idleFrameSrcs : [base.idleImage].filter(Boolean);
+    const frames = FighterData.idleFrames(base);
     if (!frames.length) {
       image.removeAttribute('src');
       return;
@@ -707,7 +707,7 @@ const AppFlow = {
     let frameIndex = 0;
     Skin.paintInto(image, frames[frameIndex], skin);
     if (frames.length === 1) return;
-    const frameMs = Math.max(80, (base.idleFrameDuration || 8) * (1000 / 60));
+    const frameMs = Math.max(80, FighterData.idleFrameDuration(base) * (1000 / 60));
     this.manageIdleTimer = setInterval(() => {
       frameIndex = (frameIndex + 1) % frames.length;
       Skin.paintInto(image, frames[frameIndex], skin);

@@ -102,6 +102,24 @@ const FighterData = {
   },
 };
 
+// 待機モーションのコマ一覧。マスモン管理や管理者モードのプレビューで使う。
+// スタジオは animations.idle に書き込むが、以前は idleFrameSrcs という
+// 別の項目だった。片方しか見ていないと1コマだけになって静止画になるため、
+// ここ1か所で両方を見るようにしておく。
+FighterData.idleFrames = function (def) {
+  if (!def) return [];
+  const anim = def.animations && def.animations.idle;
+  if (anim && Array.isArray(anim.frames) && anim.frames.length) return anim.frames.slice();
+  if (Array.isArray(def.idleFrameSrcs) && def.idleFrameSrcs.length) return def.idleFrameSrcs.slice();
+  return def.idleImage ? [def.idleImage] : [];
+};
+
+// 待機モーションの1コマあたりの表示フレーム数
+FighterData.idleFrameDuration = function (def) {
+  const anim = def && def.animations && def.animations.idle;
+  return (anim && anim.frameDuration) || (def && def.idleFrameDuration) || 8;
+};
+
 window.FighterData = FighterData;
 
 // Fighter生成時のオプションを組み立てる共通処理。

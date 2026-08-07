@@ -309,12 +309,14 @@ const DebugMotionViewer = {
 
   _motionsFor(fighter) {
     const motions = [];
-    if (fighter.idleFrameSrcs && fighter.idleFrameSrcs.length) {
-      motions.push({ key: 'idle', label: '待機', type: 'frames', frames: fighter.idleFrameSrcs,
-        duration: fighter.idleFrameDuration || 8, box: fighter.idleFrameContentBox || fighter.spriteContentBox, loop: true });
-    } else if (fighter.idleImage) {
-      motions.push({ key: 'idle', label: '待機', type: 'frames', frames: [fighter.idleImage],
-        duration: 12, box: fighter.spriteContentBox, loop: true });
+    // 待機のコマは animations.idle にある（古いデータは idleFrameSrcs）。
+    // FighterData 側で両方を見るようにまとめてある。
+    const idleFrames = FighterData.idleFrames(fighter);
+    if (idleFrames.length) {
+      const idleBox = (fighter.animations && fighter.animations.idle && fighter.animations.idle.contentBox)
+        || fighter.idleFrameContentBox || fighter.spriteContentBox;
+      motions.push({ key: 'idle', label: '待機', type: 'frames', frames: idleFrames,
+        duration: FighterData.idleFrameDuration(fighter), box: idleBox, loop: true });
     }
     if (fighter.walkSheetSrc) {
       motions.push({ key: 'walk', label: '歩行', type: 'sheet', src: fighter.walkSheetSrc,
