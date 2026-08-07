@@ -234,8 +234,9 @@ const VOLCANO_CONFIG = {
 };
 
 // 合計スコア→ランク。Playwrightの疑似プレイ22回の分布から決めている。
-// 実測：ジャストガードを狙い続ける達人ボットが2444〜5592点（多くがS）、
-// 反応に誤差を入れたボットが599〜3366点、誤差を大きくしたボットが953〜2718点。
+// 実測（ジャストシールドをSP方式＝離しで成立に変えたあと 測り直した値）：
+// 当たる瞬間に離す達人ボットが2190〜5136点（多くがS）、
+// 離しのタイミングに誤差を入れたボットが2424〜3696点、誤差を大きくすると1403〜3282点。
 // 60秒生き残るだけで約1080点（生存18点/秒）入るので、Dはほぼ「最後まで立っていた」水準。
 // Sには巨岩のジャストガード(+900)かジャスト10回以上が要る。
 // ※得点配分・制限時間・巨岩の配点を変えたら測り直すこと。
@@ -444,7 +445,7 @@ const PracticeGame = {
     if (this.courseKey === 'desert') {
       text = `灼熱の砂漠に築かれた、技を鍛えるための関門。制限時間1分でスコアを稼げ！\n道をふさぐ石柱には黒い鉄板が打ち付けられ、「横スマ」「下強」といった技の名前が白いチョークで書かれている。書かれた技をその石柱に当てれば、一撃で砕け散る。\n違う技を当てると弾き返され、スコアが下がる。鉄板をよく読んでから振ろう。\n石柱は天井まで届いているので、ジャンプや上必殺で飛び越えることはできない。正面から技で突破するしかない。\n落とし穴に落ちてもゲームオーバーにはならず、直前の関門からやり直しになる。失うのは時間だけだ。\n指定される技は毎回ランダムに変わる。全${DESERT_CONFIG.gateCount}関門を、ミスなく速く抜けるほど高得点。`;
     } else if (this.courseKey === 'volcano') {
-      text = 'カウレア火山での耐久特訓！\n画面奥の火山から降り注ぐ火山弾を、シールドで受けるか避けるかを見極めろ。\nシールドは張り続けると削れて小さくなり、割れると無防備になる。落下点に出る赤い警戒ラインを見て、受ける弾と避ける弾を選び分けよう。\n残り10秒、火山が大噴火する。避けられない巨岩が落ちてくるので、引きつけて「ジャストガード」で受け止めろ。\n画面の外まで吹き飛ばされたらそこで終了だ。';
+      text = 'カウレア火山での耐久特訓！\n画面奥の火山から降り注ぐ火山弾を、シールドで受けるか避けるかを見極めろ。\nシールドは張り続けると削れて小さくなり、割れると無防備になる。落下点に出る赤い警戒ラインを見て、受ける弾と避ける弾を選び分けよう。\nガードを張って待ち、弾が当たる瞬間にシールドを離すと「ジャストガード」。削られず高得点になる。\n残り10秒、火山が大噴火する。避けられない巨岩が落ちてくるので、ガードを張って引きつけ、当たる瞬間に離せ。\n画面の外まで吹き飛ばされたらそこで終了だ。';
     } else if (this.courseKey === 'coast') {
       text = 'トーブル海岸での猛特訓！\n制限時間は60秒。自慢のワザを駆使して、マップに隠されたターゲットを壊しまくれ！\nギミックを見極め、すべての標的を破壊して最高ランクを目指せ！';
     } else if (this.courseKey === 'jungle') {
@@ -466,7 +467,7 @@ const PracticeGame = {
       : this.courseKey === 'volcano'
       ? [
           `ガード成功：+${VOLCANO_CONFIG.scoreGuard}点／ジャストガード：+${VOLCANO_CONFIG.scoreJust}点`,
-          'ジャストガード＝シールドを張った直後に受けること（張りっぱなしでは出ない）',
+          'ジャストガード＝当たる瞬間にシールドを離すこと（張りっぱなしでは出ない）',
           `生き残り1秒：+${VOLCANO_CONFIG.scorePerSecond}点／終了時の残りシールドも加点`,
           `最後の巨岩をジャストガード：+${VOLCANO_CONFIG.scoreGigaJust}点`,
           '画面外へ吹き飛ばされたらその時点で終了',
@@ -1722,10 +1723,14 @@ const PracticeGame = {
     const f = this.fighter;
     rock.hit = true;
     const power = isGiga ? 46 : rock.w * 0.42;
-    // ジャストガード＝シールドを張った直後(JUST_SHIELD_WINDOW以内)に受けた
-    const just = f.shielding && f.shieldHeldFrames <= CONFIG.JUST_SHIELD_WINDOW;
+    // ジャストシールド＝ガード中に、当たる瞬間へ合わせてシールドを離した状態。
+    // 離した直後の猶予(shieldReleaseTimer)が残っている間だけ成立する。
+    // 猶予中は「ガードしている」扱いにしないと、成立する瞬間に生身で殴られてしまう。
+    const inRelease = f.shieldReleaseTimer > 0;
+    const guarding = f.shielding || inRelease;
+    const just = inRelease;
 
-    if (f.shielding && just) {
+    if (guarding && just) {
       this.justGuards++;
       this.score += isGiga ? V.scoreGigaJust : V.scoreJust;
       f.justShieldFlash = CONFIG.JUST_SHIELD_FLASH_FRAMES;
@@ -1741,7 +1746,7 @@ const PracticeGame = {
       return;
     }
 
-    if (f.shielding) {
+    if (guarding) {
       // 通常ガード：シールドが削れる。巨岩は削り量が大きく、まず割れる。
       this.guards++;
       this.score += isGiga ? V.scoreGigaGuard : V.scoreGuard;
@@ -2579,7 +2584,7 @@ const PracticeGame = {
         ctx.shadowBlur = 0;
         ctx.font = 'bold 20px "Hiragino Kaku Gothic ProN", sans-serif';
         ctx.fillStyle = '#ffb27a';
-        ctx.fillText('引きつけて ジャストガード で受け止めろ', 480, 258);
+        ctx.fillText('ガードを張って引きつけ、当たる瞬間に離せ', 480, 258);
         ctx.restore();
       }
     }
@@ -2683,9 +2688,9 @@ const PracticeGame = {
     ctx.fillStyle = '#f0bda0';
     ctx.fillText('赤い警戒ラインが落下点。受ける弾と避ける弾を選び分けろ', 480, 216);
     ctx.fillText('シールドは張りっぱなしだと削れて割れる。こまめに張り直すこと', 480, 246);
-    ctx.fillText('シールドを張った直後に受けると「ジャストガード」＝削られず高得点', 480, 276);
+    ctx.fillText('当たる瞬間にシールドを離すと「ジャストガード」＝削られず高得点', 480, 276);
     ctx.fillStyle = '#ffd08a';
-    ctx.fillText('残り10秒、避けられない巨岩が落ちてくる。ジャストガードで受け止めろ', 480, 310);
+    ctx.fillText('残り10秒、避けられない巨岩が落下。張って引きつけ、当たる瞬間に離せ', 480, 310);
     ctx.font = 'bold 26px "Hiragino Kaku Gothic ProN", sans-serif';
     ctx.fillStyle = '#ffe27a';
     ctx.fillText(String(Math.ceil(t / 60)), 480, 344);

@@ -197,6 +197,7 @@ class Fighter {
 
     this.shielding = false;
     this.shieldHP = CONFIG.SHIELD_MAX;
+    this.shieldReleaseTimer = 0;
     this.dazedTimer = 0;     // シールド破壊後のピヨリ
     this.dodgeTimer = 0;     // その場回避/横回避/空中緊急回避 中
     this.dodgeType = null;
@@ -267,7 +268,10 @@ class Fighter {
     this._hitTargets = new Set(); // 現在のヒット判定ウィンドウで既に当てた相手
     this._hurtbox = { x: 0, y: 0, w: 0, h: 0 }; // 毎フレームの再生成を避けるため使い回す
     this.groundDistance = Infinity; // 足元から真下の足場までの距離
-    this.shieldHeldFrames = 0;      // シールドを張り続けているフレーム数（ジャストガード判定用）
+    this.shieldHeldFrames = 0;      // シールドを張り続けているフレーム数
+    // シールドを離した直後の猶予(フレーム)。ジャストシールドはここが>0の間に
+    // 被弾すると成立する（本家SPと同じ「当たる瞬間に離す」方式）。
+    this.shieldReleaseTimer = 0;
     this.justShieldFlash = 0;       // ジャストガード成立時のエフェクト残りフレーム
     this.crouching = false;         // しゃがみ中
   }
@@ -464,6 +468,9 @@ class Fighter {
       this.shielding = false;
       return;
     } else {
+      // シールドを離した瞬間だけ猶予を立てる。この数フレーム以内に攻撃を受けると
+      // ジャストシールドが成立する（押しっぱなしからの離しでしか出ない）。
+      if (this.shielding) this.shieldReleaseTimer = CONFIG.JUST_SHIELD_WINDOW;
       this.shielding = false;
       this.shieldHeldFrames = 0;
       if (this.shieldHP < CONFIG.SHIELD_MAX) {
@@ -727,6 +734,7 @@ class Fighter {
 
   breakShield() {
     this.shielding = false;
+    this.shieldReleaseTimer = 0; // 割れた直後にジャストが出てしまわないよう消す
     this.shieldHP = 0;
     this.dazedTimer = CONFIG.SHIELD_BREAK_DAZE_FRAMES;
   }
@@ -1151,7 +1159,10 @@ class Fighter {
     // 最終段だけが通常どおりの吹っ飛び判定になる。
     const linkHit = Array.isArray(move.multiHit) && move.multiHit.length > 1
       && attacker.currentMove === move && attacker._isLinkHit === true;
-    const wasShielding = this.shielding && !linkHit;
+    // 離した直後の猶予中も「ガードしている」として扱う。
+    // そうしないと、ジャストシールドが成立する瞬間に生身で殴られてしまう。
+    const inReleaseWindow = this.shieldReleaseTimer > 0;
+    const wasShielding = (this.shielding || inReleaseWindow) && !linkHit;
 
     const dmgBase = (!linkHit && move.finalHit && move.finalHit.dmgBase != null)
       ? move.finalHit.dmgBase : move.dmgBase;
@@ -1177,9 +1188,10 @@ class Fighter {
     }
 
     const rawDamage = dmg;
-    // ジャストガード：シールドを張った直後(JUST_SHIELD_WINDOW以内)に攻撃を受けると成立。
+    // ジャストシールド：ガード中に、攻撃が当たる瞬間へ合わせてシールドを離すと成立。
     // ダメージ・シールド削り・ガード硬直がゼロになり、逆に攻撃側へ大きな硬直を与える。
-    const justShield = wasShielding && this.shieldHeldFrames <= CONFIG.JUST_SHIELD_WINDOW;
+    // 押しっぱなしでは絶対に成立しない（それが「駆け引き」になる）。
+    const justShield = wasShielding && inReleaseWindow;
     if (wasShielding) {
       if (justShield) {
         dmg = 0;
@@ -1332,6 +1344,7 @@ class Fighter {
     if (this.hitstun > 0) this.hitstun--;
 
     if (this.justShieldFlash > 0) this.justShieldFlash--;
+    if (this.shieldReleaseTimer > 0) this.shieldReleaseTimer--;
 
     // 吹っ飛び速度の減衰。スマブラでは吹っ飛びが徐々に弱まっていくため、
     // 低%の被弾でステージ端まで流され続けることがない。
@@ -1464,6 +1477,7 @@ class Fighter {
     this.techLockout = 0;
     this.shielding = false;
     this.shieldHP = CONFIG.SHIELD_MAX;
+    this.shieldReleaseTimer = 0;
     this.shieldHeldFrames = 0;
     this.justShieldFlash = 0;
     this.crouching = false;

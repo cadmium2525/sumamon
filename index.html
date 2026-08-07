@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.21</small>
+    <small class="home-version">Version 1.22</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.22</time><strong>ジャストガードの成立条件を本家と同じ「離しで成立」に変更しました</strong><p><b>ジャストガードの出し方が変わります。</b>これまでは「攻撃が当たる直前にシールドを<b>張る</b>」と成立していましたが、本家スマブラSPと同じく<b>ガード中に、攻撃が当たる瞬間にシールドを離す</b>と成立するようになりました。<br>ガードを張って相手の攻撃を待ち、当たるタイミングに合わせて離してください。成功すればダメージもシールドの削れもゼロで、相手には大きな隙ができます。押しっぱなしでは成立しません。<br>これは<b>対戦モードと修行の両方に共通</b>の変更です。従来の「張った瞬間に重ねる」方式（スマブラDX〜forのパワーシールド）で慣れていた方は、操作の感覚が変わりますのでご注意ください。<br>あわせて<b>カウレア火山の説明文</b>も新しい操作に合わせて書き換えました。最後の巨岩も「ガードを張って引きつけ、当たる瞬間に離す」で受け止めます。</p></article>
           <article><time>Version 1.21</time><strong>「カウレア火山」を刷新：降り注ぐ火山弾をシールドで凌ぐ耐久ミッションに</strong><p>修行のカウレア火山を作り直しました。ただ岩を避けるだけの内容から、<b>シールドの使い方そのものを試される耐久ミッション</b>に変わります。<br>画面奥の巨大な活火山から<b>火山弾</b>が次々と降ってきます。落下点には<b>赤い警戒ライン</b>が先に出るので、<b>受ける弾と避ける弾を選び分けて</b>ください。シールドは張り続けると削れて小さくなり、<b>0になると割れてしばらく動けなくなります</b>。張りっぱなしでは凌ぎきれません。<br><b>シールドを張った直後に受けると「ジャストガード」</b>となり、シールドが一切削られず高得点になります。<br>展開は3段階です。<b>最初の10秒</b>は小さな弾でタイミング合わせ、<b>10〜50秒</b>は弾が大きく数も増え、時には2発同時に降ってきます。そして<b>残り10秒で火山が大噴火</b>。画面が暗転してスローがかかり、避けられない大きさの<b>ギガ・メテオストーン</b>が落ちてきます。これは<b>ジャストガードでしか完璧に防げません</b>（通常ガードではシールドが割れます）。成功すると閃光と衝撃波とともに巨岩が砕け散ります。<br>ステージは開始時に足場がランダム生成され、以後は固定です。黒ずんだ玄武岩に赤熱した亀裂が走る足場で、背景では溶岩が脈打ち、熱気が立ちのぼり、火山灰が舞います。<br><b>画面の外まで吹き飛ばされたらその時点で終了</b>です。評価はガード数・ジャストガード数・生き残り時間・残りシールドの合計スコアで決まり、最高評価で<b>丈夫さ+20・ライフ+8</b>が手に入ります。</p></article>
           <article><time>Version 1.20</time><strong>トーブル海岸を「1周する」マップに変更／開始演出をゆっくりに／難度を緩和</strong><p><b>マップを1周する構成に作り直しました。</b>これまでの横一直線から、<b>キャンプ（左上）→ 砂浜を右へ → 右端で海に潜って降下 → 海底を左へ → クリスタル洞窟 → 左端の縦穴を登ってキャンプへ戻る</b>という周回コースになります。上段（砂浜）と下段（海底・洞窟）の2層構造になったので、画面は縦にも動きます。標的20個は導線に沿って配置してあるので、順に進めば無駄なく回れます。<br><b>開始時のカメラ演出が速すぎて見えなかった</b>問題を直しました。1.6秒で端まで飛ばしていたのを<b>5秒かけて導線どおりに1周なぞる</b>ようにし、今どのエリアを映しているかも表示します。<br><b>難しすぎたので緩めました。</b>標的の固さを2段階下げ、スマッシュなら砂の城・宝箱・ビーチボールが1発、真珠貝が2発で壊れます（弱攻撃でも4〜5発）。周回の長さも、移動だけで約28秒に収まるよう調整しました。無駄なく動けば20個すべて壊してもまだ余裕が残ります。</p></article>
           <article><time>Version 1.19</time><strong>「トーブル海岸」を刷新：広大なマップを駆け巡る破壊ミッションに</strong><p>修行のトーブル海岸を作り直しました。その場で動く的を撃つだけの内容から、<b>広いマップを走り回って60秒で20個の標的を壊す</b>ミッションに変わります。<br>マップは<b>砂浜・海中・洞窟</b>の3エリアが横に繋がった構成です。<b>砂浜</b>は陽光がきらめく白砂で、波が寄せては返します。<b>海</b>に入ると<b>泳げます</b>（ジャンプでひとかき。何度でも掻けます）。光のゆらめきと泡が舞います。<b>洞窟</b>は薄暗い青の空間で、光る鉱石が仄かに周囲を照らします。<br><b>足場も動きます。</b>波間を漂う<b>巨大な流木</b>、回遊する<b>ウミガメの背中</b>、潮の満ち引きで浮き沈みする<b>サンゴの石柱</b>、間欠泉に吹き上げられる<b>岩</b>を渡って進みます。<br>標的は<b>砂の城・宝箱・ビーチボール・真珠貝</b>の4種類。<b>HP制</b>なので、スマッシュのような強い技なら1〜2発、<b>弱攻撃の連打でも壊せます</b>。壊すと種類ごとに違うエフェクト（砂が崩れる／金属が鳴る／水しぶき／光の粒）と手応えのある一瞬の停止が入ります。<br>評価は破壊数で決まります。<b>20個でSランク（命中+20・ライフ+8）</b>、16個以上でA、12個以上でB、8個以上でC、4個以上でD。3個以下は修行失敗で能力は上がりません。<br>マップの広さと標的の固さは「無駄なく動けば60秒でちょうど全部壊せる」よう調整してあります。開始時にはマップ全体を見せるカメラ演出と、3秒のカウントダウンが入ります。</p></article>
@@ -584,21 +585,21 @@
 
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=8"></script>
+  <script src="js/config.js?v=9"></script>
   <script src="js/audio.js?v=7"></script>
   <script src="js/moves.js?v=30"></script>
   <script src="js/physics.js?v=36"></script>
   <script src="js/procedural-motion.js?v=3"></script>
   <script src="js/skin.js?v=2"></script>
   <script src="js/skin-editor.js?v=3"></script>
-  <script src="js/fighter.js?v=54"></script>
+  <script src="js/fighter.js?v=55"></script>
   <script src="js/fighters-data.js?v=10"></script>
   <script src="js/debug-mode.js?v=11"></script>
   <script src="js/stage.js?v=32"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=3"></script>
   <script src="js/growth-system.js?v=43"></script>
-  <script src="js/practice.js?v=18"></script>
+  <script src="js/practice.js?v=19"></script>
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=3"></script>
   <script src="js/game.js?v=45"></script>
