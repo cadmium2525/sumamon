@@ -99,7 +99,10 @@ const Physics = {
     let best = Infinity;
     for (let i = 0; i < platforms.length; i++) {
       const p = platforms[i];
-      if (i > 0 && entity.dropThroughTimer > 0) continue;
+      // solid の足場は「地面」なのですり抜けない（下入力で落ちない）。
+      // 配列の1番目だけを地面とみなす作りだったため、地面を穴で分割して
+      // 複数枚にしたコースでは2枚目以降が浮遊足場扱いになり、下入力で落ちてしまっていた。
+      if (i > 0 && !p.solid && entity.dropThroughTimer > 0) continue;
       if (entity.x + entity.w <= p.x || entity.x >= p.x + p.w) continue;
       const surfaceY = p.surfaceY != null ? p.surfaceY : p.y;
       const gap = surfaceY - feetY;
@@ -113,9 +116,10 @@ const Physics = {
   resolvePlatformCollision(entity, platforms) {
     entity.onGround = false;
     entity.groundedPlatform = null;
+    entity.groundedSolid = false;
     for (let index = 0; index < platforms.length; index++) {
       const p = platforms[index];
-      if (index > 0 && entity.dropThroughTimer > 0) continue;
+      if (index > 0 && !p.solid && entity.dropThroughTimer > 0) continue;
       const surfaceY = p.surfaceY != null ? p.surfaceY : p.y;
       const feetY = entity.y + entity.h;
       const prevFeetY = feetY - entity.vy;
@@ -125,6 +129,7 @@ const Physics = {
         entity.vy = 0;
         entity.onGround = true;
         entity.groundedPlatform = index;
+        entity.groundedSolid = !!p.solid;
         entity.jumpsUsed = 0;
       }
     }

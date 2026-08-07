@@ -177,6 +177,7 @@ class Fighter {
     this.facing = 1;
     this.onGround = false;
     this.groundedPlatform = null;
+    this.groundedSolid = false; // 乗っている足場が「地面」か（下入力ですり抜けない）
     this.dropThroughTimer = 0;
     this.jumpsUsed = 0;
     this.damagePercent = 0;
@@ -419,7 +420,9 @@ class Fighter {
 
     const wasOnGround = this.onGround; // ジャンプ処理より前の接地状態（同フレーム誤爆防止）
     if (wasOnGround) this._airDodgeUsed = false;
-    if (wasOnGround && this.groundedPlatform > 0 && this.downEdge) {
+    // solid（地面）の上では下入力ですり抜けない。地面を穴で分割して複数枚にした
+    // コースでは2枚目以降も地面なので、ここを見ないと下強・下スマが出せなくなる。
+    if (wasOnGround && this.groundedPlatform > 0 && !this.groundedSolid && this.downEdge) {
       this.dropThroughTimer = 14;
       this.onGround = false;
       this.groundedPlatform = null;

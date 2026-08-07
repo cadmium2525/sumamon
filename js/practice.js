@@ -70,8 +70,10 @@ const DESERT_CONFIG = {
 };
 
 // 合計スコア→ランク。Playwrightの疑似プレイ28回の分布から決めている。
-// 理論上の満点は約1960点（全7関門＋最速クリア＋ノーミス）。実測でも最高1915点。
-// クリアできなかった場合は「関門×120 − 減点(上限300)」が残るので、
+// （地面のすり抜けを直して「下強・下スマの関門も突破できる」状態にしてから測り直した値。
+//   すり抜けたままだと下方向の技を指定された関門で必ず詰み、分布が意味を成さなかった。）
+// 実測：クリアできた21回は1265〜1940点に収まり、未クリアは0〜300点。
+// クリアできなかった場合も「関門×120 − 減点(上限300)」は残るので、
 // 6関門まで進めばC、4関門でもDが取れる。E は序盤で足踏みした場合。
 const DESERT_RANK_SCORES = [
   { grade: 'S', min: 1500 },
@@ -317,6 +319,11 @@ const PracticeGame = {
     this.checkpoints = null;
     this.lastCheckpoint = null;
     this.goalX = null;
+    // カメラは砂漠(cameraX)と雪山(cameraY)でしか動かさないので、ここで必ず戻す。
+    // 戻し忘れると、砂漠や雪山を遊んだ後に別のコースを始めた時、
+    // 画面全体が前のコースのカメラ位置ぶんずれて何も見えなくなる。
+    this.cameraX = 0;
+    this.cameraY = 0;
     // 地面(y=485、雪山のみy=500)の上にきちんと立った状態でスタートする
     // （キャラごとに身長(hurtboxHeight)が異なるため、固定値ではなく実際の高さから逆算する）
     const groundY = this.courseKey === 'snow' ? 500 : 485;
@@ -396,26 +403,34 @@ const PracticeGame = {
       this.pits.push({ x: Math.round((from + to) / 2 - C.pitWidth / 2), w: C.pitWidth });
     }
 
-    // 穴の位置から地面（足場）を切り出す
+    // 穴の位置から地面（足場）を切り出す。
+    // solid を付けないと2枚目以降が「下入力ですり抜ける浮遊足場」になり、
+    // その上では下強・下スマを出そうとした瞬間に穴へ落ちてしまう。
     this.platforms = [];
     let cursor = 0;
     for (const pit of this.pits) {
-      this.platforms.push({ x: cursor, y: C.groundY, w: pit.x - cursor, h: 55 });
+      this.platforms.push({ x: cursor, y: C.groundY, w: pit.x - cursor, h: 55, solid: true });
       cursor = pit.x + pit.w;
     }
-    this.platforms.push({ x: cursor, y: C.groundY, w: this.worldWidth - cursor, h: 55 });
+    this.platforms.push({ x: cursor, y: C.groundY, w: this.worldWidth - cursor, h: 55, solid: true });
 
     // 復帰地点は各関門の直前。穴に落ちてもやり直しになるだけで、失うのは時間だけ。
+    // ただし関門の150px手前はちょうど穴の中に当たるので、必ず地面の上へ寄せる。
+    // （穴の上に復帰させると、落ちた瞬間にまた落ちる無限ループになりかねない）
     const spawnY = C.groundY - f.h;
     this.checkpoints = [{ x: 70, y: spawnY }];
-    for (const gate of this.gates) this.checkpoints.push({ x: gate.x - 150, y: spawnY });
+    for (const gate of this.gates) {
+      let x = gate.x - 150;
+      for (const pit of this.pits) {
+        if (x < pit.x + pit.w && x + f.w > pit.x) x = pit.x + pit.w + 16; // 穴の右岸へ
+      }
+      this.checkpoints.push({ x: Math.min(x, gate.x - f.w - 8), y: spawnY });
+    }
     this.lastCheckpoint = this.checkpoints[0];
 
-    this.gateIndex = 0;   // 次に突破すべき関門
     this.wrongHits = 0;
     this.wrongCooldown = 0;
     this.wrongPenalty = 0;
-    this.sandGusts = [];
     f.x = 70;
     f.y = spawnY;
   },
@@ -519,25 +534,30 @@ const PracticeGame = {
   },
 
   // 関門に技が当たった時の判定。slot が指定と一致すれば1発で砕ける。
-  _resolveGateHit(gate, slot) {
+  // byProjectile: 飛び道具による判定か（本体は離れているのでノックバックさせない）
+  _resolveGateHit(gate, slot, byProjectile = false) {
     const C = DESERT_CONFIG;
     if (slot && slot === gate.slot) {
       gate.broken = true;
       gate.flash = 18;
       this.score += C.scorePerGate;
-      this.gateIndex = this.gates.filter(g => g.broken).length;
       this._spawnGateDebris(gate);
       return true;
     }
     // 指定と違う技：弾かれて減点。何が違ったのか分かるよう、鉄板を赤く光らせる。
     gate.wrongFlash = 22;
     gate.shake = 10;
-    const f = this.fighter;
-    f.vx = -f.facing * C.wrongKnockback;
-    f.hitstun = Math.max(f.hitstun, C.wrongStun);
-    // 直前に減点されたばかりなら、弾き返すだけで減点はしない（連鎖防止）
+    // 直前に減点されたばかりなら、見た目だけ出して減点も硬直もしない。
+    // ノックバックもここに入れておかないと、多段ヒットの技（横必殺など）で
+    // 判定の窓ごとに何度も吹っ飛ばされてしまう。
     if ((this.wrongCooldown || 0) > 0) return false;
     this.wrongCooldown = C.wrongGraceFrames;
+    // 飛び道具は本体が遠く離れているので、当てた本人は動かさない
+    if (!byProjectile) {
+      const f = this.fighter;
+      f.vx = -f.facing * C.wrongKnockback;
+      f.hitstun = Math.max(f.hitstun, C.wrongStun);
+    }
     this.wrongHits++;
     const room = C.wrongPenaltyCap - (this.wrongPenalty || 0);
     const penalty = Math.min(room, -C.scoreWrongMove);
@@ -619,8 +639,9 @@ const PracticeGame = {
         const radius = p.config.explosionRadius || 90;
         const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
         if (this.courseKey === 'desert') {
-          const gate = this._gateHitBy({ x: cx - radius, y: cy - radius, w: radius * 2, h: radius * 2 });
-          if (gate) this._resolveGateHit(gate, p.slot);
+          // 砂漠では爆風の広い判定を関門には使わない。半径105pxで見てしまうと、
+          // 関門に触れてもいない位置で寿命が尽きただけでミス扱いになる。
+          // 関門への判定は「爆弾が実際にぶつかった時」だけ（下の接触判定）。
         } else {
           for (const target of this.targets) {
             if (!target || target.destroyed) continue;
@@ -638,7 +659,7 @@ const PracticeGame = {
         if (this.courseKey === 'desert' && !p.hit) {
           const gate = this._gateHitBy(p);
           if (gate) {
-            this._resolveGateHit(gate, p.slot);
+            this._resolveGateHit(gate, p.slot, true);
             p.exploding = 12; p.vx = 0; p.vy = 0;
           }
         }
@@ -647,7 +668,7 @@ const PracticeGame = {
       if (!p.hit) {
         if (this.courseKey === 'desert') {
           const gate = this._gateHitBy(p);
-          if (gate) { this._resolveGateHit(gate, p.slot); p.hit = true; }
+          if (gate) { this._resolveGateHit(gate, p.slot, true); p.hit = true; }
         } else {
           for (const target of this.targets) {
             if (!target || target.destroyed || !Physics.rectsOverlap(p, target)) continue;
@@ -1164,8 +1185,12 @@ const PracticeGame = {
   _drawDesertGates(ctx) {
     const C = DESERT_CONFIG;
     const top = this.ceilingY, bottom = C.groundY, height = bottom - top;
+    const cam = this.cameraX || 0;
     for (const gate of this.gates) {
       if (gate.broken) continue;
+      // 画面外の関門は描かない。石積みの目地・鉄板・チョーク文字は1本あたりの
+      // 描画量が多く、7本ぶんを毎フレーム描くとスマホでは無駄が大きい。
+      if (gate.x + gate.w < cam - 60 || gate.x > cam + 1020) continue;
       const shake = gate.shake > 0 ? (this._noise(this.frame * 3.1 + gate.id) - 0.5) * 7 : 0;
       const x = gate.x + shake;
       // 石柱本体
