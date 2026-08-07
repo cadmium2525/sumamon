@@ -265,6 +265,41 @@ const AudioManager = {
     source.start(0);
   },
 
+  // 音声ファイルを持たない効果音を、その場で合成して鳴らす。
+  // 修行の演出音のように「短くて種類が多い」音は、mp3を1つずつ足すと
+  // アプリの容量とキャッシュ対象が増えていくため、波形から作る。
+  // 音量は通常のSEと同じ seGain を通すので、設定のSE音量がそのまま効く。
+  //   freq   : 開始周波数(Hz)
+  //   toFreq : 終了周波数(Hz)。省略すると freq のまま（グリッサンドしない）
+  //   type   : 波形（sine=澄んだ音 / square・sawtooth=ブザー寄り）
+  //   dur    : 長さ(秒)
+  //   volume : 音量(0〜1)
+  //   delay  : この秒数だけ遅らせて鳴らす（和音やアルペジオを作る用）
+  playTone({ freq = 660, toFreq = null, type = 'sine', dur = 0.16, volume = 0.5, delay = 0 } = {}) {
+    if (!this.unlocked || !this.soundEnabled || !this.context || this.context.state !== 'running') return;
+    const start = this.context.currentTime + Math.max(0, delay);
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, start);
+    if (toFreq && toFreq !== freq) osc.frequency.exponentialRampToValueAtTime(Math.max(1, toFreq), start + dur);
+    // 立ち上がりを一瞬で切ると「プツッ」というクリックノイズが出るので、
+    // ごく短いフェードイン/アウトを必ず付ける。
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, volume), start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    osc.connect(gain);
+    gain.connect(this.seGain);
+    this.activeSeSources.add(osc);
+    osc.onended = () => {
+      this.activeSeSources.delete(osc);
+      osc.disconnect();
+      gain.disconnect();
+    };
+    osc.start(start);
+    osc.stop(start + dur + 0.02);
+  },
+
   stopAllSe() {
     this.activeSeSources.forEach(source => {
       try { source.stop(); } catch (error) { /* 既に停止済み */ }

@@ -1,6 +1,6 @@
 const PRACTICE_COURSES = {
   desert: { name: 'マンディー砂漠', stat: 'power', statLabel: 'ちから', color: '#d79b43', duration: 60, description: '鉄板に書かれた技を出して関門を突破する。スコアを競う技の練習場' },
-  jungle: { name: 'パレパレジャングル', stat: 'intelligence', statLabel: 'かしこさ', color: '#4eaa56', duration: 65, description: '仕掛けを解いて最深部へ進む' },
+  jungle: { name: 'パレパレジャングル', stat: 'intelligence', statLabel: 'かしこさ', color: '#4eaa56', duration: 60, description: '石板の紋章を1から順に砕く。速さと正確さでスコアを競う' },
   coast: { name: 'トーブル海岸', stat: 'accuracy', statLabel: '命中', color: '#42b7dd', duration: 50, description: '動くターゲットを正確に狙う' },
   snow: { name: 'パパス雪山', stat: 'evasion', statLabel: '回避', color: '#a9dcf2', duration: 60, description: '強制スクロールする雪山を、落ちないよう登り続けろ' },
   volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 50, description: '火山弾と溶岩から生き残る', level: 10 },
@@ -84,6 +84,55 @@ const DESERT_RANK_SCORES = [
 ];
 // Sランク報酬「ちから+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
 const DESERT_REWARD_BASE = { stat: 20, life: 8 };
+
+// ==== 「パレパレジャングル」＝順番を読む反射神経の練習場 ====
+// フェーズごとに足場と石板がランダムに組み直され、石板に刻まれた紋章の
+// 番号どおり（1→2→…）に壊していく。順番を間違えるとそのフェーズは失敗。
+// 成功でも失敗でもすぐ次のフェーズへ進み、60秒間ひたすら回し続ける。
+const JUNGLE_CONFIG = {
+  groundY: 485,
+  ceilingY: 70,            // 石板を置く上限。これより上には出さない（届かなくなるため）
+  readyFrames: 180,        // 開始前のルール説明(3秒)。この間は時間が減らない
+  targetW: 46, targetH: 58,
+  scorePerTarget: 60,      // 正しい順で1個壊すごとの素点（コンボ倍率が掛かる）
+  scorePhaseClear: 140,    // フェーズを完答した時のボーナス（同じく倍率が掛かる）
+  scoreWrongOrder: -90,    // 順番を間違えた時の減点（倍率は掛からない）
+  comboBonusPerStep: 0.25, // コンボ1段あたりの倍率の上乗せ
+  comboMaxMultiplier: 3,   // 倍率の上限。青天井にすると終盤の1フェーズで全部決まってしまう
+  comboTimeLimit: 6.5,     // 完答までこの秒数以内なら「スピードクリア」でコンボ継続
+  phaseGapFrames: 40,      // フェーズ間の演出（石板が砕ける/崩れ落ちる）の長さ
+  platformMoveAfter: 0.35, // 経過率がこれを超えると足場の一部が動き出す
+  // 足場を置く高さの帯。約90px刻みで、1段ずつなら単発ジャンプ(約190px)で必ず届く。
+  // 基準ジャンプ力を変えたらここも見直すこと。
+  bands: [395, 300, 212],
+  platformWidth: [92, 156],
+  wrongStun: 14,           // 順番を間違えた時の硬直フレーム
+};
+
+// フェーズ番号ではなく経過時間で石板の数を増やす。
+// フェーズは失敗しても進むので、フェーズ数を基準にすると
+// 「わざと間違えて数を稼ぐ」ほうが簡単な局面が出てしまう。
+function jungleTargetCount(ratio) {
+  if (ratio < 0.25) return 1 + Math.floor(Math.random() * 2);   // 1〜2
+  if (ratio < 0.50) return 2 + Math.floor(Math.random() * 2);   // 2〜3
+  if (ratio < 0.75) return 2 + Math.floor(Math.random() * 3);   // 2〜4
+  return 3 + Math.floor(Math.random() * 3);                     // 3〜5
+}
+
+// 合計スコア→ランク。Playwrightの疑似プレイ34回の分布から決めている。
+// 実測：275〜6890点に散らばり、中央値は約2650点。上振れするのは
+// コンボが繋がり続けた時で、倍率が乗ってスコアが跳ね上がる。
+// Sは上位25%あたり（コンボを絶やさず10フェーズ前後こなす水準）に置いた。
+// ※石板の数・コンボ倍率・フェーズ間の待ち時間を変えたら測り直すこと。
+const JUNGLE_RANK_SCORES = [
+  { grade: 'S', min: 4200 },
+  { grade: 'A', min: 3000 },
+  { grade: 'B', min: 2000 },
+  { grade: 'C', min: 1100 },
+  { grade: 'D', min: 500 },
+];
+// Sランク報酬「かしこさ+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率で按分する
+const JUNGLE_REWARD_BASE = { stat: 20, life: 8 };
 
 // 「パパス雪山」専用パラメータ。強制縦スクロールで追い立てられながら、
 // 左右に揺れる足場を渡り、後半はツララを避けて少しでも高く登る。
@@ -278,6 +327,8 @@ const PracticeGame = {
     let text = course.description;
     if (this.courseKey === 'desert') {
       text = `灼熱の砂漠に築かれた、技を鍛えるための関門。制限時間1分でスコアを稼げ！\n道をふさぐ石柱には黒い鉄板が打ち付けられ、「横スマ」「下強」といった技の名前が白いチョークで書かれている。書かれた技をその石柱に当てれば、一撃で砕け散る。\n違う技を当てると弾き返され、スコアが下がる。鉄板をよく読んでから振ろう。\n石柱は天井まで届いているので、ジャンプや上必殺で飛び越えることはできない。正面から技で突破するしかない。\n落とし穴に落ちてもゲームオーバーにはならず、直前の関門からやり直しになる。失うのは時間だけだ。\n指定される技は毎回ランダムに変わる。全${DESERT_CONFIG.gateCount}関門を、ミスなく速く抜けるほど高得点。`;
+    } else if (this.courseKey === 'jungle') {
+      text = '古代遺跡の石板を、紋章に刻まれた番号の順（1→2→3…）に砕け！\n石板は毎回1〜5個、ランダムに組み直される足場の上に現れる。順番を間違えるとそのフェーズは失敗となり、残りの石板は黒く焦げて崩れ落ちる。\n成功でも失敗でもすぐ次のフェーズが始まる。1分間でどれだけ稼げるかを競おう。\n素早くノーミスで完答し続けるとコンボが繋がり、獲得スコアに最大3倍の倍率がかかる。時間が経つほど石板は増え、足場も動き出す。';
     } else if (this.courseKey === 'snow') {
       text = '画面は少し待つと自動で上へスクロールを始める。追いつかれて画面の下にはみ出すと、その時点で即ゲームオーバー！\n足場は氷でできており、左右にゆっくり揺れる。乗ったまま油断すると滑り落ちるので、揺れに合わせて足場の中心をキープしよう。\n残り時間が半分を切ると、画面上からダメージ判定のある「ツララ」が降ってくる。影が伸びたら落下の合図、回避（ジャンプ・回避行動）でかわそう。\n評価は生き残った時間ではなく「どれだけ高く登ったか」で決まる。ゲームオーバーになっても、そこまでの最高到達点で採点される。';
     }
@@ -292,6 +343,14 @@ const PracticeGame = {
         ].map(line => `<li><b>■</b>${this.escape(line)}</li>`)
       : this.courseKey === 'snow'
       ? ['強制スクロール：一定時間後、画面が自動で上へ進み続ける', '揺れる足場：周期も振幅もランダムで、乗るたびに揺れ方が変わる', 'ツララ：影の予告後に落下。当たるとノックバックして怯む', '評価：制限時間中に到達した最高標高でS〜Eを判定'].map(text2 => `<li><b>❄</b>${this.escape(text2)}</li>`)
+      : this.courseKey === 'jungle'
+      ? [
+          `正しい順で砕く：1個 +${JUNGLE_CONFIG.scorePerTarget}点（コンボ倍率あり）`,
+          `フェーズ完答：+${JUNGLE_CONFIG.scorePhaseClear}点（同じく倍率あり）`,
+          `順番を間違える：${JUNGLE_CONFIG.scoreWrongOrder}点。コンボも途切れる`,
+          `${JUNGLE_CONFIG.comboTimeLimit}秒以内にノーミス完答でコンボ継続（最大×${JUNGLE_CONFIG.comboMaxMultiplier}）`,
+          '攻撃なら何でも壊せます。技の種類は問いません',
+        ].map(line => `<li><b>◆</b>${this.escape(line)}</li>`)
       : [];
     const controls = PRACTICE_CONTROL_HELP.map(line => `<li><b>▶</b>${this.escape(line)}</li>`);
     document.getElementById('practice-intro-controls').innerHTML = [...hints, ...controls].join('');
@@ -333,12 +392,7 @@ const PracticeGame = {
     if (this.courseKey === 'desert') {
       this._setupDesert(f);
     } else if (this.courseKey === 'jungle') {
-      this.platforms.push({ x: 205, y: 400, w: 150, h: 16 }, { x: 500, y: 360, w: 150, h: 16 });
-      [260, 555, 760].forEach((x, index) => this.targets.push({ id: index + 1, x, y: index === 1 ? 305 : 425, w: 35, h: 60, switch: true, active: false }));
-      this.switchOrder = [2, 1, 3];
-      this.switchProgress = 0;
-      this.hazards = [{ x: 390, y: 455, w: 65, h: 30, type: 'spikes' }, { x: 675, y: 455, w: 55, h: 30, type: 'spikes' }];
-      this.hazardCooldown = 0;
+      this._setupJungle(f);
     } else if (this.courseKey === 'coast') {
       this.platforms.push({ x: 360, y: 415, w: 240, h: 16 });
       for (let i = 0; i < 5; i++) this._spawnCoastTarget(i);
@@ -435,6 +489,276 @@ const PracticeGame = {
     f.y = spawnY;
   },
 
+  // ---- パレパレジャングル ----
+  _setupJungle(f) {
+    const C = JUNGLE_CONFIG;
+    this.worldWidth = 960;
+    this.phase = 0;
+    this.phaseTargets = 0;      // 現在のフェーズの石板の数
+    this.nextOrder = 1;         // 次に壊すべき番号
+    this.combo = 0;
+    this.bestCombo = 0;
+    this.clearedPhases = 0;
+    this.failedPhases = 0;
+    this.destroyedTotal = 0;
+    this.readyTimer = C.readyFrames; // 開始前のルール説明
+    this.phaseGap = 0;
+    this.phaseStartTime = 0;
+    this.phaseFailed = false;
+    this.particles = [];
+    this.floatTexts = [];
+    f.x = 460;
+    f.y = C.groundY - f.h;
+    this._startJunglePhase();
+  },
+
+  // フェーズを1つ組み立てる。足場も石板も毎回ランダムに置き直す。
+  _startJunglePhase() {
+    const C = JUNGLE_CONFIG;
+    this.phase++;
+    this.nextOrder = 1;
+    this.phaseFailed = false;
+    this.phaseStartTime = this.elapsed;
+    const ratio = Math.min(1, this.elapsed / this.course.duration);
+
+    // 地面は必ず全幅。solid を付けて下入力ですり抜けないようにする
+    // （砂漠と同じ理由。付けないと下強・下スマを出そうとして落下する）。
+    this.platforms = [{ x: 0, y: C.groundY, w: 960, h: 55, solid: true }];
+    // 各帯に0〜2枚の足場をばら撒く。1段ずつなら必ず単発ジャンプで届く高さにしてある。
+    const moving = ratio >= C.platformMoveAfter;
+    for (const bandY of C.bands) {
+      const count = Math.random() < 0.28 ? 0 : (Math.random() < 0.55 ? 1 : 2);
+      for (let i = 0; i < count; i++) {
+        const w = C.platformWidth[0] + Math.random() * (C.platformWidth[1] - C.platformWidth[0]);
+        const x = 40 + Math.random() * (880 - w);
+        const y = bandY + (Math.random() - 0.5) * 26;
+        const p = { x, y, w, h: 16, baseX: x, baseY: y, log: Math.random() < 0.45 };
+        // 残り時間が減るほど足場が動き出す。動く足場に乗った石板も一緒に動く。
+        if (moving && Math.random() < 0.35 + ratio * 0.3) {
+          p.moveAxis = Math.random() < 0.62 ? 'x' : 'y';
+          p.moveAmp = (p.moveAxis === 'x' ? 40 : 26) * (0.6 + Math.random() * 0.7);
+          p.movePeriod = 150 + Math.random() * 140;
+          p.movePhase = Math.random() * Math.PI * 2;
+        }
+        this.platforms.push(p);
+      }
+    }
+
+    // 石板は足場（地面を含む）の上に立てる。動く足場の上なら一緒に動くよう
+    // 「どの足場のどこか」で持たせ、毎フレーム位置を引き直す。
+    const want = jungleTargetCount(ratio);
+    // 置き場所の候補：各足場の中央と、地面の等間隔スロット
+    const spots = [];
+    for (let i = 1; i < this.platforms.length; i++) spots.push({ index: i, offsetX: this.platforms[i].w / 2 });
+    for (const gx of [110, 260, 410, 560, 710, 850]) spots.push({ index: 0, offsetX: gx });
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
+
+    // 重なる候補は捨てる。重なると番号が読めず、狙った石板を当てられない。
+    // （足場の石板と、その真下の地面の石板が重なる組み合わせが実際に出ていた）
+    const placed = [];
+    const pad = 14;
+    for (const spot of spots) {
+      if (placed.length >= want) break;
+      const p = this.platforms[spot.index];
+      const rect = {
+        x: Math.max(6, Math.min(960 - C.targetW - 6, p.x + spot.offsetX - C.targetW / 2)),
+        y: Math.max(C.ceilingY, p.y - C.targetH - 4),
+        w: C.targetW, h: C.targetH,
+      };
+      const clash = placed.some(q =>
+        rect.x < q.rect.x + q.rect.w + pad && rect.x + rect.w + pad > q.rect.x &&
+        rect.y < q.rect.y + q.rect.h + pad && rect.y + rect.h + pad > q.rect.y);
+      if (clash) continue;
+      placed.push({ spot, rect });
+    }
+
+    // 実際に置けた数をそのままフェーズの目標数にする。
+    // ここを want のままにすると、置けなかった番号が盤面に存在しないのに
+    // 要求され続け、そのフェーズを永久に完答できなくなる。
+    this.phaseTargets = placed.length;
+    this.targets = placed.map((entry, i) => ({
+      id: i, order: i + 1, jungle: true,
+      anchor: entry.spot.index, offsetX: entry.spot.offsetX,
+      w: C.targetW, h: C.targetH,
+      x: entry.rect.x, y: entry.rect.y, destroyed: false, charred: 0, pop: 0,
+      // 紋章の光り方を石板ごとにずらす（全部同時に脈打つと機械的に見える）
+      glowSeed: Math.random() * Math.PI * 2,
+    }));
+    this._syncJungleTargets();
+  },
+
+  // 足場の動きに合わせて石板の位置を引き直す
+  _syncJungleTargets() {
+    const C = JUNGLE_CONFIG;
+    for (const t of this.targets) {
+      const p = this.platforms[t.anchor];
+      if (!p) continue;
+      t.x = p.x + t.offsetX - t.w / 2;
+      t.y = p.y - t.h - 4;
+      // 画面外へはみ出さないよう最低限のクランプ
+      t.x = Math.max(6, Math.min(960 - t.w - 6, t.x));
+      t.y = Math.max(C.ceilingY, t.y);
+    }
+  },
+
+  _updateJungle() {
+    const C = JUNGLE_CONFIG;
+    const f = this.fighter;
+
+    // 開始前のルール説明の間は時間を進めない（_tickで加算済みのぶんを戻す）
+    if (this.readyTimer > 0) {
+      this.readyTimer--;
+      this.elapsed = 0;
+      return;
+    }
+
+    // 足場の往復移動。当たり判定より前に動かす（同フレームでズレないように）
+    for (const p of this.platforms) {
+      if (!p.moveAxis) continue;
+      const t = Math.sin((this.frame + p.movePhase * 40) / p.movePeriod * Math.PI * 2) * p.moveAmp;
+      if (p.moveAxis === 'x') p.x = p.baseX + t; else p.y = p.baseY + t;
+    }
+    this._syncJungleTargets();
+
+    // フェーズ間の演出中。終わったら次のフェーズを組む
+    if (this.phaseGap > 0) {
+      this.phaseGap--;
+      for (const t of this.targets) if (t.charred > 0) t.charred++;
+      if (this.phaseGap === 0) this._startJunglePhase();
+      return;
+    }
+    for (const t of this.targets) if (t.pop > 0) t.pop--;
+
+    // 落下しても即やり直せるよう、地面へ戻すだけにする（このコースに穴は無い）
+    if (f.y > 600) { f.x = 460; f.y = C.groundY - f.h; f.vx = 0; f.vy = 0; }
+  },
+
+  // 石板に攻撃が当たった時の判定
+  _resolveJungleHit(target) {
+    const C = JUNGLE_CONFIG;
+    if (this.phaseGap > 0 || this.readyTimer > 0) return;
+    if (target.order === this.nextOrder) {
+      // 正解：砕けて、緑と金の粒子が弾ける
+      target.destroyed = true;
+      this.destroyedTotal++;
+      this.nextOrder++;
+      const gained = Math.round(C.scorePerTarget * this._jungleMultiplier());
+      this.score += gained;
+      this._spawnJungleParticles(target, 'good');
+      this._addFloatText(target.x + target.w / 2, target.y, `+${gained}`, '#b6ff9a');
+      if (window.AudioManager) {
+        // 番号が進むほど高い音になり、順番が合っていることが耳でも分かる
+        const step = Math.min(4, target.order - 1);
+        AudioManager.playTone({ freq: 620 + step * 110, toFreq: 940 + step * 130, type: 'sine', dur: 0.16, volume: 0.5 });
+        AudioManager.playTone({ freq: 1240 + step * 220, type: 'sine', dur: 0.1, volume: 0.18, delay: 0.02 });
+      }
+      if (this.nextOrder > this.phaseTargets) this._clearJunglePhase();
+      return;
+    }
+    // 不正解：フェーズ失敗
+    this._failJunglePhase(target);
+  },
+
+  // コンボ倍率。ノーミス＆スピードクリアを重ねるほど伸びる
+  _jungleMultiplier() {
+    const C = JUNGLE_CONFIG;
+    return Math.min(C.comboMaxMultiplier, 1 + this.combo * C.comboBonusPerStep);
+  },
+
+  _clearJunglePhase() {
+    const C = JUNGLE_CONFIG;
+    this.clearedPhases++;
+    const spent = this.elapsed - this.phaseStartTime;
+    const fast = spent <= C.comboTimeLimit;
+    const bonus = Math.round(C.scorePhaseClear * this._jungleMultiplier());
+    this.score += bonus;
+    // コンボが繋がるのは「ノーミス」かつ「速い」時だけ。遅いと途切れる（が0には戻さない）
+    if (fast) {
+      this.combo++;
+      this.bestCombo = Math.max(this.bestCombo, this.combo);
+    } else {
+      this.combo = 0;
+    }
+    this._addFloatText(480, 200, fast ? `PHASE CLEAR!  ×${this._jungleMultiplier().toFixed(2)}` : 'PHASE CLEAR', fast ? '#ffe27a' : '#c9e8b6');
+    if (window.AudioManager) {
+      // 完答は上昇するアルペジオ。速ければもう1音足して派手にする
+      [0, 0.06, 0.12].forEach((d, i) => AudioManager.playTone({
+        freq: [660, 880, 1320][i], type: 'sine', dur: 0.2, volume: 0.42, delay: d,
+      }));
+      if (fast) AudioManager.playTone({ freq: 1760, type: 'sine', dur: 0.26, volume: 0.3, delay: 0.18 });
+    }
+    this.phaseGap = C.phaseGapFrames;
+  },
+
+  _failJunglePhase(wrongTarget) {
+    const C = JUNGLE_CONFIG;
+    this.failedPhases++;
+    this.phaseFailed = true;
+    this.combo = 0;
+    this.score = Math.max(0, this.score + C.scoreWrongOrder);
+    // 残っている石板がまとめて黒焦げになって崩れ落ちる
+    for (const t of this.targets) if (!t.destroyed) t.charred = 1;
+    if (wrongTarget) {
+      wrongTarget.charred = 1;
+      this._spawnJungleParticles(wrongTarget, 'bad');
+      this._addFloatText(wrongTarget.x + wrongTarget.w / 2, wrongTarget.y, `${C.scoreWrongOrder}`, '#ff9b9b');
+    }
+    const f = this.fighter;
+    f.hitstun = Math.max(f.hitstun, C.wrongStun);
+    if (window.AudioManager) {
+      // 濁ったブザー。2音を少しずらして鳴らすと不快な唸りになる
+      AudioManager.playTone({ freq: 190, toFreq: 90, type: 'sawtooth', dur: 0.34, volume: 0.4 });
+      AudioManager.playTone({ freq: 176, toFreq: 84, type: 'square', dur: 0.34, volume: 0.22, delay: 0.01 });
+    }
+    this.phaseGap = C.phaseGapFrames + 16;
+  },
+
+  _spawnJungleParticles(target, kind) {
+    this.particles = this.particles || [];
+    const cx = target.x + target.w / 2, cy = target.y + target.h / 2;
+    const count = kind === 'good' ? 30 : 20;
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = (kind === 'good' ? 1.6 : 0.9) + Math.random() * (kind === 'good' ? 4.6 : 2.4);
+      this.particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed - (kind === 'good' ? 1.4 : 0.2),
+        size: 2 + Math.random() * (kind === 'good' ? 4.5 : 6),
+        life: (kind === 'good' ? 34 : 26) + Math.random() * 26,
+        maxLife: 60,
+        kind,
+        spin: (Math.random() - 0.5) * 0.4,
+        angle: Math.random() * Math.PI,
+      });
+    }
+  },
+
+  _addFloatText(x, y, text, color) {
+    this.floatTexts = this.floatTexts || [];
+    this.floatTexts.push({ x, y, text, color, life: 52 });
+  },
+
+  _updateJungleEffects() {
+    if (this.particles && this.particles.length) {
+      for (const p of this.particles) {
+        p.x += p.vx; p.y += p.vy;
+        p.vy += p.kind === 'good' ? 0.13 : 0.3;
+        p.vx *= 0.985;
+        p.angle += p.spin;
+        p.life--;
+      }
+      this.particles = this.particles.filter(p => p.life > 0);
+    }
+    if (this.floatTexts && this.floatTexts.length) {
+      for (const t of this.floatTexts) { t.y -= 0.85; t.life--; }
+      this.floatTexts = this.floatTexts.filter(t => t.life > 0);
+    }
+  },
+
   _spawnCoastTarget(id) {
     this.targets[id] = { id, x: 300 + Math.random() * 570, y: 105 + Math.random() * 260, w: 34, h: 34, vx: (Math.random() < .5 ? -1 : 1) * (1.2 + Math.random() * 1.8), target: true };
   },
@@ -491,7 +815,9 @@ const PracticeGame = {
     else if (this.courseKey === 'snow') this._updateSnow();
     else if (this.courseKey === 'volcano') this._updateVolcano();
 
-    if (this.courseKey !== 'snow' && this.courseKey !== 'desert' && f.y > 570) {
+    if (this.courseKey === 'jungle') this._updateJungleEffects();
+
+    if (this.courseKey !== 'snow' && this.courseKey !== 'desert' && this.courseKey !== 'jungle' && f.y > 570) {
       f.x = 60; f.y = 390; f.vx = 0; f.vy = 0;
       this.score = Math.max(0, this.score - 5);
     }
@@ -588,10 +914,8 @@ const PracticeGame = {
   },
 
   _applyHitToTarget(target) {
-    if (target.switch) {
-      const expected = this.switchOrder[this.switchProgress];
-      if (target.id === expected) { target.active = true; this.switchProgress++; this.score += 18; }
-      else { this.switchProgress = 0; this.targets.forEach(item => { if (item) item.active = false; }); this.score = Math.max(0, this.score - 5); }
+    if (target.jungle) {
+      this._resolveJungleHit(target);
     } else if (target.target) {
       this.hits++; this.combo++; this.bestCombo = Math.max(this.bestCombo, this.combo);
       this.score += 4 + Math.min(6, this.combo);
@@ -750,19 +1074,6 @@ const PracticeGame = {
     this.debris = this.debris.filter(d => d.life > 0);
   },
 
-  _updateJungle() {
-    const f = this.fighter;
-    if (this.hazardCooldown > 0) this.hazardCooldown--;
-    for (const hazard of this.hazards) {
-      if (this.hazardCooldown <= 0 && Physics.rectsOverlap(f.getHurtbox(), hazard)) {
-        this.hazardCooldown = 45;
-        f.vy = -7;
-        f.x -= f.facing * 35;
-        this.score = Math.max(0, this.score - 3);
-      }
-    }
-    if (this.switchProgress >= this.switchOrder.length && f.x > 875) this.finish(true);
-  },
 
   _updateCoast() {
     this.targets.forEach(target => {
@@ -852,7 +1163,7 @@ const PracticeGame = {
       this._hudTimeEl.textContent = `${remaining}`;
     }
     const status = this.courseKey === 'desert' ? `関門 ${this.gates.filter(g => g.broken).length}/${this.gates.length}　スコア ${this.score}　ミス ${this.wrongHits || 0}`
-      : this.courseKey === 'jungle' ? `仕掛け ${this.switchProgress || 0}/3`
+      : this.courseKey === 'jungle' ? `${this.score}点　次 ${this.nextOrder || 1}／${this.phaseTargets || 0}${this.combo > 0 ? `　${this.combo}コンボ ×${this._jungleMultiplier().toFixed(2)}` : ''}`
       : this.courseKey === 'coast' ? `命中 ${this.hits}　COMBO ${this.combo}`
       : this.courseKey === 'snow' ? `標高 ${this.bestAltitudeM || 0}m${this.elapsed >= SNOW_CONFIG.icicleStartTime ? '　⚠ツララ注意' : ''}`
       : `耐久 ♥${this.hp}　防御 ${this.avoided}`;
@@ -881,7 +1192,11 @@ const PracticeGame = {
       const found = DESERT_RANK_SCORES.find(rank => this.score >= rank.min);
       grade = found ? found.grade : 'E';
       normalized = this.score;
-    } else if (this.courseKey === 'jungle') normalized = this.switchProgress / 3 * 65 + (cleared ? 35 : 0);
+    } else if (this.courseKey === 'jungle') {
+      const found = JUNGLE_RANK_SCORES.find(rank => this.score >= rank.min);
+      grade = found ? found.grade : 'E';
+      normalized = this.score;
+    }
     else if (this.courseKey === 'coast') normalized = Math.min(100, this.hits * 4 + this.bestCombo * 3 - this.misses * 2);
     else if (this.courseKey === 'snow') {
       const altitudeM = this.bestAltitudeM || 0;
@@ -894,7 +1209,9 @@ const PracticeGame = {
     const brokenGates = this.courseKey === 'desert' ? this.gates.filter(g => g.broken).length : 0;
     let growthText = '管理者テストのため能力値は変化しません';
     if (!this.admin && this.monster.id) {
-      const rewardBase = this.courseKey === 'desert' ? DESERT_REWARD_BASE : this.courseKey === 'snow' ? SNOW_REWARD_BASE : null;
+      const rewardBase = this.courseKey === 'desert' ? DESERT_REWARD_BASE
+        : this.courseKey === 'snow' ? SNOW_REWARD_BASE
+        : this.courseKey === 'jungle' ? JUNGLE_REWARD_BASE : null;
       const growth = rewardBase
         ? GROWTH.applyPracticeResult(this.monster, this.course.stat, grade, rewardBase.stat, rewardBase.life)
         : GROWTH.applyPracticeResult(this.monster, this.course.stat, grade);
@@ -911,6 +1228,8 @@ const PracticeGame = {
           : `スコア ${this.score}（関門 ${brokenGates}/${this.gates.length}　ミス ${this.wrongHits}回　ゴール未到達）`)
       : this.courseKey === 'snow'
       ? `到達標高 ${this.bestAltitudeM || 0}m　ツララ被弾 ${this.iceHits || 0}回　回避 ${this.avoided || 0}回`
+      : this.courseKey === 'jungle'
+      ? `スコア ${this.score}（石板 ${this.destroyedTotal || 0}個　完答 ${this.clearedPhases || 0}／${(this.clearedPhases || 0) + (this.failedPhases || 0)}フェーズ　最大 ${this.bestCombo || 0}コンボ）`
       : `評価スコア ${normalized}／100`;
     document.getElementById('practice-result-growth').textContent = growthText;
     document.getElementById('practice-result-modal').classList.remove('hidden');
@@ -966,6 +1285,7 @@ const PracticeGame = {
       for (let i = 0; i < 45; i++) ctx.fillRect((i * 71 + this.frame * 0.7) % 960, (i * 53 + this.frame * 2.4) % 540, 3, 3);
     }
     if (this.courseKey === 'desert') this._drawDesertSky(ctx);
+    if (this.courseKey === 'jungle') this._drawJungleBackground(ctx);
     ctx.save(); ctx.translate(offsetX, offsetY);
     if (this.courseKey === 'desert') {
       this._drawDesertGround(ctx);
@@ -973,16 +1293,17 @@ const PracticeGame = {
       for (const platform of this.platforms) {
         if (platform.gone) continue;
         if (this.courseKey === 'snow' && platform.swayAmp) { this._drawIcePlatform(ctx, platform); continue; }
+        if (this.courseKey === 'jungle') { this._drawJunglePlatform(ctx, platform); continue; }
         ctx.fillStyle = this.courseKey === 'snow' ? '#e8f8ff' : this.courseKey === 'volcano' ? '#34242a' : '#5b4937';
         ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
         ctx.fillStyle = this.courseKey === 'snow' ? '#8bd5ef' : '#d8aa5a'; ctx.fillRect(platform.x, platform.y, platform.w, 4);
       }
     }
     if (this.courseKey === 'desert') this._drawDesertGates(ctx);
+    if (this.courseKey === 'jungle') this._drawJungleTargets(ctx);
     for (const target of this.targets) {
-      if (!target || target.destroyed) continue;
-      if (target.switch) { ctx.fillStyle = target.active ? '#7dff75' : '#ffd54f'; ctx.fillRect(target.x, target.y, target.w, target.h); ctx.fillStyle = '#14202a'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(target.id, target.x + 12, target.y + 35); }
-      else if (target.target) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(target.x + target.w/2, target.y + target.h/2, target.w/2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#ff3d45'; ctx.beginPath(); ctx.arc(target.x+target.w/2,target.y+target.h/2,9,0,Math.PI*2);ctx.fill(); }
+      if (!target || target.destroyed || target.jungle) continue;
+      if (target.target) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(target.x + target.w/2, target.y + target.h/2, target.w/2, 0, Math.PI*2); ctx.fill(); ctx.fillStyle='#ff3d45'; ctx.beginPath(); ctx.arc(target.x+target.w/2,target.y+target.h/2,9,0,Math.PI*2);ctx.fill(); }
       else { ctx.fillStyle = '#7d6a58'; ctx.fillRect(target.x,target.y,target.w,target.h); ctx.fillStyle='#ffd96b';ctx.fillRect(target.x,target.y,target.w*(target.hp/target.maxHp),5); }
     }
     for (const hazard of this.hazards) {
@@ -994,7 +1315,7 @@ const PracticeGame = {
     this._drawProjectiles(ctx);
     // ---- プレイヤー：本番と同じFighter.draw()でそのまま描画（全モーション対応）----
     this.fighter.draw(ctx);
-    if (this.courseKey === 'jungle' && this.switchProgress >= 3) { ctx.fillStyle='#8dfff0';ctx.fillRect(900,390,35,95); }
+    if (this.courseKey === 'jungle') this._drawJungleEffects(ctx);
     if (this.courseKey === 'snow') {
       // 強制スクロールに置き去りにされる境界＝ここより下に出ると即アウト
       const killY = (this.scrollTop || 0) + 540 + SNOW_CONFIG.killMargin;
@@ -1304,6 +1625,303 @@ const PracticeGame = {
       ctx.fillRect(-d.size / 2, -d.size / 2, d.size, Math.max(1, d.size * 0.25));
       ctx.restore();
     }
+    ctx.globalAlpha = 1;
+  },
+
+  // ---- パレパレジャングルの描画 ----
+
+  // 奥から手前へ4層。層ごとに色を濃くして、うっそうとした奥行きを作る。
+  _drawJungleBackground(ctx) {
+    // 木漏れ日（斜めの光の柱）
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 5; i++) {
+      const x = 60 + i * 210 + Math.sin((this.frame + i * 90) / 260) * 22;
+      const grad = ctx.createLinearGradient(x, 0, x - 120, 540);
+      grad.addColorStop(0, 'rgba(226,255,190,.20)');
+      grad.addColorStop(1, 'rgba(226,255,190,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(x - 34, 0); ctx.lineTo(x + 46, 0);
+      ctx.lineTo(x - 78, 540); ctx.lineTo(x - 168, 540);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+
+    // 奥の樹冠（3層。手前ほど濃く・大きく）
+    const canopy = [
+      { y: 96,  r: 92,  step: 118, color: 'rgba(18,58,36,.55)', sway: 5 },
+      { y: 62,  r: 118, step: 152, color: 'rgba(13,45,28,.72)', sway: 8 },
+      { y: 24,  r: 142, step: 196, color: 'rgba(8,32,20,.88)', sway: 11 },
+    ];
+    for (let layer = 0; layer < canopy.length; layer++) {
+      const c = canopy[layer];
+      ctx.fillStyle = c.color;
+      for (let i = -1; i * c.step < 1060; i++) {
+        const bx = i * c.step + this._noise(layer * 31 + i) * 40;
+        const wobble = Math.sin((this.frame + i * 60 + layer * 120) / 190) * c.sway;
+        ctx.beginPath();
+        ctx.ellipse(bx + wobble, c.y + this._noise(layer * 17 + i) * 26, c.r, c.r * 0.62, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 幹とぶら下がる蔓
+    for (let i = 0; i < 6; i++) {
+      const x = 40 + i * 178 + this._noise(i * 5.3) * 60;
+      const w = 20 + this._noise(i * 2.7) * 16;
+      ctx.fillStyle = 'rgba(30,22,14,.55)';
+      ctx.fillRect(x, 0, w, 540);
+      ctx.fillStyle = 'rgba(58,44,28,.35)';
+      ctx.fillRect(x + w * 0.55, 0, w * 0.3, 540);
+      // 蔓
+      ctx.strokeStyle = 'rgba(46,96,52,.5)';
+      ctx.lineWidth = 3;
+      const vineX = x + w + 10 + this._noise(i * 9.1) * 40;
+      const len = 150 + this._noise(i * 3.1) * 200;
+      ctx.beginPath();
+      ctx.moveTo(vineX, 0);
+      for (let s = 0; s <= len; s += 24) {
+        ctx.lineTo(vineX + Math.sin((s + this.frame * 0.5 + i * 40) / 46) * 12, s);
+      }
+      ctx.stroke();
+    }
+
+    // 舞う胞子（決定論的に動かすのでちらつかない）
+    ctx.fillStyle = 'rgba(214,255,178,.5)';
+    for (let i = 0; i < 34; i++) {
+      const px = (i * 137 + Math.sin((this.frame + i * 40) / 130) * 40 + this.frame * 0.25) % 980 - 10;
+      const py = (i * 83 + Math.sin((this.frame + i * 25) / 90) * 26 + this.frame * 0.18) % 560 - 10;
+      const r = 1.4 + this._noise(i) * 2.2;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    }
+  },
+
+  // 苔むした岩／倒木の足場。地面（index 0）は一枚岩として別に描く。
+  _drawJunglePlatform(ctx, p) {
+    const isGround = p.y >= JUNGLE_CONFIG.groundY;
+    if (isGround) {
+      const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+      grad.addColorStop(0, '#4a7c3f'); grad.addColorStop(0.18, '#3c5a2e'); grad.addColorStop(1, '#241c12');
+      ctx.fillStyle = grad;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      // 表土の草
+      ctx.fillStyle = '#5c9a48';
+      for (let x = p.x; x < p.x + p.w; x += 7) {
+        const h = 4 + this._noise(x * 0.9) * 7;
+        ctx.fillRect(x, p.y - h + 2, 3, h);
+      }
+      ctx.fillStyle = 'rgba(0,0,0,.22)';
+      for (let x = p.x; x < p.x + p.w; x += 34) {
+        ctx.beginPath();
+        ctx.ellipse(x + 17, p.y + 22 + this._noise(x) * 12, 13, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return;
+    }
+    ctx.save();
+    if (p.log) {
+      // 倒木：木肌の縦筋と、両端の年輪
+      const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+      grad.addColorStop(0, '#7a5a34'); grad.addColorStop(0.5, '#5d4224'); grad.addColorStop(1, '#3a2916');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(p.x, p.y, p.w, p.h, 7);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(30,20,10,.4)'; ctx.lineWidth = 1;
+      for (let i = 1; i < 5; i++) {
+        const yy = p.y + p.h * (i / 5);
+        ctx.beginPath(); ctx.moveTo(p.x + 4, yy); ctx.lineTo(p.x + p.w - 4, yy); ctx.stroke();
+      }
+      ctx.fillStyle = '#8a6a42';
+      ctx.beginPath(); ctx.ellipse(p.x + 3, p.y + p.h / 2, 4, p.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x + p.w - 3, p.y + p.h / 2, 4, p.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      // 岩：角を落とした塊に陰影
+      const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+      grad.addColorStop(0, '#8b8b81'); grad.addColorStop(0.55, '#63635b'); grad.addColorStop(1, '#3d3d37');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(p.x, p.y, p.w, p.h, 5);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.10)';
+      for (let x = p.x + 8; x < p.x + p.w - 8; x += 19) {
+        ctx.fillRect(x, p.y + 5 + this._noise(x) * 4, 9, 2);
+      }
+    }
+    // 上面の苔（どちらの足場にも生える）
+    ctx.fillStyle = '#5f9c46';
+    ctx.beginPath();
+    ctx.roundRect(p.x, p.y - 1, p.w, 6, 3);
+    ctx.fill();
+    ctx.fillStyle = '#78bd55';
+    for (let x = p.x + 3; x < p.x + p.w - 3; x += 11) {
+      const n = this._noise(x * 1.7 + p.baseY);
+      if (n > 0.45) ctx.fillRect(x, p.y - 2 - n * 3, 5, 3 + n * 3);
+    }
+    // 縁から垂れる蔓
+    ctx.strokeStyle = 'rgba(90,150,70,.75)'; ctx.lineWidth = 2;
+    for (const vx of [p.x + p.w * 0.22, p.x + p.w * 0.74]) {
+      const len = 10 + this._noise(vx + p.baseY) * 20;
+      ctx.beginPath();
+      ctx.moveTo(vx, p.y + p.h - 1);
+      ctx.lineTo(vx + Math.sin((this.frame + vx) / 70) * 4, p.y + p.h + len);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  // 古代遺跡の石板。表面に淡く光る紋章と、番号ぶんの光点が刻まれている。
+  _drawJungleTargets(ctx) {
+    for (const t of this.targets) {
+      if (!t || t.destroyed) continue;
+      const charred = t.charred > 0;
+      // 失敗後は黒焦げになって沈み込みながら崩れる
+      const fallen = charred ? Math.min(1, t.charred / 26) : 0;
+      ctx.save();
+      ctx.translate(t.x + t.w / 2, t.y + t.h / 2 + fallen * 26);
+      ctx.rotate(fallen * 0.4);
+      ctx.globalAlpha = charred ? Math.max(0, 1 - fallen) : 1;
+      const w = t.w, h = t.h;
+
+      // 影
+      ctx.fillStyle = 'rgba(0,0,0,.3)';
+      ctx.beginPath(); ctx.ellipse(0, h / 2 + 5, w * 0.42, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+      // 石板本体
+      const grad = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+      if (charred) { grad.addColorStop(0, '#3a332e'); grad.addColorStop(1, '#171310'); }
+      else { grad.addColorStop(0, '#b9b0a0'); grad.addColorStop(0.5, '#8d8676'); grad.addColorStop(1, '#615b4f'); }
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, 6);
+      ctx.fill();
+      // 面取りのハイライト
+      ctx.strokeStyle = charred ? 'rgba(90,70,55,.5)' : 'rgba(255,250,235,.45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 5); ctx.stroke();
+      // 石のムラ
+      ctx.fillStyle = charred ? 'rgba(0,0,0,.4)' : 'rgba(70,62,50,.22)';
+      for (let i = 0; i < 5; i++) {
+        const n = this._noise(t.id * 13 + i * 7.3);
+        ctx.fillRect(-w / 2 + 5 + n * (w - 16), -h / 2 + 6 + this._noise(t.id + i * 3.1) * (h - 18), 5 + n * 6, 2);
+      }
+      // 角の苔
+      if (!charred) {
+        ctx.fillStyle = 'rgba(96,150,72,.75)';
+        ctx.beginPath(); ctx.ellipse(-w / 2 + 6, h / 2 - 6, 8, 5, 0.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(w / 2 - 8, -h / 2 + 8, 6, 4, -0.3, 0, Math.PI * 2); ctx.fill();
+      }
+
+      if (!charred) {
+        // 紋章：脈打つ光のリングと、その中の番号
+        const pulse = 0.62 + 0.38 * Math.sin(this.frame / 22 + t.glowSeed);
+        const isNext = t.order === this.nextOrder;
+        // 次に壊すべき石板だけは金色に強く光らせ、狙いを迷わせない
+        const hue = isNext ? '255,214,110' : '150,255,170';
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const glow = ctx.createRadialGradient(0, -4, 2, 0, -4, 26 + pulse * 8);
+        glow.addColorStop(0, `rgba(${hue},${(isNext ? 0.75 : 0.5) * pulse})`);
+        glow.addColorStop(1, `rgba(${hue},0)`);
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(0, -4, 28 + pulse * 8, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+
+        ctx.strokeStyle = `rgba(${hue},${0.55 + pulse * 0.45})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, -4, 14, 0, Math.PI * 2); ctx.stroke();
+        // リングの外周に刻んだ小さな刻み
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + this.frame / 300;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * 17, Math.sin(a) * 17 - 4);
+          ctx.lineTo(Math.cos(a) * 20, Math.sin(a) * 20 - 4);
+          ctx.stroke();
+        }
+        // 番号（視認性の要。太字＋発光で遠目にも読める）
+        ctx.font = 'bold 22px "Hiragino Kaku Gothic ProN", sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.shadowColor = `rgba(${hue},.95)`; ctx.shadowBlur = 12;
+        ctx.fillStyle = isNext ? '#fff6dc' : '#eaffe8';
+        ctx.fillText(String(t.order), 0, -3);
+        ctx.shadowBlur = 0;
+        // 番号ぶんの光点（数字が読めない距離でも個数で分かるようにする）
+        for (let i = 0; i < t.order; i++) {
+          const dx = (i - (t.order - 1) / 2) * 8;
+          ctx.fillStyle = `rgba(${hue},${0.6 + pulse * 0.4})`;
+          ctx.beginPath(); ctx.arc(dx, h / 2 - 9, 2.4, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  _drawJungleEffects(ctx) {
+    // 粒子
+    for (const p of (this.particles || [])) {
+      const a = Math.max(0, Math.min(1, p.life / 26));
+      ctx.save();
+      ctx.globalAlpha = a;
+      if (p.kind === 'good') {
+        ctx.globalCompositeOperation = 'lighter';
+        // 緑と金を混ぜる
+        ctx.fillStyle = p.size > 4 ? 'rgba(255,224,130,.95)' : 'rgba(168,255,150,.95)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+        ctx.fillStyle = '#241c17';
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    // 加点/減点の吹き出し
+    for (const t of (this.floatTexts || [])) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, t.life / 26));
+      ctx.font = 'bold 20px "Hiragino Kaku Gothic ProN", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.72)';
+      ctx.strokeText(t.text, t.x, t.y);
+      ctx.fillStyle = t.color;
+      ctx.fillText(t.text, t.x, t.y);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    if (this.readyTimer > 0) this._drawJungleReady(ctx);
+  },
+
+  // 開始前3秒のルール説明
+  _drawJungleReady(ctx) {
+    const C = JUNGLE_CONFIG;
+    const t = this.readyTimer;
+    // 最後の18フレームでフェードアウト
+    const alpha = Math.min(1, t / 18);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(6,20,12,.72)';
+    ctx.fillRect(0, 178, 960, 176);
+    ctx.strokeStyle = 'rgba(150,255,170,.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 178); ctx.lineTo(960, 178);
+    ctx.moveTo(0, 354); ctx.lineTo(960, 354); ctx.stroke();
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 34px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.shadowColor = 'rgba(150,255,170,.9)'; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#eaffe0';
+    ctx.fillText('光る紋章の順（1→2→3…）に', 480, 224);
+    ctx.fillText('石板を破壊しろ！', 480, 266);
+    ctx.shadowBlur = 0;
+    ctx.font = '17px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.fillStyle = '#b9e8bd';
+    ctx.fillText('順番を間違えるとそのフェーズは失敗。素早く正確に、コンボを繋げ', 480, 306);
+    // 残り秒数のカウントダウン
+    ctx.font = 'bold 26px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.fillStyle = '#ffe27a';
+    ctx.fillText(String(Math.ceil(t / 60)), 480, 336);
+    ctx.restore();
     ctx.globalAlpha = 1;
   },
 
