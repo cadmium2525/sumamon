@@ -165,8 +165,15 @@ const AppFlow = {
     if (name !== 'training') this.closeTrainingItemModal();
     if (name !== 'practice' && window.PracticeGame?.active) PracticeGame.stop();
     if (name !== 'fighter-select') document.getElementById('fighter-status-modal')?.classList.add('hidden');
+    // 先に全部隠すので、目的の画面が無いまま進むと「どこも表示されていない
+    // 真っ暗な画面」で操作不能になる。必ず存在を確かめてから切り替える。
+    const target = document.getElementById('screen-' + name);
+    if (!target) {
+      console.error('画面が見つかりません:', name);
+      name = 'home';
+    }
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
-    document.getElementById('screen-' + name).classList.remove('hidden');
+    (target || document.getElementById('screen-home')).classList.remove('hidden');
     if (window.DebugMotionViewer) DebugMotionViewer.setActive(name === 'debug');
 
     const gear = document.getElementById('vpad-settings-toggle');
@@ -1300,8 +1307,10 @@ const AppFlow = {
     list.innerHTML = roster.map(entry => {
       const rows = keys.map(key => {
         const value = Number(entry.stats[key]) || 0;
-        // ライフだけ基準が違う（100始まり）ので、伸びの見え方を揃える
-        const ratio = Math.max(0.04, Math.min(1, value / (key === 'life' ? 1099 : 999)));
+        // 目盛りは全項目とも上限999でそろえる。
+        // ライフだけ 1099 で割っていたため、999でもバーが満タンにならず
+        // 「ライフだけ低い」ように見えてしまっていた。
+        const ratio = Math.max(0.04, Math.min(1, value / GROWTH.STAT_MAX));
         const top = roster.length > 1 && value === best[key] && value > 0;
         return `<div class="versus-stat${top ? ' best' : ''}" style="--stat-color:${colors[key]}">
           <b>${labels[key]}</b><i><span style="width:${(ratio * 100).toFixed(1)}%"></span></i><em>${value}</em>
@@ -1313,7 +1322,7 @@ const AppFlow = {
           <div>
             <span class="vs-slot">${this.escapeHtml(entry.label)}</span>
             <span class="vs-name">${this.escapeHtml(entry.name)}</span>
-            ${entry.level ? `<span class="vs-level">Lv.${entry.level}</span>` : ''}
+            <span class="vs-level">${entry.level ? `Lv.${entry.level}` : ''}</span>
           </div>
         </header>
         <div class="versus-stats">${rows}</div>
@@ -1330,9 +1339,17 @@ const AppFlow = {
   // 対戦カードを見せて、開始が押されるまで待つ。
   // 戻り値 true なら開始、false なら取りやめ。
   showVersus(options) {
-    const roster = (window.previewBattleRoster && previewBattleRoster(options)) || [];
-    if (!roster.length) return Promise.resolve(true);
-    this.renderVersus(roster);
+    // 対戦カードはあくまで「開始前の確認」なので、ここで何かあっても
+    // バトルまで巻き添えにしない。表示できない時はそのまま開始へ進む。
+    let roster = [];
+    try {
+      roster = (window.previewBattleRoster && previewBattleRoster(options)) || [];
+      if (!roster.length || !document.getElementById('screen-versus')) return Promise.resolve(true);
+      this.renderVersus(roster);
+    } catch (error) {
+      console.error('対戦カードを表示できませんでした:', error);
+      return Promise.resolve(true);
+    }
     const isMulti = options.mode === 'multi';
     const isHost = isMulti && window.Multiplayer?.role === 'host';
     const startBtn = document.getElementById('versus-start');

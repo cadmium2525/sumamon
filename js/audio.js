@@ -158,8 +158,10 @@ const AudioManager = {
   setScene(sceneName, mode) {
     let nextTrack = null;
     if (sceneName === 'home') nextTrack = 'home';
-    const cpuScenes = ['cpu-mode', 'stage-select', 'fighter-select', 'cpu-level', 'battle-intro', 'battle'];
-    const multiScenes = ['multi-menu', 'multi-lobby', 'battle-intro', 'battle'];
+    // 'versus'（開始前の対戦カード）も準備画面の一部として扱う。
+    // 入れ忘れると、カードを見ている数秒だけBGMが止まって鳴り直す。
+    const cpuScenes = ['cpu-mode', 'stage-select', 'fighter-select', 'cpu-level', 'versus', 'battle-intro', 'battle'];
+    const multiScenes = ['multi-menu', 'multi-lobby', 'versus', 'battle-intro', 'battle'];
     if (mode === 'cpu' && cpuScenes.includes(sceneName)) nextTrack = 'battleMode';
     if (mode === 'multi' && multiScenes.includes(sceneName)) nextTrack = 'battleMode';
     // 対戦中は専用BGMへ切り替える（準備画面までは battleMode のまま）

@@ -2486,7 +2486,10 @@ body.layout-pending .screen { visibility: hidden; }
 .versus-card header div { min-width: 0; }
 .versus-card .vs-slot { display: block; color: var(--vs-color, #6ab7ff); font-size: 10px; font-weight: 900; letter-spacing: .08em; }
 .versus-card .vs-name { display: block; color: #fff; font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.versus-card .vs-level { color: #ffe49a; font-size: 10px; }
+/* レベルは常に1行ぶんの高さを確保する。
+   Lv表記のあるカードと無いカードが並ぶと、空だと詰まって
+   ステータスの行がカードごとに上下へズレてしまう。 */
+.versus-card .vs-level { display: block; min-height: 1.2em; color: #ffe49a; font-size: 10px; }
 .versus-stats { margin-top: 7px; display: grid; gap: 4px; }
 /* 項目名は折り返させない。「かしこさ」が2行になると行の高さが揃わず、
    4人並べた時にカードごとに項目の位置がずれる。 */
@@ -2521,3 +2524,11 @@ body.layout-pending .screen { visibility: hidden; }
 .hundred-reward-list strong { display: block; color: #b8f5c8; font-size: 13px; }
 .hundred-reward-list ul { margin: 6px 0; padding-left: 18px; color: #dff3e4; font-size: 12px; line-height: 1.7; }
 .hundred-reward-list span { display: block; margin-top: 4px; color: #ffe49a; font-size: 12px; font-weight: 800; }
+
+/* バトルの描画が続けて失敗した時だけ出る。原因を報告できるようにするための表示。 */
+.battle-error-notice {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+  z-index: 60; max-width: 90%; padding: 8px 12px; border-radius: 8px;
+  border: 1px solid #ff8f7d; background: rgba(58,23,18,.94); color: #ffd2c9;
+  font-size: 12px; line-height: 1.5; text-align: center; word-break: break-all;
+}

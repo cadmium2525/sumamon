@@ -133,9 +133,31 @@ class CPUController {
 
     // 攻撃への反応（ガード/回避）は行動方針の再決定サイクルとは別に毎フレームチェックする
     const reactive = this._computeReactiveDefense();
-    if (reactive) return reactive;
+    if (reactive) return this._keepOnStage(reactive);
 
-    return this.currentIntent;
+    return this._keepOnStage(this.currentIntent);
+  }
+
+  // 台の端より先へ歩き続けないようにする。
+  // 低レベルほど同じ行動方針を長く持ち続ける（最大60フレーム）ため、
+  // 相手を追い越したあともそのまま歩き、場外へ出て落ちることがあった。
+  // 止めるのは「地上で外側へ歩く」入力だけ。ジャンプや復帰は妨げない。
+  _keepOnStage(input) {
+    const self = this.fighter;
+    if (!input || !self.onGround) return input;
+    const stage = this._mainPlatform();
+    if (!stage) return input;
+    const cx = self.x + self.w / 2;
+    const margin = 26;
+    if (input.right && cx > stage.x + stage.w - margin) {
+      input.right = false;
+      if (input.stickX > 0) input.stickX = 0;
+    }
+    if (input.left && cx < stage.x + margin) {
+      input.left = false;
+      if (input.stickX < 0) input.stickX = 0;
+    }
+    return input;
   }
 
   // ---- 飛び道具への対処 ----

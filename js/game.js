@@ -168,6 +168,9 @@ function leaveBattle({ saveSurvival }) {
   pauseMenu?.classList.remove('hidden');
   quitConfirm?.classList.add('hidden');
   pauseButton.textContent = 'Ⅱ';
+  loopErrorNotice?.remove();
+  loopErrorNotice = null;
+  loopErrorStreak = 0;
   AppFlow.showScreen('home');
 }
 
@@ -721,6 +724,19 @@ function runAuthoritativeSimulationStep(p1Input, network) {
   if (network === 'host') Multiplayer.broadcastState(createNetworkSnapshot());
 }
 
+// バトルループが続けて失敗した時に、その内容を画面へ出すための状態
+let loopErrorStreak = 0;
+let loopErrorNotice = null;
+
+function showBattleErrorNotice(error) {
+  if (loopErrorNotice) return;
+  loopErrorNotice = document.createElement('div');
+  loopErrorNotice.className = 'battle-error-notice';
+  loopErrorNotice.textContent =
+    `画面の描画でエラーが起きています：${String((error && error.message) || error)}`;
+  document.getElementById('game-container')?.appendChild(loopErrorNotice);
+}
+
 function loop(timestamp) {
   // 万一この中で想定外の例外が起きても、それによってrequestAnimationFrameの連鎖が
   // 途切れて「敵を倒してもリザルト画面に進まない」ような無言のフリーズが起きないようにする。
@@ -755,15 +771,27 @@ function loop(timestamp) {
     Stage.drawBackground(ctx); // 背景はカメラのズーム/パンの影響を受けない固定表示
     if (players.length) Camera.update(players);
     ctx.save();
-    Camera.apply(ctx);
-    Stage.draw(ctx); // 足場・ブラストラインはカメラに追従する
-    for (const p of players) p.draw(ctx);
-    drawProjectiles();
-    ctx.restore();
+    try {
+      Camera.apply(ctx);
+      Stage.draw(ctx); // 足場・ブラストラインはカメラに追従する
+      for (const p of players) p.draw(ctx);
+      drawProjectiles();
+    } finally {
+      // 描画の途中で例外が出ても必ず戻す。
+      // restore を飛ばすと、毎フレーム save だけが積み上がって
+      // 状態スタックが際限なく伸び、最後にはブラウザごと落ちる。
+      ctx.restore();
+    }
     updateHUD();
   } catch (e) {
     console.error('バトルループ内でエラーが発生しました:', e);
+    // 描画が毎フレーム失敗すると、画面が真っ黒なまま何も起きない状態になる。
+    // 端末の開発者コンソールは普通は見られないので、続けて失敗した時だけ
+    // 画面へ内容を出して、何が起きたのか報告できるようにする。
+    loopErrorStreak++;
+    if (loopErrorStreak === 30) showBattleErrorNotice(e);
   }
+  if (!loopErrorNotice) loopErrorStreak = 0;
 
   requestAnimationFrame(loop);
 }
