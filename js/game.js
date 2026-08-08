@@ -705,7 +705,9 @@ function runAuthoritativeSimulationStep(p1Input, network) {
       if (!candidates.length) return;
       controller.opponent = candidates.reduce((nearest, candidate) =>
         Math.abs(candidate.x - controller.fighter.x) < Math.abs(nearest.x - controller.fighter.x) ? candidate : nearest);
-      controller.fighter.applyInput(controller.decide(blastBounds));
+      // 飛び道具と足場もCPUへ渡す。これが無いと弾を一切警戒できず、
+      // 遠距離から撃たれ続けるだけで負ける。
+      controller.fighter.applyInput(controller.decide(blastBounds, projectiles, Stage.platforms));
     });
   }
 
