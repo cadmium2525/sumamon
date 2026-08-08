@@ -910,6 +910,17 @@ const Studio = {
             info.loop = move.animation.loop != null ? move.animation.loop : null;
             info.contentBox = move.animation.contentBox || null;
           }
+          // 登録済みの発生・持続・後隙。作り直す時の目安として見せる。
+          if (Array.isArray(move.active) && move.duration) {
+            const last = Array.isArray(move.multiHit) && move.multiHit.length
+              ? move.multiHit[move.multiHit.length - 1][1] : move.active[1];
+            info.attack = {
+              startup: move.active[0],
+              active: Math.max(1, last - move.active[0] + 1),
+              endlag: Number(move.endlag) || 0,
+              duration: move.duration,
+            };
+          }
           if (move.projectile) info.projectile = { ...move.projectile, sprite: move.projectileSprite };
           if (Object.keys(info).length) this.existing[slot] = info;
         }
@@ -1086,6 +1097,60 @@ const Studio = {
       if (attack) attack.manual = null;
       this.refreshAttack();
     });
+
+    // ---- 発生・持続・後隙のフレーム指定 ----
+    this.el('atk-frames-manual').addEventListener('change', () => {
+      const attack = this.attacks[this.editing.slot];
+      if (!attack) return;
+      if (this.el('atk-frames-manual').checked) {
+        // 今の自動計算値を初期値として入れる（いきなり0から書かせない）
+        const built = this.buildAttack(this.editing.slot);
+        const already = ((this.existing || {})[this.editing.slot] || {}).attack;
+        const startup = built ? built.summary.startup : (already ? already.startup : 6);
+        const active = built ? built.summary.activeSpan : (already ? already.active : 6);
+        const endlag = built ? built.values.endlag : (already ? already.endlag : 10);
+        attack.frames = { startup, active, endlag };
+        this.el('atk-startup').value = startup;
+        this.el('atk-active').value = active;
+        this.el('atk-endlag-f').value = endlag;
+      } else {
+        attack.frames = null;
+      }
+      this._syncFrameSpecUi();
+      this.refreshAttack();
+    });
+    ['atk-startup', 'atk-active', 'atk-endlag-f'].forEach(id => {
+      this.el(id).addEventListener('change', () => {
+        const attack = this.attacks[this.editing.slot];
+        if (!attack || !attack.frames) return;
+        // 0以下だと判定が成立しないので下限を持たせる
+        attack.frames = {
+          startup: Math.max(1, Math.round(Number(this.el('atk-startup').value) || 1)),
+          active: Math.max(1, Math.round(Number(this.el('atk-active').value) || 1)),
+          endlag: Math.max(0, Math.round(Number(this.el('atk-endlag-f').value) || 0)),
+        };
+        this.el('atk-startup').value = attack.frames.startup;
+        this.el('atk-active').value = attack.frames.active;
+        this.el('atk-endlag-f').value = attack.frames.endlag;
+        this.refreshAttack();
+      });
+    });
+  },
+
+  // フレーム指定の入力欄の出し分け。
+  // 指定中は詳細設定の「後隙」を触らせない（2か所で同じ値を持つと必ず食い違う）。
+  _syncFrameSpecUi() {
+    const attack = this.editing && this.attacks[this.editing.slot];
+    const on = !!(attack && attack.frames);
+    this.el('atk-frames-manual').checked = on;
+    this.el('atk-frames-fields').classList.toggle('hidden', !on);
+    this.el('atk-endlag').disabled = on;
+    this.el('atk-endlag-note').classList.toggle('hidden', !on);
+    if (on) {
+      this.el('atk-startup').value = attack.frames.startup;
+      this.el('atk-active').value = attack.frames.active;
+      this.el('atk-endlag-f').value = attack.frames.endlag;
+    }
   },
 
   setFrameMode(mode) {
@@ -1134,9 +1199,33 @@ const Studio = {
     }
     if (!hitboxes.length) return null;
 
-    const windows = groups.map(group => [group[0] * duration, (group[group.length - 1] + 1) * duration - 1]);
-    const totalFrames = usable.length * duration;
-    const lastActive = windows[windows.length - 1][1];
+    let windows = groups.map(group => [group[0] * duration, (group[group.length - 1] + 1) * duration - 1]);
+    let totalFrames = usable.length * duration;
+    let lastActive = windows[windows.length - 1][1];
+
+    // 発生・持続・後隙をフレームで指定している場合は、コマ割りから作った
+    // 判定の並びを、指定した持続時間へそのままの割合で写し替える。
+    // こうすると多段技の段の間隔も、判定が動く軌道も崩れない。
+    const spec = attack.frames;
+    if (spec) {
+      const origStart = windows[0][0];
+      const origEnd = windows[windows.length - 1][1];
+      const origSpan = Math.max(1, origEnd - origStart);
+      const newSpan = Math.max(0, spec.active - 1);
+      const map = t => spec.startup + Math.round(((t - origStart) / origSpan) * newSpan);
+      windows = windows.map(([a, b]) => [map(a), Math.max(map(a), map(b))]);
+      for (const box of hitboxes) {
+        box.frames = [map(box.frames[0]), Math.max(map(box.frames[0]), map(box.frames[1]))];
+      }
+      // 最後の判定は必ず持続の終わりまで残す（丸めで1F足りなくなるのを防ぐ）
+      const lastWindow = windows[windows.length - 1];
+      lastWindow[1] = spec.startup + spec.active - 1;
+      const lastBox = hitboxes[hitboxes.length - 1];
+      if (lastBox) lastBox.frames[1] = Math.max(lastBox.frames[1], lastWindow[1]);
+      lastActive = lastWindow[1];
+      totalFrames = spec.startup + spec.active + spec.endlag;
+    }
+
     const preset = this.ATTACK_PRESETS[this.el('atk-type').value] || this.ATTACK_PRESETS.normal;
     const power = (Number(this.el('atk-power').value) || 100) / 100;
     const isSpecial = slot.startsWith('move:special');
@@ -1144,11 +1233,15 @@ const Studio = {
       dmgBase: Number((preset.dmgBase * power / (groups.length > 1 ? groups.length * 0.75 : 1)).toFixed(1)),
       kbBase: Number((preset.kbBase * power).toFixed(1)),
       angle: preset.angle,
-      // 後隙はモーションの残り尺から決める（数値入力を減らすため）
-      endlag: Math.max(4, Math.round((totalFrames - lastActive) * preset.endlagRatio)),
+      // 後隙はモーションの残り尺から決める（数値入力を減らすため）。
+      // フレーム指定がある時は、そちらが正。
+      endlag: spec ? spec.endlag : Math.max(4, Math.round((totalFrames - lastActive) * preset.endlagRatio)),
       statKey: isSpecial ? 'intelligence' : 'power',
     };
     const values = attack.manual ? { ...auto, ...attack.manual } : auto;
+    // 後隙はフレーム指定が最優先。詳細設定の値で上書きされると、
+    // 画面に出ている「全体＝発生＋持続＋後隙」と実際の数値が食い違ってしまう。
+    if (spec) values.endlag = spec.endlag;
 
     return {
       duration: totalFrames,
@@ -1158,7 +1251,8 @@ const Studio = {
       values,
       summary: { startup: windows[0][0], hits: windows.length,
         activeFrames: windows.reduce((sum, w) => sum + (w[1] - w[0] + 1), 0),
-        totalFrames, autoBoxes: hitboxes.filter(b => b.auto).length },
+        activeSpan: windows[windows.length - 1][1] - windows[0][0] + 1,
+        totalFrames, autoBoxes: hitboxes.filter(b => b.auto).length, manualFrames: !!spec },
     };
   },
 
@@ -1173,9 +1267,18 @@ const Studio = {
       return;
     }
     const s = built.summary;
+    this._syncFrameSpecUi();
+    if (s.manualFrames) {
+      this.el('atk-frames-info').textContent =
+        `発生 ${s.startup}F → 持続 ${s.activeSpan}F → 後隙 ${built.values.endlag}F ／ 全体 ${s.totalFrames}F`
+        + `（判定 ${built.hitboxes.length}個をこの持続へ割り振りました）`;
+    } else {
+      this.el('atk-frames-info').textContent = '';
+    }
     summary.textContent = `発生 ${s.startup}F ／ 持続 ${s.activeFrames}F ／ 全体 ${s.totalFrames}F`
       + ` ／ ヒット ${s.hits}回 ／ 判定 ${built.hitboxes.length}個（うち自動抽出 ${s.autoBoxes}個）`
       + ` ／ ダメージ ${built.values.dmgBase} ・ 吹っ飛ばし ${built.values.kbBase} ・ 後隙 ${built.values.endlag}F`;
+    if (built.summary.manualFrames) this.el('atk-endlag').value = built.values.endlag;
     if (!this.attacks[this.editing.slot].manual) {
       this.el('atk-dmg').value = built.values.dmgBase;
       this.el('atk-kb').value = built.values.kbBase;
@@ -1247,6 +1350,12 @@ const Studio = {
     this.el('atk-fields').classList.toggle('hidden', !(attack && attack.use));
     this.el('atk-detail').classList.add('hidden');
     this.el('atk-detail-toggle').textContent = '詳細設定を開く';
+    this._syncFrameSpecUi();
+    // 今この技に登録されているフレームデータを見せる（作り直す時の目安になる）
+    const already = ((this.existing || {})[slot] || {}).attack;
+    this.el('atk-frames-current').textContent = already
+      ? `登録済み: 発生 ${already.startup}F ／ 持続 ${already.active}F ／ 後隙 ${already.endlag}F ／ 全体 ${already.duration}F`
+      : '';
     this.refreshAttack();
   },
 

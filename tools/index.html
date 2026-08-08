@@ -96,6 +96,10 @@ button:disabled { opacity: .45; }
 .seg button { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; }
 .seg button.seg-on { border-color: #ffd45e; color: #2a1c00; background: #ffd45e; }
 #atk-detail.hidden, #atk-fields.hidden { display: none; }
+.frame-spec { margin-top: 12px; padding: 10px; border: 1px solid #2b3f57; border-radius: 10px; background: #0f1a27; }
+#atk-frames-fields.hidden { display: none; }
+#atk-endlag-note { display: block; margin-top: 3px; color: #ffd45e; font-size: 10px; }
+#atk-endlag-note.hidden { display: none; }
 .frame img { display: block; width: 100%; height: 68px; object-fit: contain; }
 .frame span { position: absolute; top: 2px; left: 4px; color: #fff; font-size: 10px; font-weight: 800; text-shadow: 0 1px 2px #000; }
 .preview { display: flex; align-items: flex-end; justify-content: center; height: 210px; margin-top: 10px;
@@ -442,6 +446,25 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
         <label>判定の大きさ <span id="atk-size-value">100</span>%</label>
         <input id="atk-size" type="range" min="50" max="160" value="100">
         <div id="atk-summary" class="box-info"></div>
+        <!-- 発生F・持続F・後隙F を直接指定する。
+             既定ではコマ割りから自動計算されるが、対戦バランスを詰める時は数値で決めたい。 -->
+        <div class="frame-spec">
+          <div id="atk-frames-current" class="box-info"></div>
+          <label class="check"><input id="atk-frames-manual" type="checkbox"> 発生・持続・後隙をフレームで指定する</label>
+          <div id="atk-frames-fields" class="hidden">
+            <div class="row">
+              <div><label>発生F</label><input id="atk-startup" type="number" min="1" max="120" step="1"></div>
+              <div><label>持続F</label><input id="atk-active" type="number" min="1" max="120" step="1"></div>
+              <div><label>後隙F</label><input id="atk-endlag-f" type="number" min="0" max="120" step="1"></div>
+            </div>
+            <div id="atk-frames-info" class="box-info"></div>
+            <p class="note">全体フレーム＝発生＋持続＋後隙になります。
+              コマから読み取った判定の位置・動きは、新しい持続時間へ割り振り直されます
+              （多段技の段の間隔も同じ割合で保たれます）。<br>
+              <b>発生</b>を短くすると差し込みやすく、<b>持続</b>を長くすると当てやすく、
+              <b>後隙</b>を長くすると外した時に反撃されやすくなります。</p>
+          </div>
+        </div>
         <button id="atk-detail-toggle" type="button" style="margin-top:10px">詳細設定を開く</button>
         <div id="atk-detail" class="hidden">
           <div class="row">
@@ -450,7 +473,7 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
           </div>
           <div class="row">
             <div><label>吹っ飛ぶ角度</label><input id="atk-angle" type="number"></div>
-            <div><label>後隙</label><input id="atk-endlag" type="number"></div>
+            <div><label>後隙</label><input id="atk-endlag" type="number"><small id="atk-endlag-note" class="hidden">上の「後隙F」で指定中</small></div>
           </div>
           <label>威力に反映するステータス</label>
           <select id="atk-stat">
