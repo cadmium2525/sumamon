@@ -393,6 +393,11 @@ function checkLedges() {
 
   for (const p of players) {
     if (p.dead || p.onGround || p.onLedge || p.grabbedBy || p.grabbing || p.ledgeCooldown > 0 || p.ledgeLocked) continue;
+    // のけぞり中・ダウン中・ピヨリ中は掴めない。
+    // 本家でも「操作を受け付けない状態」では崖を掴めない。
+    // 掴めてしまうと、動けないまま崖にぶら下がる不自然な状態になる。
+    // （吹っ飛び姿勢(tumbling)そのものは、のけぞりが解けていれば掴んでよい＝通常の復帰）
+    if (p.hitstun > 0 || p.downed || p.dazedTimer > 0) continue;
     if (p.vy < 0) continue; // 上昇中は掴まない（下降中〜頂点以降のみ）
 
     for (const ledge of ledges) {

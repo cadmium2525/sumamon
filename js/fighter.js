@@ -1222,6 +1222,14 @@ class Fighter {
     // moveがnullになるのは呼び出し側の不整合だが、ここで落ちるとバトルごと止まるため必ず弾く
     if (!move || !attacker || this.invincible > 0 || this.dodgeIntangible || this.dead) return;
 
+    // 崖に掴まっている最中に攻撃を受けたら、まず手を離させる。
+    // 掴まったままだと update() が「崖では静止」として早々に抜けるため
+    // のけぞりが1フレームも減らず、崖にへばり付いたまま操作も受け付けない
+    // 完全な固まり状態になる（applyInput も hitstun で先に return するため、
+    // ぶら下がり時間の上限による自動離脱も働かない）。
+    // 本家でも崖つかまり中に攻撃を受ければ落とされるので、挙動としても正しい。
+    if (this.onLedge) this.releaseFromLedge(false);
+
     // 掴まれている最中に別の攻撃を受けたら掴みは解除される
     // （解除しないと吹っ飛びが掴み側の位置固定に打ち消され、永久に拘束されてしまう）
     if (this.grabbedBy && this.grabbedBy !== attacker) {
@@ -1394,6 +1402,13 @@ class Fighter {
       this.vx = 0;
       this.vy = 0;
       if (this.invincible > 0) this.invincible--;
+      // 硬直の類は必ず減らす。ここで止めると、何かの拍子に硬直が付いた時に
+      // 二度と解けず、崖で固まって動けなくなる。
+      if (this.hitlag > 0) this.hitlag--;
+      if (this.hitstun > 0) this.hitstun--;
+      if (this.dazedTimer > 0) this.dazedTimer--;
+      if (this.shieldDropLag > 0) this.shieldDropLag--;
+      if (this.recoveryTimer > 0) this.recoveryTimer--;
       return;
     }
     if (this.ledgeCooldown > 0) this.ledgeCooldown--;
