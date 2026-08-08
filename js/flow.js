@@ -32,6 +32,17 @@ const STAT_ITEM_EFFECTS = {
   might_tonic: { amount: 10, stats: ['power', 'intelligence'] },
 };
 
+// 長押し確認と対戦カードで同じ見た目・同じ目盛りを使う。
+// 別々に持つと、片方だけ上限や色が変わって表示と実戦前確認が食い違うため。
+const BATTLE_STAT_LABELS = {
+  life: 'ライフ', power: 'ちから', intelligence: 'かしこさ',
+  accuracy: '命中', evasion: '回避', defense: '丈夫さ',
+};
+const BATTLE_STAT_COLORS = {
+  life: '#ffd45e', power: '#ff6b6b', intelligence: '#5ad07a',
+  accuracy: '#ff7ad0', evasion: '#63c8ff', defense: '#7c8cff',
+};
+
 const AppFlow = {
   selectedMode: null,     // 'cpu' | 'multi'
   selectedCpuMode: 'normal',
@@ -1085,13 +1096,10 @@ const AppFlow = {
     const stats = monster
       ? GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: monster.trainingStats }, monster.aptitudes, monster.level)
       : { ...defaultStats(), ...(def.stats || {}) };
-    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
     Skin.paintInto(document.getElementById('fighter-status-image'), def.idleImage, monster && monster.skin);
     document.getElementById('fighter-status-name').textContent = monster ? monster.name : def.displayName;
     document.getElementById('fighter-status-level').textContent = monster ? `Lv.${monster.level}` : 'ベースモンスター';
-    document.getElementById('fighter-status-grid').innerHTML = GROWTH.STAT_KEYS.map(key => `
-      <div><span>${labels[key]}</span><b>${stats[key]}</b>${monster ? `<small>適性 ${monster.aptitudes?.[key] || 'C'}</small>` : ''}</div>
-    `).join('');
+    document.getElementById('fighter-status-grid').innerHTML = this._buildBattleStatRows(stats);
     document.getElementById('fighter-status-modal').classList.remove('hidden');
   },
 
@@ -1294,28 +1302,26 @@ const AppFlow = {
     return true;
   },
 
+  _buildBattleStatRows(stats, best = null, compareCount = 1) {
+    return GROWTH.STAT_KEYS.map(key => {
+      const value = Number(stats[key]) || 0;
+      // 目盛りは全項目とも上限999でそろえる。
+      const ratio = Math.max(0.04, Math.min(1, value / GROWTH.STAT_MAX));
+      const top = compareCount > 1 && value === best?.[key] && value > 0;
+      return `<div class="versus-stat${top ? ' best' : ''}" style="--stat-color:${BATTLE_STAT_COLORS[key]}">
+        <b>${BATTLE_STAT_LABELS[key]}</b><i><span style="width:${(ratio * 100).toFixed(1)}%"></span></i><em>${value}</em>
+      </div>`;
+    }).join('');
+  },
+
   renderVersus(roster) {
-    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ',
-                     accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
-    const colors = { life: '#ffd45e', power: '#ff6b6b', intelligence: '#5ad07a',
-                     accuracy: '#ff7ad0', evasion: '#63c8ff', defense: '#7c8cff' };
-    const keys = Object.keys(labels);
+    const keys = GROWTH.STAT_KEYS;
     // 各項目のトップを求めて、数字を読まなくても優劣が分かるようにする
     const best = {};
     for (const key of keys) best[key] = Math.max(...roster.map(r => Number(r.stats[key]) || 0));
     const list = document.getElementById('versus-list');
     list.innerHTML = roster.map(entry => {
-      const rows = keys.map(key => {
-        const value = Number(entry.stats[key]) || 0;
-        // 目盛りは全項目とも上限999でそろえる。
-        // ライフだけ 1099 で割っていたため、999でもバーが満タンにならず
-        // 「ライフだけ低い」ように見えてしまっていた。
-        const ratio = Math.max(0.04, Math.min(1, value / GROWTH.STAT_MAX));
-        const top = roster.length > 1 && value === best[key] && value > 0;
-        return `<div class="versus-stat${top ? ' best' : ''}" style="--stat-color:${colors[key]}">
-          <b>${labels[key]}</b><i><span style="width:${(ratio * 100).toFixed(1)}%"></span></i><em>${value}</em>
-        </div>`;
-      }).join('');
+      const rows = this._buildBattleStatRows(entry.stats, best, roster.length);
       return `<article class="versus-card" style="--vs-color:${entry.color || '#6ab7ff'}">
         <header>
           <img alt="" data-versus-sprite="${this.escapeHtml(entry.spriteSrc || '')}">

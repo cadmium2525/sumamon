@@ -1347,7 +1347,7 @@ body.layout-pending .screen { visibility: hidden; }
   overflow: hidden;
   background:
     linear-gradient(rgba(6,18,31,.08), rgba(5,12,22,.42)),
-    url('../assets/images/fighter-select-background.png') center / cover no-repeat;
+    url('../assets/images/fighter-select-background.png') left center / cover no-repeat;
 }
 #screen-fighter-select #fighter-select-heading { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(58px, env(safe-area-inset-right)); margin: 0; padding: 6px 14px; border-radius: 18px; background: rgba(4,18,34,.7); font-size: 13px; text-shadow: 0 2px 4px #000; }
 #screen-fighter-select #fighter-list { padding: 8px 12px; border-radius: 14px; background: rgba(2,12,24,.38); backdrop-filter: blur(2px); }
@@ -1359,11 +1359,11 @@ body.layout-pending .screen { visibility: hidden; }
 .fighter-status-close { position: absolute; top: 7px; right: 8px; width: 30px; height: 30px; border: 0; border-radius: 50%; color: #fff; background: rgba(255,255,255,.12); font-size: 20px; }
 .fighter-status-content h2 { padding-right: 34px; color: #ffe7a0; font-size: 21px; }
 #fighter-status-level { margin: 2px 0 8px; color: #9ee5ff; font-size: 12px; font-weight: 800; }
-.fighter-status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.fighter-status-grid > div { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 3px 8px; padding: 6px 8px; border-radius: 7px; background: rgba(255,255,255,.08); }
-.fighter-status-grid span { color: #b9ccda; font-size: 9px; }
-.fighter-status-grid b { font-size: 17px; }
-.fighter-status-grid small { grid-column: 1 / 3; color: #ffd978; font-size: 8px; }
+.fighter-status-grid { display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
+.fighter-status-grid .versus-stat { grid-template-columns: 60px 1fr 40px; gap: 7px; }
+.fighter-status-grid .versus-stat b { font-size: 11px; }
+.fighter-status-grid .versus-stat i { height: 8px; }
+.fighter-status-grid .versus-stat em { font-size: 12px; }
 .fighter-status-content > small { display: block; margin-top: 8px; color: rgba(255,255,255,.5); font-size: 8px; }
 
 @media (orientation: landscape) and (max-height: 430px) {
@@ -1371,7 +1371,7 @@ body.layout-pending .screen { visibility: hidden; }
   .fighter-status-card { grid-template-columns: 105px minmax(290px, 1fr); width: min(84vw, 560px); padding: 11px; }
   .fighter-status-card > img { width: 105px; height: 145px; }
   .fighter-status-content h2 { font-size: 17px; }
-  .fighter-status-grid > div { padding: 4px 6px; }
+  .fighter-status-grid { gap: 4px; }
 }
 
 .token-bar {

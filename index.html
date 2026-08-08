@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=72">
+<link rel="stylesheet" href="css/style.css?v=73">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.35</small>
+    <small class="home-version">Version 1.36</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.36</time><strong>モンスター選択画面を見やすくしました</strong><p><b>左上の「モンスター選択」が途中で切れていた</b>問題を直しました。画面の横幅が変わっても、背景の左側を基準に表示します。<br>モンスターを長押しした時の能力表示を、<b>対戦前のカードと同じ色付きステータスバー</b>へ変更しました。能力の得意・不得意を数字だけでなくバーの長さでも確認できます。</p></article>
           <article><time>Version 1.35</time><strong>崖につかまったまま動けなくなる不具合を直しました</strong><p><b>崖につかまったまま、まったく動けなくなる</b>不具合を直しました。ご報告いただいた「ダウンしたまま崖につかまり、そこで攻撃を受けて、以降は移動もできず、殴られても微動だにしない」状態です。<br>原因は<b>崖につかまっている間、のけぞりの時間が1フレームも減らなかった</b>ことです。崖では動かない扱いにしていたため、のけぞりを減らす処理まで進まず、<b>いつまでも解けない</b>状態になっていました。のけぞり中は操作も受け付けないため、崖を自分から離すことも、ぶら下がり時間の上限で自動的に落ちることもできず、完全に固まっていました。そこへ追撃が入るたびにのけぞりが上書きされるので、永久に抜け出せません。<br>直したのは3か所です。まず<b>崖につかまっている間でも、のけぞりなどの硬直は必ず減る</b>ようにしました。次に<b>崖つかまり中に攻撃を受けたら、手を離して落ちる</b>ようにしました（本家でも崖につかまっている最中に攻撃されれば落とされます）。そして<b>のけぞり中・ダウン中・ふらふら状態では崖をつかめない</b>ようにしました。操作を受け付けない状態のまま崖にぶら下がるのが、そもそもの入り口だったためです。<br>なお<b>吹っ飛ばされている姿勢そのものは、これまでどおり崖をつかめます</b>。のけぞりさえ解けていれば通常の復帰なので、復帰のしやすさは変わりません。</p></article>
           <article><time>Version 1.34</time><strong>対戦カードの表示を修正／バトルが真っ黒になる不具合への対策</strong><p><b>ライフのバーだけ短く見える</b>問題を直しました。ライフだけ別の目盛りで計算していたため、<b>999でもバーが満タンにならず</b>、ほかの項目より低いように見えていました。全項目とも上限999でそろえています。<br><b>レベル表記のあるカードと無いカードでステータスの行がズレる</b>問題を直しました。レベルの行を常に確保するようにしたので、どのカードでも項目が同じ高さで並びます。<br><b>対戦カードを見ている間にBGMが途切れる</b>のも直しました。<br>また、<b>バトル画面が真っ黒になったまま操作できなくなる</b>不具合のご報告を受け、そうなりにくくする対策を入れました。これまでは描画の途中で問題が起きると、画面を消したあと描き直す前に処理が止まり、<b>真っ黒なまま復帰できない</b>状態になり得ました。内部の状態が壊れないようにし、対戦カードの表示に失敗した場合も<b>バトルはそのまま始まる</b>ようにしています。<br>それでも起きてしまった場合に原因が分かるよう、<b>画面に問題の内容を表示</b>するようにしました。もし赤い帯が出たら、その文言をお知らせください。</p></article>
           <article><time>Version 1.33</time><strong>バトル前に「対戦カード」でステータスを見比べられるようにしました／100人組手の報酬を大幅強化</strong><p><b>バトルが始まる前に、参加者の能力を並べて見比べる画面</b>を追加しました。ライフ・ちから・かしこさ・命中・回避・丈夫さがバーで並び、<b>各項目でいちばん高い相手には金色の印</b>が付くので、数字を読まなくても「相手は速いが打たれ弱い」といった相性がひと目で分かります。<br>ここに出る数値は<b>実際の試合で使われる値そのもの</b>です（育成した結果もCPUのレベル補正も反映済み）。2人でも4人でも同じ組版で並びます。<br><b>CPU戦</b>では「バトル開始」で始まり、「やめる」で引き返せます。<b>通信対戦</b>では全員に同じカードが出て、<b>ホストが「バトル開始」を押すと全員同時に始まります</b>（ホスト以外には「ホストが開始するのを待っています」と出ます）。<br>なお<b>100人組手とエンドレスでは出ません</b>。相手が毎回変わるうえ、100回ぶん挟むとテンポが悪くなるためです。<br><b>100人組手の報酬を大きく増やしました。</b>完全クリアで<b>ダイヤ1500（これまで500）・修行チケット5枚・フリートレーニングチケット10枚</b>になります。<br>さらに、<b>完全クリアできなくても、撃破数に応じて報酬が出る</b>ようになりました。<b>10体・25体・50体・75体・100体</b>の5段階で、そこまで到達したぶんがまとめて手に入ります。（10体で ダイヤ100・フリー券1枚／25体で ダイヤ200・修行券1枚・フリー券2枚 …という配分で、全部足すと完全クリアの報酬になります）途中で力尽きても無駄にならないので、気軽に挑戦できます。</p></article>
@@ -649,7 +650,7 @@
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=4"></script>
   <script src="js/game.js?v=51"></script>
-    <script src="js/flow.js?v=61"></script>
+    <script src="js/flow.js?v=62"></script>
   <script src="js/pwa.js?v=13"></script>
 </body>
 </html>
