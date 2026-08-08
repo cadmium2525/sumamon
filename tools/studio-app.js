@@ -51,6 +51,7 @@ const Studio = {
     this.bindProjectile();
     this.bindAttack();
     this.bindDropper();
+    this.el('ed-load-existing').addEventListener('click', () => this.loadExistingFrames());
     StudioMaskEditor.bind();
     if (settings.token) this.connect();
   },
@@ -886,6 +887,8 @@ const Studio = {
           frames: (animation.frames || []).length,
           srcs: (animation.frames || []).slice(),
           duration: animation.frameDuration || 6,
+          // 読み込んで編集し直す時に、足元と表示サイズを元どおりに復元するために要る
+          contentBox: animation.contentBox || null,
         };
       }
     }
@@ -899,6 +902,7 @@ const Studio = {
             info.frames = (move.animation.frames || []).length;
             info.srcs = (move.animation.frames || []).slice();
             info.duration = move.animation.frameDuration || 6;
+            info.contentBox = move.animation.contentBox || null;
           }
           if (move.projectile) info.projectile = { ...move.projectile, sprite: move.projectileSprite };
           if (Object.keys(info).length) this.existing[slot] = info;
@@ -1290,16 +1294,111 @@ const Studio = {
       if (already.frames) parts.push(`${already.frames}コマのモーション`);
       if (already.projectile) parts.push('飛び道具の設定');
       kept.textContent = `このモーションは既に登録されています（${parts.join('・')}）。`
-        + '画像を選ばなければ今のまま残ります。差し替えたい時だけ選び直してください。';
+        + '画像を選ばなければ今のまま残ります。差し替えたい時だけ選び直してください。'
+        + 'コマ送りの速さ・足元・透過だけ直したい時は、下の「登録済みのコマを読み込んで編集する」を押してください。';
       kept.classList.remove('hidden');
     } else {
       kept.classList.add('hidden');
     }
+    this.refreshLoadExistingButton();
     this.loadAttackForm(slot);
     this.loadProjectileForm(slot);
     this.el('editor').classList.remove('hidden');
     window.scrollTo(0, 0);
     this.renderFrames();
+  },
+
+  // 登録済みのモーションを、編集できる状態で読み込み直す。
+  // 表示フレーム数や足元の微調整を変えたいだけ・もう少し透過を詰めたいだけ、という時に
+  // 元の画像を選び直さなくて済むようにする。
+  async loadExistingFrames() {
+    const slot = this.editing && this.editing.slot;
+    const already = (this.existing || {})[slot];
+    if (!slot || !already || !already.srcs || !already.srcs.length) return;
+    const button = this.el('ed-load-existing');
+    button.disabled = true;
+    this.el('ed-box').textContent = '登録済みのコマを読み込み中…';
+    try {
+      const sources = [];
+      for (const src of already.srcs) {
+        const image = await StudioPreview.loadImage(src);
+        if (!image) throw new Error(`コマを読み込めませんでした: ${src}`);
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth || image.width;
+        canvas.height = image.naturalHeight || image.height;
+        canvas.getContext('2d').drawImage(image, 0, 0);
+        sources.push(canvas);
+      }
+      // 登録済みの画像は背景が抜き終わっているので、初期値は「そのまま使う」。
+      // ここで抜き直すと、透明の四隅から色を拾って本体を削ってしまう。
+      this.el('ed-bgmode').value = 'none';
+      this.el('ed-duration').value = already.duration;
+      this.el('ed-dur-value').textContent = already.duration;
+      this.el('ed-foot').value = 0;
+      this.el('ed-foot-value').textContent = '0';
+      this.el('ed-scale').value = 100;
+      this.el('ed-scale-value').textContent = '100';
+      this.motions[slot] = {
+        sources,
+        canvases: [],
+        used: sources.map(() => true),
+        frameOptions: sources.map(() => null),
+        masks: sources.map(() => null),
+        frameDuration: already.duration,
+        options: { mode: 'none', threshold: Number(this.el('ed-threshold').value) },
+      };
+      // 待機モーションを processFrames にかけると、当たり判定の横幅が
+      // 画像から再計算されて上書きされる。ここは「読み込み直して微調整するだけ」なので、
+      // 手で詰めた値を勝手に戻さないよう、前後で持ち回して復元する。
+      const keptHurtWidth = this.el('spec-hw').value;
+      this.processFrames();
+      // 登録時の見た目を変えないよう、足元と表示サイズを元の値へ合わせ直す
+      const restored = this._restoreBoxSliders(already.contentBox);
+      this.el('spec-hw').value = keptHurtWidth;
+      this.el('ed-kept').classList.add('hidden');
+      this.el('ed-box').textContent = `登録済みの${sources.length}コマを読み込みました。`
+        + (restored ? '足元と表示サイズも登録時のまま復元しています。' : '');
+    } catch (error) {
+      this.el('ed-box').textContent = String(error.message || error);
+    } finally {
+      button.disabled = false;
+      this.refreshLoadExistingButton();
+    }
+  },
+
+  // 登録時の contentBox に一致するよう、足元と表示サイズのつまみを逆算して合わせる。
+  // これをしないと、読み込み直しただけでキャラの大きさや立ち位置がゲーム側で変わってしまう。
+  _restoreBoxSliders(savedBox) {
+    const entry = this.motions[this.editing.slot];
+    if (!savedBox || !entry || !entry.frameBoxes) return false;
+    const union = StudioImage.unionContentBox(entry.frameBoxes);
+    if (!union) return false;
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    // contentBox は「足元をずらしてから、上端だけを伸縮させた」形で作られている
+    const foot = clamp(Math.round(savedBox.bottom - union.bottom), -60, 60);
+    const rawBottom = union.bottom + foot;
+    const savedHeight = savedBox.bottom - savedBox.top;
+    const size = savedHeight > 0
+      ? clamp(Math.round(100 * (rawBottom - union.top) / savedHeight), 55, 185)
+      : 100;
+    this.el('ed-foot').value = foot;
+    this.el('ed-foot-value').textContent = String(foot);
+    this.el('ed-scale').value = size;
+    this.el('ed-scale-value').textContent = String(size);
+    this.processFrames();
+    return true;
+  },
+
+  // 「登録済みのコマを読み込む」ボタンの出し分け
+  refreshLoadExistingButton() {
+    const slot = this.editing && this.editing.slot;
+    const already = (this.existing || {})[slot];
+    const usable = !!(already && already.srcs && already.srcs.length);
+    const button = this.el('ed-load-existing');
+    button.classList.toggle('hidden', !usable);
+    button.textContent = this.motions[slot]
+      ? '登録済みのコマを読み込み直す'
+      : `登録済みの${(already && already.frames) || 0}コマを読み込んで編集する`;
   },
 
   closeEditor() {
@@ -1481,6 +1580,7 @@ const Studio = {
     }
     this.renderFrames();
     this.renderDropperList();
+    this.refreshLoadExistingButton();
   },
 
   renderFrames() {

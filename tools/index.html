@@ -88,6 +88,8 @@ button:disabled { opacity: .45; }
 #mask-canvas { display: block; touch-action: none; cursor: crosshair; }
 .mask-tools { padding: 10px 12px 20px; }
 .mask-tools .row { margin-top: 8px; }
+.load-existing { width: 100%; margin-top: 8px; border-color: #3f9e63; background: #10251a; color: #b8f5c8; }
+.load-existing.hidden { display: none; }
 #mask-own-fields.hidden { display: none; }
 /* 足元が地面から何px浮いているか（崖つかまりなど高さが変わるモーション用） */
 .frame .lift { position: absolute; right: 3px; top: 2px; color: #7ce0ff; font-size: 10px; font-weight: 900; font-style: normal; text-shadow: 0 1px 2px #000; }
@@ -412,6 +414,8 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
     <label>表示サイズ <span id="ed-scale-value">100</span>% — 待機モーション（薄い影）と体の大きさが揃うように調整します</label>
     <input id="ed-scale" type="range" min="55" max="185" value="100">
     <div id="ed-kept" class="kept-note hidden"></div>
+    <!-- 登録済みのモーションを読み込み直して、コマ送りの速さ・足元・透過だけ直せるようにする -->
+    <button id="ed-load-existing" type="button" class="load-existing hidden">登録済みのコマを読み込んで編集する</button>
     <div class="preview"><canvas id="ed-preview" width="360" height="200"></canvas></div>
     <div id="ed-box" class="box-info"></div>
     <div id="ed-frames" class="frames"></div>
