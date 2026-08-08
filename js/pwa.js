@@ -155,7 +155,14 @@ if ('serviceWorker' in navigator) {
         });
       });
 
+      // 初回インストールでは、まだ誰も管理していない状態から
+      // Service Worker が管理を引き取る時にも controllerchange が起きる。
+      // これは「新しい版に入れ替わった」わけではないので読み込み直す必要がない。
+      // 以前はここでも読み込み直していたため、初めての起動が必ず2回ぶんになり、
+      // 画像も音声も丸ごと二度ダウンロードしていた。
+      let hadController = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController) { hadController = true; return; }
         if (reloadingForUpdate) return;
         reloadingForUpdate = true;
         window.location.reload();

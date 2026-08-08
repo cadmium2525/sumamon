@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=73">
+<link rel="stylesheet" href="css/style.css?v=74">
 </head>
 <body class="layout-pending">
 
@@ -54,7 +54,7 @@
         <span class="home-profile-currency"><b id="home-diamonds">💎 0</b><b id="home-practice-tickets">修行券 0</b></span>
       </span>
     </button>
-    <img class="home-logo" src="assets/images/logo.png" alt="大乱闘スマッシュモンスターズ">
+    <img class="home-logo" src="assets/images/logo.webp" alt="大乱闘スマッシュモンスターズ">
     <div class="menu-list">
       <button class="menu-btn" id="btn-cpu">CPU戦</button>
       <button class="menu-btn" id="btn-multi">マルチ<span class="multi-exp-badge">マスモンEXP ×2</span></button>
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.36</small>
+    <small class="home-version">Version 1.37</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.37</time><strong>読み込みを大幅に軽くしました（更新時が約22分の1、初回起動が約6分の1）</strong><p><b>バージョンアップのたびに読み込みが異常に重い</b>問題を直しました。実際に流れる通信量を測ったところ、<b>更新1回で約72MB</b>、初めての起動では<b>約161MB</b>ありました。今回の修正で<b>更新は約3MB、初回起動は約26MB</b>になっています。原因は3つありました。<br><b>1つめ：画像が実際に表示する大きさに対して極端に大きい。</b>たとえばアイテムの絵は<b>画面では最大150px程度</b>でしか出ないのに、<b>1024×1536の約2.3MB</b>もある画像を1枚ずつ読み込んでいました。背景も写真向きでない形式のままで、1枚2〜4MBありました。表示に必要な大きさまで縮め、形式もWebPへ変えた結果、<b>画像全体で59MBから12MBへ</b>減りました。見た目は変わりません（元の画像と比べて差が分からない水準であることを数値でも確認しています）。<br><b>2つめ：更新のたびに、端末にある物まで丸ごと取り直していた。</b>新しい版を用意する時に<b>古い蓄えを先に全部捨てて</b>いたため、中身がまったく同じ画像や音楽も含めて全部ダウンロードし直していました。これからは<b>古い蓄えを捨てる前に新しい方へ引き継ぎ</b>、そのうえで「変わっていないか」だけを問い合わせます。変わっていなければ<b>中身は流れません</b>。<br><b>3つめ：初めての起動で、ページを丸ごと2回読み込んでいた。</b>アプリの管理が始まる時にも「新しい版に入れ替わった」と誤って判断して読み込み直していたため、<b>画像も音楽もきっちり二度</b>ダウンロードしていました。入れ替わった時だけ読み込み直すようにしています。<br>遊びの内容は何も変えていません。</p></article>
           <article><time>Version 1.36</time><strong>モンスター選択画面を見やすくしました</strong><p><b>左上の「モンスター選択」が途中で切れていた</b>問題を直しました。画面の横幅が変わっても、背景の左側を基準に表示します。<br>モンスターを長押しした時の能力表示を、<b>対戦前のカードと同じ色付きステータスバー</b>へ変更しました。能力の得意・不得意を数字だけでなくバーの長さでも確認できます。</p></article>
           <article><time>Version 1.35</time><strong>崖につかまったまま動けなくなる不具合を直しました</strong><p><b>崖につかまったまま、まったく動けなくなる</b>不具合を直しました。ご報告いただいた「ダウンしたまま崖につかまり、そこで攻撃を受けて、以降は移動もできず、殴られても微動だにしない」状態です。<br>原因は<b>崖につかまっている間、のけぞりの時間が1フレームも減らなかった</b>ことです。崖では動かない扱いにしていたため、のけぞりを減らす処理まで進まず、<b>いつまでも解けない</b>状態になっていました。のけぞり中は操作も受け付けないため、崖を自分から離すことも、ぶら下がり時間の上限で自動的に落ちることもできず、完全に固まっていました。そこへ追撃が入るたびにのけぞりが上書きされるので、永久に抜け出せません。<br>直したのは3か所です。まず<b>崖につかまっている間でも、のけぞりなどの硬直は必ず減る</b>ようにしました。次に<b>崖つかまり中に攻撃を受けたら、手を離して落ちる</b>ようにしました（本家でも崖につかまっている最中に攻撃されれば落とされます）。そして<b>のけぞり中・ダウン中・ふらふら状態では崖をつかめない</b>ようにしました。操作を受け付けない状態のまま崖にぶら下がるのが、そもそもの入り口だったためです。<br>なお<b>吹っ飛ばされている姿勢そのものは、これまでどおり崖をつかめます</b>。のけぞりさえ解けていれば通常の復帰なので、復帰のしやすさは変わりません。</p></article>
           <article><time>Version 1.34</time><strong>対戦カードの表示を修正／バトルが真っ黒になる不具合への対策</strong><p><b>ライフのバーだけ短く見える</b>問題を直しました。ライフだけ別の目盛りで計算していたため、<b>999でもバーが満タンにならず</b>、ほかの項目より低いように見えていました。全項目とも上限999でそろえています。<br><b>レベル表記のあるカードと無いカードでステータスの行がズレる</b>問題を直しました。レベルの行を常に確保するようにしたので、どのカードでも項目が同じ高さで並びます。<br><b>対戦カードを見ている間にBGMが途切れる</b>のも直しました。<br>また、<b>バトル画面が真っ黒になったまま操作できなくなる</b>不具合のご報告を受け、そうなりにくくする対策を入れました。これまでは描画の途中で問題が起きると、画面を消したあと描き直す前に処理が止まり、<b>真っ黒なまま復帰できない</b>状態になり得ました。内部の状態が壊れないようにし、対戦カードの表示に失敗した場合も<b>バトルはそのまま始まる</b>ようにしています。<br>それでも起きてしまった場合に原因が分かるよう、<b>画面に問題の内容を表示</b>するようにしました。もし赤い帯が出たら、その文言をお知らせください。</p></article>
@@ -353,7 +354,7 @@
 
   <!-- 4.5 マスモン管理 -->
   <div id="screen-masmon-manage" class="screen hidden">
-    <img class="masmon-only-background" src="assets/images/masmon-manage-background.png?v=11" alt="マスモン管理">
+    <img class="masmon-only-background" src="assets/images/masmon-manage-background.webp?v=11" alt="マスモン管理">
     <button id="btn-manage-training" class="masmon-only-training" aria-label="トレーニングへ進む"></button>
     <button id="btn-manage-practice" class="masmon-only-practice" aria-label="修行へ進む"></button>
     <button class="masmon-only-skin" data-back="skin" aria-label="スキン変更へ進む"></button>
@@ -368,7 +369,7 @@
 
   <!-- 4.6 トレーニング -->
   <div id="screen-training" class="screen hidden scrollable-screen">
-    <img class="training-background" src="assets/images/training-background.png?v=24" alt="" aria-hidden="true">
+    <img class="training-background" src="assets/images/training-background.webp?v=24" alt="" aria-hidden="true">
     <div class="screen-heading">トレーニング</div>
     <button id="btn-use-training-item" class="training-item-button">アイテム使用</button>
     <div class="training-body">
@@ -401,7 +402,7 @@
         <!-- 画像と同じ縦横比の枠。画面を覆う大きさまで広げ、はみ出した分は枠の外で切る。
              目印とマスモンはこの枠の中に割合座標で置くので、切れても地形からズレない。 -->
         <div class="practice-map-frame">
-          <img class="practice-map-bg" src="assets/images/practice-map.png" alt="修行地の地図">
+          <img class="practice-map-bg" src="assets/images/practice-map.webp" alt="修行地の地図">
           <!-- 修行地の目印とマスモンは、割合座標でJS側から配置する -->
           <div id="practice-map-spots" class="practice-map-spots"></div>
           <img id="practice-map-masmon" class="practice-map-masmon" alt="">
@@ -453,7 +454,7 @@
       <button class="back-btn skin-back" data-back="masmon-manage">戻る</button>
       <div class="skin-title">スキン変更<small id="skin-monster-name"></small></div>
       <div class="skin-stock" title="虹彩の染色セットの所持数">
-        <img src="assets/images/items/dye-kit.png" alt="虹彩の染色セット"><span id="skin-dye-count">0</span>
+        <img src="assets/images/items/dye-kit.webp" alt="虹彩の染色セット"><span id="skin-dye-count">0</span>
       </div>
     </div>
     <div class="skin-body">
@@ -642,15 +643,15 @@
   <script src="js/fighter.js?v=58"></script>
   <script src="js/fighters-data.js?v=10"></script>
   <script src="js/debug-mode.js?v=11"></script>
-  <script src="js/stage.js?v=32"></script>
+  <script src="js/stage.js?v=33"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=5"></script>
   <script src="js/growth-system.js?v=44"></script>
-  <script src="js/practice.js?v=22"></script>
+  <script src="js/practice.js?v=23"></script>
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=4"></script>
   <script src="js/game.js?v=51"></script>
-    <script src="js/flow.js?v=62"></script>
-  <script src="js/pwa.js?v=13"></script>
+    <script src="js/flow.js?v=63"></script>
+  <script src="js/pwa.js?v=14"></script>
 </body>
 </html>

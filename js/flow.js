@@ -14,13 +14,13 @@ const HUNDRED_REWARD_STEPS = [
 ];
 
 const SHOP_ITEMS = [
-  { id: 'vital_elixir', name: '生命の霊薬', price: 350, image: 'assets/images/items/potion-a-large.png', effect: 'ライフか丈夫さを20アップ' },
-  { id: 'vital_tonic', name: '生命の小薬', price: 200, image: 'assets/images/items/potion-a-small.png', effect: 'ライフか丈夫さを10アップ' },
-  { id: 'skill_elixir', name: '技巧の霊薬', price: 350, image: 'assets/images/items/potion-b-large.png', effect: '命中か回避を20アップ' },
-  { id: 'skill_tonic', name: '技巧の小薬', price: 200, image: 'assets/images/items/potion-b-small.png', effect: '命中か回避を10アップ' },
-  { id: 'might_elixir', name: '闘知の霊薬', price: 350, image: 'assets/images/items/potion-c-large.png', effect: 'ちからかかしこさを20アップ' },
-  { id: 'might_tonic', name: '闘知の小薬', price: 200, image: 'assets/images/items/potion-c-small.png', effect: 'ちからかかしこさを10アップ' },
-  { id: 'dye_kit', name: '虹彩の染色セット', price: 800, image: 'assets/images/items/dye-kit.png', effect: 'マスモンをオリジナルカラーに染める（1個で1回）' },
+  { id: 'vital_elixir', name: '生命の霊薬', price: 350, image: 'assets/images/items/potion-a-large.webp', effect: 'ライフか丈夫さを20アップ' },
+  { id: 'vital_tonic', name: '生命の小薬', price: 200, image: 'assets/images/items/potion-a-small.webp', effect: 'ライフか丈夫さを10アップ' },
+  { id: 'skill_elixir', name: '技巧の霊薬', price: 350, image: 'assets/images/items/potion-b-large.webp', effect: '命中か回避を20アップ' },
+  { id: 'skill_tonic', name: '技巧の小薬', price: 200, image: 'assets/images/items/potion-b-small.webp', effect: '命中か回避を10アップ' },
+  { id: 'might_elixir', name: '闘知の霊薬', price: 350, image: 'assets/images/items/potion-c-large.webp', effect: 'ちからかかしこさを20アップ' },
+  { id: 'might_tonic', name: '闘知の小薬', price: 200, image: 'assets/images/items/potion-c-small.webp', effect: 'ちからかかしこさを10アップ' },
+  { id: 'dye_kit', name: '虹彩の染色セット', price: 800, image: 'assets/images/items/dye-kit.webp', effect: 'マスモンをオリジナルカラーに染める（1個で1回）' },
 ];
 
 const STAT_ITEM_EFFECTS = {
@@ -118,12 +118,12 @@ const AppFlow = {
   // 全ファイター/ステージ画像を事前読み込み（読み込み完了後にバトル開始しても即座に表示される）
   preloadAssets(onDone) {
     const urls = new Set([
-      'assets/images/home.png', 'assets/images/logo.png', 'assets/images/app-icon.png',
-      'assets/images/stage-select-background.png', 'assets/images/masmon-manage-background.png',
-      'assets/images/training-background.png', 'assets/images/fighter-select-background.png',
-      'assets/images/ui/training-ticket.png', 'assets/images/ui/practice-ticket.png',
-      'assets/images/battle/gong3.png', 'assets/images/battle/gong2.png',
-      'assets/images/battle/gong1.png', 'assets/images/battle/gong.png',
+      'assets/images/home.webp', 'assets/images/logo.webp', 'assets/images/app-icon.png',
+      'assets/images/stage-select-background.webp', 'assets/images/masmon-manage-background.webp',
+      'assets/images/training-background.webp', 'assets/images/fighter-select-background.webp',
+      'assets/images/ui/training-ticket.webp', 'assets/images/ui/practice-ticket.webp',
+      'assets/images/battle/gong3.webp', 'assets/images/battle/gong2.webp',
+      'assets/images/battle/gong1.webp', 'assets/images/battle/gong.webp',
     ]);
     SHOP_ITEMS.forEach(item => urls.add(item.image));
     const collectImages = value => {
@@ -775,7 +775,7 @@ const AppFlow = {
     // フリー券はどのマスモンにも使えるので、個体のチケットと並べて出す。
     // 0枚のときも枠ごと消すと「そんな仕組みがある」ことに気づけないため、常に出す。
     const free = GROWTH.freeTrainingTickets();
-    document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.png" alt="">${m.trainingTickets || 0}枚</span><span class="ticket-count free"><img src="assets/images/ui/training-ticket.png" alt="">${free}枚</span>
+    document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.webp" alt="">${m.trainingTickets || 0}枚</span><span class="ticket-count free"><img src="assets/images/ui/training-ticket.webp" alt="">${free}枚</span>
       ${this._statPanelHtml(stats, m.aptitudes)}`;
     document.getElementById('training-list').innerHTML = Object.entries(GROWTH.TRAINING_MENU).map(([key, t]) => {
       // このマスモンの適性を反映した「実際に上がる量」を表示する（基本値のままだと
@@ -986,9 +986,9 @@ const AppFlow = {
     const ticketDetails = masmons.filter(monster => (Number(monster.trainingTickets) || 0) > 0)
       .map(monster => `${this.escapeHtml(monster.name)} ${monster.trainingTickets}枚`).join(' ／ ');
     const items = [
-      { name: 'トレーニングチケット', image: 'assets/images/ui/training-ticket.png', count: trainingTickets, detail: ticketDetails || '所持マスモン共通 0枚' },
-      { name: 'フリートレーニングチケット', image: 'assets/images/ui/training-ticket.png', imageClass: 'free-ticket', count: UserProfileStore.data.freeTrainingTickets || 0, detail: 'どのマスモンにも使える／100人組手の報酬' },
-      { name: '修行チケット', image: 'assets/images/ui/practice-ticket.png', count: UserProfileStore.data.practiceTickets || 0, detail: '5ブリーダーレベルごとに獲得' },
+      { name: 'トレーニングチケット', image: 'assets/images/ui/training-ticket.webp', count: trainingTickets, detail: ticketDetails || '所持マスモン共通 0枚' },
+      { name: 'フリートレーニングチケット', image: 'assets/images/ui/training-ticket.webp', imageClass: 'free-ticket', count: UserProfileStore.data.freeTrainingTickets || 0, detail: 'どのマスモンにも使える／100人組手の報酬' },
+      { name: '修行チケット', image: 'assets/images/ui/practice-ticket.webp', count: UserProfileStore.data.practiceTickets || 0, detail: '5ブリーダーレベルごとに獲得' },
       ...SHOP_ITEMS.map(item => ({ name: item.name, image: item.image, count: Number(inventory[item.id]) || 0, detail: item.effect })),
     ];
     document.getElementById('mypage-item-list').innerHTML = items.map(item => `
@@ -1406,11 +1406,11 @@ const AppFlow = {
     const text = document.getElementById('battle-countdown-text');
     overlay.classList.remove('hidden');
     const steps = [
-      { file: 'gong3.png', text: '3', ms: 700 }, { file: 'gong2.png', text: '2', ms: 700 },
-      { file: 'gong1.png', text: '1', ms: 700 }, { file: 'gong.png', text: 'FIGHT!', ms: 650 },
+      { file: 'gong3.webp', text: '3', ms: 700 }, { file: 'gong2.webp', text: '2', ms: 700 },
+      { file: 'gong1.webp', text: '1', ms: 700 }, { file: 'gong.webp', text: 'FIGHT!', ms: 650 },
     ];
     for (const step of steps) {
-      image.classList.toggle('gong-final', step.file === 'gong.png');
+      image.classList.toggle('gong-final', step.file === 'gong.webp');
       text.textContent = step.text;
       text.style.display = '';
       image.style.display = 'none';

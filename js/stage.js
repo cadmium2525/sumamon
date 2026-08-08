@@ -5,8 +5,8 @@ const STAGES = {
   waterfall_ruins: {
     key: 'waterfall_ruins',
     displayName: '滝の遺跡',
-    background: 'assets/images/field/waterfall_ruins/background.png',
-    platformImage: 'assets/images/field/waterfall_ruins/platform.png',
+    background: 'assets/images/field/waterfall_ruins/background.webp',
+    platformImage: 'assets/images/field/waterfall_ruins/platform.webp',
     // ワールドサイズ（カメラがズームアウトしても見せて良い範囲）。
     // 今は画面サイズと同じだが、カメラがfighter間の距離に応じて自動でズーム/追従するようになったため、
     // 今後はここを広げるだけでキャンバスより大きなフィールドを用意できる。
@@ -27,8 +27,8 @@ const STAGES = {
   cosmo: {
     key: 'cosmo',
     displayName: 'コスモ',
-    background: 'assets/images/field/cosmo/background.png',
-    platformImage: 'assets/images/field/cosmo/platform.png',
+    background: 'assets/images/field/cosmo/background.webp',
+    platformImage: 'assets/images/field/cosmo/platform.webp',
     worldWidth: CONFIG.CANVAS_W,
     worldHeight: CONFIG.CANVAS_H,
     platforms: [

@@ -30,7 +30,7 @@ const PRACTICE_BLANK_INPUT = Object.freeze({
   jump: false, attack: false, special: false, shield: false, grab: false, stickX: 0,
 });
 
-// 修行地選択の地図。背景画像(assets/images/practice-map.png)の
+// 修行地選択の地図。背景画像(assets/images/practice-map.webp)の
 // どこにマスモンを立たせるかを「画像に対する割合(0〜1)」で持つ。
 // 割合で持つことで、画面サイズが変わっても同じ場所を指す。
 const PRACTICE_MAP_SPOTS = {

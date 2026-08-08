@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v136';
+const CACHE_NAME = 'smamon-app-v137';
 const APP_SHELL = [
   './',
   './index.html',
@@ -28,24 +28,24 @@ const APP_SHELL = [
   './js/pwa.js',
   './js/stage.js',
   './assets/images/app-icon.png',
-  './assets/images/home.png',
-  './assets/images/logo.png',
-  './assets/images/stage-select-background.png',
-  './assets/images/masmon-manage-background.png',
-  './assets/images/training-background.png',
-  './assets/images/practice-map.png',
-  './assets/images/fighter-select-background.png',
-  './assets/images/ui/training-ticket.png',
-  './assets/images/ui/practice-ticket.png',
-  './assets/images/items/potion-a-large.png',
-  './assets/images/items/potion-a-small.png',
-  './assets/images/items/potion-b-large.png',
-  './assets/images/items/potion-b-small.png',
-  './assets/images/items/potion-c-large.png',
-  './assets/images/items/potion-c-small.png',
-  './assets/images/items/dye-kit.png',
-  './assets/images/field/cosmo/background.png',
-  './assets/images/field/cosmo/platform.png',
+  './assets/images/home.webp',
+  './assets/images/logo.webp',
+  './assets/images/stage-select-background.webp',
+  './assets/images/masmon-manage-background.webp',
+  './assets/images/training-background.webp',
+  './assets/images/practice-map.webp',
+  './assets/images/fighter-select-background.webp',
+  './assets/images/ui/training-ticket.webp',
+  './assets/images/ui/practice-ticket.webp',
+  './assets/images/items/potion-a-large.webp',
+  './assets/images/items/potion-a-small.webp',
+  './assets/images/items/potion-b-large.webp',
+  './assets/images/items/potion-b-small.webp',
+  './assets/images/items/potion-c-large.webp',
+  './assets/images/items/potion-c-small.webp',
+  './assets/images/items/dye-kit.webp',
+  './assets/images/field/cosmo/background.webp',
+  './assets/images/field/cosmo/platform.webp',
   './assets/images/fighter/irumine/idle/frame_001.png',
   './assets/images/fighter/irumine/idle/frame_002.png',
   './assets/images/fighter/irumine/idle/frame_003.png',
@@ -76,10 +76,10 @@ const APP_SHELL = [
   './assets/images/fighter/irumine/neutral_special/frame_004.png',
   './assets/images/fighter/irumine/neutral_special/frame_005.png',
   './assets/images/fighter/irumine/neutral_special/frame_006.png',
-  './assets/images/battle/gong3.png',
-  './assets/images/battle/gong2.png',
-  './assets/images/battle/gong1.png',
-  './assets/images/battle/gong.png',
+  './assets/images/battle/gong3.webp',
+  './assets/images/battle/gong2.webp',
+  './assets/images/battle/gong1.webp',
+  './assets/images/battle/gong.webp',
   './assets/audio/home.mp3',
   './assets/audio/battlemode.mp3',
   './assets/audio/Pain%20the%20Universe.mp3',
@@ -118,10 +118,47 @@ async function cacheAsset(cache, url) {
   await cache.put(request, response);
 }
 
+// 「変わっていないか」の問い合わせを、自分で作った条件付きリクエストで行う。
+//
+// 'no-cache' 指定はブラウザ側のキャッシュに控えが残っている時しか条件付きにならず、
+// 控えが捨てられていると結局まるごとダウンロードになる。ブラウザのキャッシュは
+// いつ捨てられるか分からないので、更新のたびに全部落とし直す危険が残る。
+// こちらのキャッシュに入っている応答からETag（無ければ更新日時）を取り出して
+// 自分で条件を付ければ、ブラウザのキャッシュの状態に左右されず必ず条件付きになる。
+// 変わっていなければ304が返るだけなので、実質ゼロ通信で済む。
+async function revalidateAsset(cache, url) {
+  const cached = await cache.match(url, { ignoreSearch: true });
+  // まだ持っていない物は、確かめようが無いので普通に取る。
+  // ここは 'no-cache'（必ず問い合わせ直す）にしてはいけない。
+  // 初回起動では画面が先に同じ画像を読み込んでいるので、
+  // 問い合わせ直すと全部もう一度ダウンロードすることになり、
+  // 初回の通信量がちょうど倍になる。既定の扱いにしておけば
+  // ブラウザが持っている取れたての物がそのまま使われる。
+  if (!cached) {
+    const response = await fetch(new Request(url, { cache: 'default' }));
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    await cache.put(new Request(url, { cache: 'no-cache' }), response);
+    return;
+  }
+
+  const headers = new Headers();
+  const etag = cached.headers.get('ETag');
+  const lastModified = cached.headers.get('Last-Modified');
+  if (etag) headers.set('If-None-Match', etag);
+  else if (lastModified) headers.set('If-Modified-Since', lastModified);
+  // 手がかりが何も無い応答は確かめようがないので、そのまま使い続ける
+  else return;
+
+  // ブラウザのキャッシュを挟むと条件が書き換わるため 'no-store' で直接聞く
+  const response = await fetch(new Request(url, { cache: 'no-store', headers }));
+  if (response.status === 304) return;   // 変わっていない
+  if (!response.ok) return;              // 取れなければ手持ちのまま
+  await cache.put(new Request(url, { cache: 'no-cache' }), response);
+}
+
 async function cacheFreshAppShell() {
   const cache = await caches.open(CACHE_NAME);
   const core = APP_SHELL.filter(isCoreAsset);
-  const media = APP_SHELL.filter(url => !isCoreAsset(url));
 
   // 中核ファイルだけは確実にそろえる。1つでも欠けたら不完全な更新を有効化しない。
   const results = await Promise.allSettled(core.map(url => cacheAsset(cache, url)));
@@ -135,17 +172,12 @@ async function cacheFreshAppShell() {
   if (missing.length) {
     throw new Error(`中核ファイルをキャッシュできませんでした: ${missing.join(', ')}`);
   }
-
-  // 画像・音声は待たずに裏で取る。ここで返してしまうと install が
-  // それらの完了まで待ってしまうため、意図的に投げっぱなしにする。
-  // 取り切れなくても、実際に使う時に fetch ハンドラ側でキャッシュされる。
-  Promise.allSettled(media.map(url => cacheAsset(cache, url).catch(error => {
-    console.warn('あとで取り直します:', url, error);
-  })));
+  // 画像・音声はここでは取らない。有効化のあと、前バージョンから引き継いだうえで
+  // 問い合わせ直す（→ activate）。install と両方で取ると同じ物を二度確認することになる。
 }
 
 self.addEventListener('install', event => {
-  // 中核ファイルがそろった時点でインストール完了とする（メディアは裏で続く）
+  // 中核ファイルがそろった時点でインストール完了とする（メディアは有効化後）
   event.waitUntil(cacheFreshAppShell());
 });
 
@@ -153,17 +185,67 @@ self.addEventListener('message', event => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
+// 前のバージョンのキャッシュを、捨てる前に新しいキャッシュへ引き継ぐ。
+//
+// 以前はここで古いキャッシュを問答無用に消していた。ところが更新の適用は
+// 中核ファイルがそろった時点で始まるため、画像・音声の取り込みはまだ裏で
+// 動いている最中である。そこへ「古いキャッシュを全消し」が入ると、
+// 直後の読み込み直しでほぼ全アセットがキャッシュから消えた状態になり、
+// 端末に同じ画像があるのに丸ごと取り直すことになっていた。
+// これが「更新の時だけ異常に待たされる」原因。
+//
+// 新しいキャッシュに既にある物（＝この更新で取り直した最新版）は上書きしない。
+// あくまで穴埋めなので、変わったファイルが古いまま残ることはない。
+// 取りこぼしがあっても、あとから走る再確認で最新版に入れ替わる。
+async function adoptPreviousCaches() {
+  const keys = await caches.keys();
+  const previous = keys.filter(key => key !== CACHE_NAME);
+  if (!previous.length) return 0;
+
+  const cache = await caches.open(CACHE_NAME);
+  let adopted = 0;
+  for (const key of previous) {
+    const old = await caches.open(key);
+    for (const request of await old.keys()) {
+      if (await cache.match(request, { ignoreSearch: true })) continue;
+      const response = await old.match(request);
+      if (response) { await cache.put(request, response); adopted++; }
+    }
+  }
+  await Promise.all(previous.map(key => caches.delete(key)));
+  return adopted;
+}
+
+// 引き継いだ物が古いままにならないよう、裏で問い合わせ直す。
+// 変わっていなければ304が返るだけなので、通信量はほぼゼロで済む。
+//
+// 起動直後の読み込みが一段落するまで待ってから始める。
+// すぐ始めると、画面が自分で読み込んでいる最中の画像をこちらも取りに行き、
+// 同じファイルを二重にダウンロードすることになる（初回起動が倍の通信量になっていた）。
+// 待ってから走らせれば、画面が取った物は既にキャッシュにあるので
+// 「変わっていないか」の問い合わせだけで済む。
+const REVALIDATE_DELAY_MS = 12000;
+
+function revalidateMedia() {
+  return caches.open(CACHE_NAME).then(cache => Promise.allSettled(
+    APP_SHELL.filter(url => !isCoreAsset(url))
+      .map(url => revalidateAsset(cache, url).catch(() => {}))
+  ));
+}
+
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    const keys = await caches.keys();
-    // このPWAはorigin内にキャッシュを1つしか使わない設計のため、
-    // 現行バージョン以外のキャッシュ（命名規則が古い過去のものも含む）はすべて削除する。
-    await Promise.all(
-      keys
-        .filter(key => key !== CACHE_NAME)
-        .map(key => caches.delete(key))
-    );
+    const adopted = await adoptPreviousCaches();
     await self.clients.claim();
+    if (adopted) {
+      // 更新時：手持ちがそろっているので、確認するだけ（変わっていなければ304）。
+      // 差し替えた画像をその場で反映させたいので待たずに走らせる。
+      revalidateMedia();
+    } else {
+      // 初回：まだ何も持っていないので本当にダウンロードすることになる。
+      // 画面が読んでいる最中の物と取り合わないよう、落ち着くまで待つ。
+      setTimeout(revalidateMedia, REVALIDATE_DELAY_MS);
+    }
   })());
 });
 
@@ -205,15 +287,21 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       caches.open(CACHE_NAME)
         .then(cache => cache.match('./index.html'))
-        .then(cached => cached || fetch(new Request(request, { cache: 'reload' })))
+        .then(cached => cached || fetch(new Request(request, { cache: 'no-cache' })))
     );
     return;
   }
 
+  // キャッシュに無い時の取りに行き方。
+  // 以前は 'reload'（ブラウザのキャッシュを一切見ずに必ず丸ごとダウンロード）だった。
+  // 更新直後はキャッシュが空に近いためほぼ全アセットがここを通り、
+  // 端末に同じ物があっても全部ダウンロードし直していた。
+  // 'no-cache' なら「変わっていないか」だけ問い合わせ、変わっていなければ
+  // 本文は流れず端末の物がそのまま使われる。
   event.respondWith(
     caches.open(CACHE_NAME)
       .then(cache => cache.match(request, { ignoreSearch: true }))
-      .then(cached => cached || fetch(new Request(request, { cache: 'reload' })).then(response => {
+      .then(cached => cached || fetch(new Request(request, { cache: 'no-cache' })).then(response => {
         if (response.ok) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
