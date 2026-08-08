@@ -88,18 +88,32 @@
           "right": 221,
           "bottom": 283
         }
+      },
+      "crouch": {
+        "frames": [
+          "assets/images/fighter/irumine/crouch/frame_001.png",
+          "assets/images/fighter/irumine/crouch/frame_002.png",
+          "assets/images/fighter/irumine/crouch/frame_003.png",
+          "assets/images/fighter/irumine/crouch/frame_004.png",
+          "assets/images/fighter/irumine/crouch/frame_005.png",
+          "assets/images/fighter/irumine/crouch/frame_006.png",
+          "assets/images/fighter/irumine/crouch/frame_007.png",
+          "assets/images/fighter/irumine/crouch/frame_008.png"
+        ],
+        "frameDuration": 20,
+        "contentBox": {
+          "left": 6,
+          "top": 5,
+          "right": 245,
+          "bottom": 249
+        }
       }
-    },
-    "parts": {
-      "neckY": 94,
-      "hipY": 193,
-      "legSplitX": 107,
-      "overlap": 6
     },
     "proceduralMotion": {
       "enabled": true,
       "intensity": 1.5
-    }
+    },
+    "jumpPower": 1
   },
   "dullahan": {
     "key": "dullahan",

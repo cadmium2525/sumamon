@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v125';
+const CACHE_NAME = 'smamon-app-v126';
 const APP_SHELL = [
   './',
   './index.html',
@@ -90,7 +90,15 @@ const APP_SHELL = [
   './assets/images/fighter/irumine/ledge/frame_003.png',
   './assets/images/fighter/irumine/ledge/frame_004.png',
   './assets/images/fighter/irumine/ledge/frame_005.png',
-  './assets/images/fighter/irumine/ledge/frame_006.png'
+  './assets/images/fighter/irumine/ledge/frame_006.png',
+  './assets/images/fighter/irumine/crouch/frame_001.png',
+  './assets/images/fighter/irumine/crouch/frame_002.png',
+  './assets/images/fighter/irumine/crouch/frame_003.png',
+  './assets/images/fighter/irumine/crouch/frame_004.png',
+  './assets/images/fighter/irumine/crouch/frame_005.png',
+  './assets/images/fighter/irumine/crouch/frame_006.png',
+  './assets/images/fighter/irumine/crouch/frame_007.png',
+  './assets/images/fighter/irumine/crouch/frame_008.png'
 ];
 
 // 中核ファイル（HTML/CSS/JS/JSON）と、あとから取れば足りるメディアを分ける。
