@@ -52,11 +52,11 @@ const StudioPreview = {
     return task;
   },
 
-  async playFrames(sources, duration) {
+  async playFrames(sources, duration, { loop = true } = {}) {
     const images = (await Promise.all(sources.map(s =>
       (typeof s === 'string' ? this.loadImage(s) : Promise.resolve(s))))).filter(Boolean);
     if (!images.length) return false;
-    this.source = { kind: 'frames', images, duration: Math.max(1, duration || 6) };
+    this.source = { kind: 'frames', images, duration: Math.max(1, duration || 6), loop };
     this.frame = 0;
     this._start();
     return true;
@@ -150,7 +150,9 @@ const StudioPreview = {
 
     if (s.kind === 'frames') {
       if (this.playing) this.frame++;
-      const index = Math.floor(this.frame / s.duration) % s.images.length;
+      const step = Math.floor(this.frame / s.duration);
+      // ループしないモーションは最後のコマで止める（本番の見え方に合わせる）
+      const index = s.loop === false ? Math.min(s.images.length - 1, step) : step % s.images.length;
       this._drawFitted(s.images[index], groundY);
       return;
     }

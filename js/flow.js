@@ -743,7 +743,10 @@ const AppFlow = {
     const m = this._selectedManageMasmon();
     if (!m) return;
     const stats = GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: m.trainingStats }, m.aptitudes, m.level);
-    document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.png" alt="">${m.trainingTickets || 0}枚</span>
+    // フリー券はどのマスモンにも使えるので、個体のチケットと並べて出す。
+    // 0枚のときも枠ごと消すと「そんな仕組みがある」ことに気づけないため、常に出す。
+    const free = GROWTH.freeTrainingTickets();
+    document.getElementById('training-summary').innerHTML = `<strong>${m.name} Lv.${m.level}</strong><span class="ticket-count"><img src="assets/images/ui/training-ticket.png" alt="">${m.trainingTickets || 0}枚</span><span class="ticket-count free"><img src="assets/images/ui/training-ticket.png" alt="">${free}枚</span>
       ${this._statPanelHtml(stats, m.aptitudes)}`;
     document.getElementById('training-list').innerHTML = Object.entries(GROWTH.TRAINING_MENU).map(([key, t]) => {
       // このマスモンの適性を反映した「実際に上がる量」を表示する（基本値のままだと
@@ -752,7 +755,7 @@ const AppFlow = {
         .map(([stat, base]) => [stat, GROWTH.trainingChangeFor(m.aptitudes[stat], base)])
         .sort((a, b) => b[1] - a[1])
         .map(([stat, value]) => this._statChipHtml(stat, value)).join('');
-      return `<button class="training-card" data-training="${key}" ${(m.trainingTickets || 0) < 1 ? 'disabled' : ''}><strong>${t.name}</strong><span class="training-effects">${chips}</span></button>`;
+      return `<button class="training-card" data-training="${key}" ${GROWTH.trainableCount(m) < 1 ? 'disabled' : ''}><strong>${t.name}</strong><span class="training-effects">${chips}</span></button>`;
     }).join('');
     document.getElementById('training-message').textContent = message;
   },
@@ -764,7 +767,9 @@ const AppFlow = {
     if (result.ok) MasmonStore.update(m);
     const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
     const changes = result.ok ? Object.entries(result.applied).filter(([, v]) => v).map(([k, v]) => `${labels[k]} ${v > 0 ? '+' : ''}${v}`).join('、') : '';
-    this.renderTraining(result.ok ? `${result.training.name}成功！ ${changes}` : result.message);
+    // どちらのチケットを使ったかは残数に関わるので、成功時に必ず伝える
+    const ticketNote = result.usedFree ? '（フリートレーニングチケットを1枚使いました）' : '';
+    this.renderTraining(result.ok ? `${result.training.name}成功！ ${changes}${ticketNote}` : result.message);
     this.renderMasmonManage();
   },
 
@@ -953,12 +958,13 @@ const AppFlow = {
       .map(monster => `${this.escapeHtml(monster.name)} ${monster.trainingTickets}枚`).join(' ／ ');
     const items = [
       { name: 'トレーニングチケット', image: 'assets/images/ui/training-ticket.png', count: trainingTickets, detail: ticketDetails || '所持マスモン共通 0枚' },
+      { name: 'フリートレーニングチケット', image: 'assets/images/ui/training-ticket.png', imageClass: 'free-ticket', count: UserProfileStore.data.freeTrainingTickets || 0, detail: 'どのマスモンにも使える／100人組手の報酬' },
       { name: '修行チケット', image: 'assets/images/ui/practice-ticket.png', count: UserProfileStore.data.practiceTickets || 0, detail: '5ブリーダーレベルごとに獲得' },
       ...SHOP_ITEMS.map(item => ({ name: item.name, image: item.image, count: Number(inventory[item.id]) || 0, detail: item.effect })),
     ];
     document.getElementById('mypage-item-list').innerHTML = items.map(item => `
       <article class="mypage-item-card">
-        <img src="${item.image}" alt="${item.name}">
+        <img class="${item.imageClass || ''}" src="${item.image}" alt="${item.name}">
         <div><strong>${item.name}</strong><small>${item.detail}</small></div>
         <b>${item.count}</b>
       </article>

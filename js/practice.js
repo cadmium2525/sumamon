@@ -6,6 +6,30 @@ const PRACTICE_COURSES = {
   volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 60, description: '降り注ぐ火山弾をシールドで凌ぐ。最後の巨岩はジャストガードで', level: 10 },
 };
 
+// 砂漠・雪山の開始前カウントダウンの見た目と文言。
+// ジャングル・海岸・火山はコースごとに凝った専用演出があるので、そちらは触らない。
+const READY_BANNERS = {
+  desert: {
+    veil: 'rgba(38,20,6,.72)', line: 'rgba(255,214,140,.55)', glow: 'rgba(255,214,140,.9)',
+    title: '#fff3d8', sub: '#e8cd9f',
+    lines: ['鉄板に書かれた技を出して', '関門を突破しろ！'],
+    note: '違う技を当てると弾かれて減点。落とし穴にも気をつけろ',
+  },
+  snow: {
+    veil: 'rgba(10,28,42,.72)', line: 'rgba(180,232,255,.55)', glow: 'rgba(180,232,255,.9)',
+    title: '#eaf9ff', sub: '#b6dcef',
+    lines: ['画面は下から迫り上がる', '落ちないよう登り続けろ！'],
+    note: '足場は左右に揺れる。後半はツララが降ってくる',
+  },
+};
+
+// カウントダウン中にFighterへ渡す「何も押していない」入力。
+// Fighter側はこの入力を書き換えないので、毎フレーム作り直さず使い回してよい。
+const PRACTICE_BLANK_INPUT = Object.freeze({
+  left: false, right: false, up: false, down: false,
+  jump: false, attack: false, special: false, shield: false, grab: false, stickX: 0,
+});
+
 // 修行地選択の地図。背景画像(assets/images/practice-map.png)の
 // どこにマスモンを立たせるかを「画像に対する割合(0〜1)」で持つ。
 // 割合で持つことで、画面サイズが変わっても同じ場所を指す。
@@ -59,6 +83,7 @@ function desertAvailableMoves() {
 }
 
 const DESERT_CONFIG = {
+  readyFrames: 180,    // カウントダウン3秒（この間は時間が減らず、操作もできない）
   ceilingY: 96,        // 天井の高さ。ここより上へは絶対に行けない（関門の飛び越え防止）
   groundY: 485,
   gateCount: 7,
@@ -269,6 +294,7 @@ const VOLCANO_REWARD_BASE = { stat: 50, life: 20 };
 // 左右に揺れる足場を渡り、後半はツララを避けて少しでも高く登る。
 // ここに挙げた数値は初速の目安（実測での再調整を前提とした初期案）。
 const SNOW_CONFIG = {
+  readyFrames: 180,        // カウントダウン3秒（この間は時間が減らず、操作もできない）
   scrollDelay: 1.4,        // 開始から何秒は不動か（最初の足場を確認する猶予）
   scrollBaseSpeed: 0.75,   // スクロール速度の初速(px/フレーム)
   scrollMaxSpeed: 1.6,     // duration経過時点のスクロール速度上限(px/フレーム)
@@ -634,12 +660,14 @@ const PracticeGame = {
     f.y = groundY - f.h;
     f.vx = 0; f.vy = 0;
     if (this.courseKey === 'desert') {
+      this.readyTimer = DESERT_CONFIG.readyFrames;
       this._setupDesert(f);
     } else if (this.courseKey === 'jungle') {
       this._setupJungle(f);
     } else if (this.courseKey === 'coast') {
       this._setupCoast(f);
     } else if (this.courseKey === 'snow') {
+      this.readyTimer = SNOW_CONFIG.readyFrames;
       this._snowGroundY = groundY;
       this.platforms = [{ x: 20, y: groundY, w: 230, h: 20 }];
       // ジグザグに登る氷の足場を生成。縦間隔・横位置・揺れの振幅/周期はすべてランダムで、
@@ -1156,7 +1184,13 @@ const PracticeGame = {
     this.elapsed += 1 / 60;
     // 足場の揺れはFighter.updateの当たり判定より前に反映する（同フレームでズレないように）
     if (this.courseKey === 'snow') this._swaySnowPlatforms();
-    const inp = this._readInput();
+    // カウントダウン中は操作を受け付けない。
+    // 以前はそのまま通っていたため、「3・2・1」の間に走り出したり技を置いたりでき、
+    // 開始位置も残り時間も人によって変わってしまっていた。
+    // 入力の読み取り自体は続ける（押しっぱなしの状態を見失うと、カウント明けに
+    // 押していないボタンが1回ぶん暴発する）。
+    const raw = this._readInput();
+    const inp = this.readyTimer > 0 ? PRACTICE_BLANK_INPUT : raw;
     const f = this.fighter;
     // 関門の押し戻しは「動く前にどちら側に居たか」で決める。移動後の位置だけで
     // 判断すると、1フレームの移動量が大きい時に反対側へ弾き出されてすり抜ける。
@@ -1374,6 +1408,13 @@ const PracticeGame = {
 
   _updateDesert() {
     const f = this.fighter;
+
+    // カウントダウン中は時間を進めない（_tickで加算済みのぶんを戻す）
+    if (this.readyTimer > 0) {
+      this.readyTimer--;
+      this.elapsed = 0;
+      return;
+    }
 
     // ---- 関門の飛び越え防止 ----
     // 「天井」と「全高の壁」の2枚構えにしてある。どちらか片方だけでは破られる：
@@ -1648,6 +1689,16 @@ const PracticeGame = {
 
   _updateSnow() {
     const f = this.fighter;
+
+    // カウントダウン中は時間もスクロールも止める。
+    // ここで止めないと、構える前に画面が上へ動き出して足元をすくわれる。
+    if (this.readyTimer > 0) {
+      this.readyTimer--;
+      this.elapsed = 0;
+      this.bestAltitudeY = f.y;
+      this.cameraY = this.scrollTop;
+      return;
+    }
     // 到達標高のベストを常時更新（評価はゲームオーバー後も「最も高く登った時点」を見る）
     if (f.y < this.bestAltitudeY) this.bestAltitudeY = f.y;
     this.bestAltitudeM = Math.max(0, Math.round((this._snowGroundY - this.bestAltitudeY) / 10));
@@ -2190,6 +2241,39 @@ const PracticeGame = {
     ctx.restore();
     // 舞う砂は最前面。ワールド座標ではなく画面座標で流す。
     if (this.courseKey === 'desert') this._drawDesertSand(ctx);
+    // カウントダウンは restore 後の画面座標で描く。
+    // カメラが動く砂漠(横)・雪山(縦)では、ワールド座標のまま描くと表示が一緒に流れてしまう。
+    if (this.readyTimer > 0 && READY_BANNERS[this.courseKey]) this._drawReadyBanner(ctx);
+  },
+
+  // 砂漠・雪山の開始前カウントダウン。
+  // ジャングル/海岸/火山はコースごとの演出を持っているので、そちらはそのまま。
+  _drawReadyBanner(ctx) {
+    const banner = READY_BANNERS[this.courseKey];
+    const t = this.readyTimer;
+    const alpha = Math.min(1, t / 18);   // 最後の18フレームでフェードアウト
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = banner.veil;
+    ctx.fillRect(0, 178, 960, 176);
+    ctx.strokeStyle = banner.line; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 178); ctx.lineTo(960, 178);
+    ctx.moveTo(0, 354); ctx.lineTo(960, 354); ctx.stroke();
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 34px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.shadowColor = banner.glow; ctx.shadowBlur = 16;
+    ctx.fillStyle = banner.title;
+    banner.lines.forEach((line, i) => ctx.fillText(line, 480, 224 + i * 42));
+    ctx.shadowBlur = 0;
+    ctx.font = '17px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.fillStyle = banner.sub;
+    ctx.fillText(banner.note, 480, 306);
+    ctx.font = 'bold 26px "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.fillStyle = '#ffe27a';
+    ctx.fillText(String(Math.ceil(t / 60)), 480, 336);
+    ctx.restore();
+    ctx.globalAlpha = 1;
   },
 
   // ==== マンディー砂漠の描画 ====

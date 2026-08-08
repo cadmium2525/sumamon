@@ -392,13 +392,18 @@ function checkLedges() {
 
     for (const ledge of ledges) {
       const px = p.x + p.w / 2;
-      const dx = Math.abs(px - ledge.x);
+      // 判定は「崖の外側に広く、内側に浅く」する。
+      // 内側まで同じだけ広げると、台の上を歩いているだけで崖に吸い付いてしまう。
+      const outward = ledge.edge === 'left' ? ledge.x - px : px - ledge.x;
+      const limitX = outward >= 0 ? CONFIG.LEDGE_GRAB_RANGE_X : CONFIG.LEDGE_GRAB_RANGE_X_INNER;
+      if (Math.abs(px - ledge.x) >= limitX) continue;
       const mainSurfaceY = mainPlatform.surfaceY != null ? mainPlatform.surfaceY : mainPlatform.y;
-      const dy = Math.abs(p.y - mainSurfaceY);
-      if (dx < CONFIG.LEDGE_GRAB_RANGE_X && dy < CONFIG.LEDGE_GRAB_RANGE_Y) {
-        p.grabLedge(ledge, mainPlatform);
-        break;
-      }
+      // 崖より下は深くまで拾い、崖より上は浅くする（上は台へ戻る動きと紛れるため）
+      const below = p.y - mainSurfaceY;
+      const limitY = below >= 0 ? CONFIG.LEDGE_GRAB_RANGE_Y : CONFIG.LEDGE_GRAB_RANGE_Y_ABOVE;
+      if (Math.abs(below) >= limitY) continue;
+      p.grabLedge(ledge, mainPlatform);
+      break;
     }
   }
 }

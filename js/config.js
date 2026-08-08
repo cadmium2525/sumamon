@@ -63,9 +63,13 @@ const CONFIG = {
   AIR_DODGE_LAG_FRAMES: 32,   // 回避後の硬直（隙）
   AIR_DODGE_SPEED: 6.5,       // 方向入力ありの場合の移動速度
 
-  // 崖掴まり
-  LEDGE_GRAB_RANGE_X: 32,
-  LEDGE_GRAB_RANGE_Y: 70,
+  // 崖掴まり。
+  // 32x70 は狭く、復帰の軌道が少しでもズレると素通りして落ちていた。
+  // 本家は「崖の外側に大きく、内側に浅い」判定なので、外側だけを大きく広げる。
+  LEDGE_GRAB_RANGE_X: 60,        // 崖の外側（奈落側）へどこまで届くか
+  LEDGE_GRAB_RANGE_X_INNER: 26,  // 崖の内側（ステージ側）。広げすぎると地上へ戻れなくなる
+  LEDGE_GRAB_RANGE_Y: 108,       // 崖の高さ方向。下から掴み直せる余地を持たせる
+  LEDGE_GRAB_RANGE_Y_ABOVE: 34,  // 崖より上。広げすぎると台上に戻る動きが崖掴まりに化ける
   LEDGE_INVINCIBLE_FRAMES: 40,
   LEDGE_COOLDOWN_FRAMES: 20,     // 手を離した直後の再キャッチ防止
   LEDGE_MAX_HANG_FRAMES: 300,    // 掴まり続けられる最大時間（粘り防止）

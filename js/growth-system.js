@@ -88,10 +88,26 @@ const GROWTH = {
     return Math.max(1, Math.round(baseChange * multiplier));
   },
 
+  // フリートレーニングチケットは口座（プロフィール）側に持つ。
+  // マスモンごとのトレーニングチケットと違い、どの子にでも使える。
+  freeTrainingTickets() {
+    return Math.max(0, Number(UserProfileStore.data.freeTrainingTickets) || 0);
+  },
+
+  // このマスモンがトレーニングできる残り回数（個体ぶん＋フリー券）
+  trainableCount(masmon) {
+    return Math.max(0, Number(masmon.trainingTickets) || 0) + this.freeTrainingTickets();
+  },
+
   train(masmon, trainingKey) {
     const training = this.TRAINING_MENU[trainingKey];
     if (!training) return { ok: false, message: 'トレーニングが見つかりません' };
-    if ((masmon.trainingTickets || 0) < 1) return { ok: false, message: 'トレーニングチケットが足りません' };
+    // 個体のチケットを先に使い、無くなったらフリー券を切り崩す。
+    // 逆にすると、そのマスモン専用のチケットが余ったままフリー券だけ枯れてしまう。
+    const useFree = (masmon.trainingTickets || 0) < 1;
+    if (useFree && this.freeTrainingTickets() < 1) {
+      return { ok: false, message: 'トレーニングチケットが足りません' };
+    }
     masmon.trainingStats = masmon.trainingStats || {};
     const applied = {};
     for (const [key, baseChange] of Object.entries(training.changes)) {
@@ -102,8 +118,9 @@ const GROWTH = {
       applied[key] = next - current;
       masmon.trainingStats[key] = next;
     }
-    masmon.trainingTickets--;
-    return { ok: true, training, applied };
+    if (useFree) UserProfileStore.addFreeTrainingTickets(-1);
+    else masmon.trainingTickets--;
+    return { ok: true, training, applied, usedFree: useFree };
   },
 
   applyPracticeResult(masmon, mainStat, grade, mainBase = 13, lifeBase = 5) {
@@ -279,7 +296,7 @@ function normalizeBattleRecords(records = {}) {
 
 const UserProfileStore = {
   currentUid: null,
-  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() },
+  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, freeTrainingTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() },
 
   _localKey(uid) { return `smamon_profile_${uid}`; },
 
@@ -294,6 +311,7 @@ const UserProfileStore = {
       breederLevel: Math.max(1, Number(local && local.breederLevel) || 1),
       breederExp: Math.max(0, Number(local && local.breederExp) || 0),
       practiceTickets: Math.max(0, Number(local && local.practiceTickets) || 0),
+      freeTrainingTickets: Math.max(0, Number(local && local.freeTrainingTickets) || 0),
       inventory: { ...((local && local.inventory) || {}) },
       battleRecords: normalizeBattleRecords(local && local.battleRecords),
     };
@@ -310,6 +328,7 @@ const UserProfileStore = {
             breederLevel: Math.max(1, Number(remote.breederLevel) || this.data.breederLevel),
             breederExp: Math.max(0, Number(remote.breederExp) || 0),
             practiceTickets: Math.max(0, Number(remote.practiceTickets) || 0),
+            freeTrainingTickets: Math.max(0, Number(remote.freeTrainingTickets) || 0),
             inventory: { ...(remote.inventory || this.data.inventory || {}) },
             battleRecords: normalizeBattleRecords(remote.battleRecords || this.data.battleRecords),
           };
@@ -324,7 +343,7 @@ const UserProfileStore = {
 
   clear() {
     this.currentUid = null;
-    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() };
+    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, freeTrainingTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() };
   },
 
   _saveLocal() {
@@ -378,6 +397,14 @@ const UserProfileStore = {
     this.data.practiceTickets = Math.max(0, (Number(this.data.practiceTickets) || 0) + Math.floor(Number(amount) || 0));
     this.save();
     return this.data.practiceTickets;
+  },
+
+  // フリートレーニングチケット。どのマスモンでも使えるので口座側に持つ。
+  addFreeTrainingTickets(amount) {
+    this.data.freeTrainingTickets =
+      Math.max(0, (Number(this.data.freeTrainingTickets) || 0) + Math.floor(Number(amount) || 0));
+    this.save();
+    return this.data.freeTrainingTickets;
   },
 
   recordBattle(mode, result) {

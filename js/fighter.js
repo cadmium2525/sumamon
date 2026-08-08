@@ -51,6 +51,22 @@ class Fighter {
     return !!(state && state.config.contentBox && state.failed === 0 && state.loaded >= state.images.length);
   }
 
+  // ループさせずに最後のコマで止める状態。
+  // 「入力を保持している間ずっとその姿勢でいる」ものと、「一度その形になったら
+  // 状態が変わるまで戻らない」ものが該当する。しゃがみをループさせると、
+  // 下を押しっぱなしなのに立ち上がり動作を繰り返してしまう。
+  static HOLD_LAST_FRAME_STATES = new Set(['crouch', 'shield', 'downed']);
+
+  // このモーションをループ再生するか。
+  // データ側の loop 指定を最優先し、無ければ状態キーごとの既定に従う。
+  // （スタジオから状態ごとに指定できるようにしてあるので、崖つかまりのように
+  //   モンスターによってループさせたい/止めたいが分かれるものにも対応できる）
+  static animationLoops(state, key) {
+    const configured = state && state.config ? state.config.loop : undefined;
+    if (configured != null) return !!configured;
+    return !this.HOLD_LAST_FRAME_STATES.has(key);
+  }
+
   // options: { grabRange, name, spriteSrc, hurtboxWidth, hurtboxHeight, spriteContentBox }
   // hurtboxWidth/hurtboxHeight: 画像を解析して算出した「実際のキャラクター本体」のサイズ（世界座標単位）
   // spriteContentBox: 元画像ピクセル座標での本体bbox（影・余白を除く）。{left, top, right, bottom}
@@ -1102,7 +1118,15 @@ class Fighter {
       this.animFrame = Math.min(picked.state.images.length - 1, Math.floor(this.jumpAnimTimer / duration));
     } else if (this.animTimer >= duration) {
       this.animTimer = 0;
-      this.animFrame = (this.animFrame + 1) % picked.state.images.length;
+      const last = picked.state.images.length - 1;
+      // ループしない状態は最後のコマで止める。
+      // しゃがみのように「入力を保持している間ずっとその姿勢」であるべきモーションを
+      // ループさせると、下を押しっぱなしにしているのに立ち上がり動作を繰り返してしまう。
+      if (Fighter.animationLoops(picked.state, key)) {
+        this.animFrame = (this.animFrame + 1) % picked.state.images.length;
+      } else {
+        this.animFrame = Math.min(last, this.animFrame + 1);
+      }
     }
   }
 
@@ -1723,6 +1747,9 @@ class Fighter {
       const gripX = this.onLedge.ledgeX;
       const gripY = this.onLedge.platformY;
       const pulse = 0.55 + 0.45 * Math.sin(this.ledgeHangFrames * 0.22);
+      // 専用の崖つかまりモーションがある場合、手と腕は絵の中に描かれている。
+      // 上から重ねると腕が2本に見えてしまうので、印は出さず縁の光とゲージだけにする。
+      const hasLedgeMotion = this.animState === 'ledge';
       ctx.save();
       // 崖の縁の光
       const glow = ctx.createRadialGradient(gripX, gripY, 2, gripX, gripY, 26);
@@ -1730,18 +1757,20 @@ class Fighter {
       glow.addColorStop(1, 'rgba(255,200,60,0)');
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(gripX, gripY, 26, 0, Math.PI * 2); ctx.fill();
-      // 掴んでいる手
-      ctx.fillStyle = '#ffe9a8';
-      ctx.strokeStyle = '#6b4b12';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(gripX, gripY - 2, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      // 体から手へ伸びる腕
-      ctx.strokeStyle = 'rgba(255,233,168,.9)';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(this.x + this.w / 2, this.y + this.h * 0.3);
-      ctx.lineTo(gripX, gripY - 2);
-      ctx.stroke();
+      if (!hasLedgeMotion) {
+        // 掴んでいる手
+        ctx.fillStyle = '#ffe9a8';
+        ctx.strokeStyle = '#6b4b12';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(gripX, gripY - 2, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        // 体から手へ伸びる腕
+        ctx.strokeStyle = 'rgba(255,233,168,.9)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(this.x + this.w / 2, this.y + this.h * 0.3);
+        ctx.lineTo(gripX, gripY - 2);
+        ctx.stroke();
+      }
       // 残りぶら下がり時間ゲージ（尽きると自動で手を離す）
       const remain = Math.max(0, 1 - this.ledgeHangFrames / CONFIG.LEDGE_MAX_HANG_FRAMES);
       const barW = 40;

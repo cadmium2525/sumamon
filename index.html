@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=69">
+<link rel="stylesheet" href="css/style.css?v=70">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.28</small>
+    <small class="home-version">Version 1.29</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.29</time><strong>しゃがみが戻らなくなりました／修行に開始カウントダウンを統一／崖がつかまりやすく／フリートレーニングチケットを追加</strong><p><b>しゃがみが立ち上がり動作を繰り返してしまう</b>問題を直しました。下を入れ続けている間は<b>最後のコマで止まってしゃがんだまま</b>になります。ガードとダウンも同じく、姿勢を保つようになりました。モーションごとに繰り返すかどうかは作成スタジオから選べます。<br><b>修行のカウントダウンを全コースに付けました。</b>これまでマンディー砂漠とパパス雪山にはカウントダウンが無く、いきなり始まっていました。あわせて、<b>カウントダウン中は操作を受け付けない</b>ようにしています。以前は「3・2・1」の間に走り出したり技を置いたりできてしまい、開始位置も残り時間も人によって変わっていました。パパス雪山は、カウント中に画面がせり上がってこないようにもしています。<br><b>崖がつかまりやすくなりました。</b>判定が狭く、復帰の軌道が少しでもズレるとそのまま素通りして落ちていました。<b>崖の外側と下方向を大きく広げ</b>、内側（ステージ側）は逆に浅くしてあります（台の上を歩いているだけで吸い付かないようにするため）。また、崖つかまりの<b>専用モーションがあるマスモンでは、手のマークを出さなくなりました</b>。絵の中の腕と重なって2本に見えていたためです。<br><b>フリートレーニングチケットを追加しました。</b>トレーニングチケットと同じように使えますが、<b>どのマスモンにも使えます</b>。そのマスモン専用のチケットから先に消費し、無くなったらフリー券を使います。アイテム一覧と修行画面では<b>赤いチケット</b>として表示されます。入手は100人組手の報酬です。</p></article>
           <article><time>Version 1.28</time><strong>しゃがみコマ数調整</strong><p>しゃがみコマ数こまこま</p></article>
           <article><time>Version 1.27</time><strong>モンスター作成スタジオ：登録済みモーションを読み込んで微調整できるようにしました</strong><p>※この回はゲーム側の変更はありません。<b>モンスター作成スタジオ</b>の機能追加です。<br>これまで、登録済みのモーションを直したい時は<b>元の画像を選び直すところからやり直し</b>でした。「コマ送りが少し速い」「足元をあと数px下げたい」「もう少し透過を詰めたい」といった小さな手直しでも作り直しになり、元の素材が手元に無いと直せない状態でした。<br>モーションの編集画面に<b>「登録済みのコマを読み込んで編集する」</b>を追加しました。押すと今そのモンスターに登録されているコマがそのまま読み込まれ、<b>1コマの表示フレーム数・足元の位置・表示サイズ</b>を動かせるほか、前回追加した<b>コマごとの背景ブラシ</b>や<b>コマ個別の抜き方</b>もそのまま使えます。<br>読み込んだ時は<b>登録時の見た目をそのまま復元</b>します。足元と表示サイズは登録時の値から逆算して合わせ直し、当たり判定の横幅も勝手に書き換えません。そのため、読み込んだだけではゲーム内の大きさや立ち位置は一切変わりません。書き戻し先も登録済みと同じ場所なので、直したいところだけ直して確定できます。</p></article>
           <article><time>Version 1.26</time><strong>イルミネしゃがみモーション追加</strong><p>イルミネしゃがみモーション追加！</p></article>
@@ -613,25 +614,25 @@
 
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=9"></script>
+  <script src="js/config.js?v=10"></script>
   <script src="js/audio.js?v=7"></script>
   <script src="js/moves.js?v=30"></script>
   <script src="js/physics.js?v=36"></script>
   <script src="js/procedural-motion.js?v=3"></script>
   <script src="js/skin.js?v=2"></script>
   <script src="js/skin-editor.js?v=3"></script>
-  <script src="js/fighter.js?v=55"></script>
+  <script src="js/fighter.js?v=56"></script>
   <script src="js/fighters-data.js?v=10"></script>
   <script src="js/debug-mode.js?v=11"></script>
   <script src="js/stage.js?v=32"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=3"></script>
-  <script src="js/growth-system.js?v=43"></script>
-  <script src="js/practice.js?v=21"></script>
+  <script src="js/growth-system.js?v=44"></script>
+  <script src="js/practice.js?v=22"></script>
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=3"></script>
-  <script src="js/game.js?v=45"></script>
-    <script src="js/flow.js?v=58"></script>
+  <script src="js/game.js?v=46"></script>
+    <script src="js/flow.js?v=59"></script>
   <script src="js/pwa.js?v=13"></script>
 </body>
 </html>

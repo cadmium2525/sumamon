@@ -405,6 +405,9 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
     </div>
     <label>1コマの表示フレーム数 <span id="ed-dur-value">8</span>（小さいほど速い・60分の1秒単位）</label>
     <input id="ed-duration" type="range" min="1" max="20" value="8">
+    <!-- しゃがみのように姿勢を保つモーションは、繰り返さず最後のコマで止める -->
+    <label class="check" style="margin-top:10px"><input id="ed-loop" type="checkbox" checked> コマを繰り返す（ループ再生）</label>
+    <p class="note" id="ed-loop-note">外すと<b>最後のコマで止まります</b>。しゃがみのように「入力している間ずっとその姿勢」でいてほしいモーションは外してください。</p>
     <label>足元の位置を微調整 <span id="ed-foot-value">0</span>px — 影が残る/削れすぎる時だけ動かします</label>
     <input id="ed-foot" type="range" min="-60" max="60" value="0">
     <div class="row" style="margin-top:12px">

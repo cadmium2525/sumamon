@@ -1958,6 +1958,13 @@ body.layout-pending .screen { visibility: hidden; }
 .training-summary { position: sticky; top: 0; width: auto; padding: 10px 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(7,14,24,.74); border-radius: 10px; text-align: center; text-shadow: 0 1px 3px #000; }
 .ticket-count { display: inline-flex; align-items: center; gap: 5px; margin-left: 16px; color: #ffd54a; }
 .ticket-count img { width: 34px; height: 22px; object-fit: contain; }
+/* フリートレーニングチケット。
+   専用画像を足さず、同じ絵の色相を回して赤にする。
+   元の絵は色相45°（山吹）なので、-50°回すと赤へ寄る。
+   CSSのhue-rotateは厳密なHSL回転ではなく行列近似なので、
+   彩度を少し足さないとくすんで見える。 */
+.free-ticket, .ticket-count.free img { filter: hue-rotate(-50deg) saturate(1.45); }
+.ticket-count.free { color: #ff8272; }
 /* ==== ステータス表示（マスモン管理・トレーニング共通） ==== */
 .stat-panel { display: grid; gap: 6px; margin-top: 8px; text-align: left; }
 .stat-row { display: grid; grid-template-columns: minmax(56px, auto) 26px 1fr 24px; align-items: end; column-gap: 7px; }

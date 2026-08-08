@@ -1,6 +1,7 @@
 // ==== モンスター作成スタジオ：モーション定義 ====
 // ここに1行足すだけでスタジオの入力欄が増える。
 // slot: data/fighters.json の animations キー、または "move:<グループ>.<技キー>"（技モーション）
+// loop: false を既定にすると「最後のコマで止める」で登録される（しゃがみ・ガードなど姿勢を保つもの）
 // projectile: true の技は、モーションに加えて飛び道具（矢・弾など）の設定ができる
 window.STUDIO_MOTIONS = [
   { slot: 'idle',    name: '待機',       dir: 'idle',            duration: 8,  required: true,
@@ -10,11 +11,12 @@ window.STUDIO_MOTIONS = [
   { slot: 'jump',    name: 'ジャンプ',   dir: 'jump',            duration: 5,
     hint: '繰り返さず1回だけ再生され、終わると空中待機へ移ります' },
   { slot: 'airIdle', name: '空中待機',   dir: 'jump',            duration: 12, filePrefix: 'air_idle' },
-  { slot: 'crouch',  name: 'しゃがみ',   dir: 'crouch',          duration: 8 },
-  { slot: 'shield',  name: 'ガード',     dir: 'shield',          duration: 8 },
+  { slot: 'crouch',  name: 'しゃがみ',   dir: 'crouch',          duration: 8,  loop: false,
+    hint: '下を入れている間ずっとこの姿勢。既定では最後のコマで止まります' },
+  { slot: 'shield',  name: 'ガード',     dir: 'shield',          duration: 8,  loop: false },
   { slot: 'hurt',    name: '被弾',       dir: 'hurt',            duration: 6 },
   { slot: 'tumble',  name: '吹っ飛び',   dir: 'tumble',          duration: 6 },
-  { slot: 'downed',  name: 'ダウン',     dir: 'downed',          duration: 10 },
+  { slot: 'downed',  name: 'ダウン',     dir: 'downed',          duration: 10, loop: false },
   { slot: 'ledge',   name: '崖つかまり', dir: 'ledge',           duration: 10 },
 
   { slot: 'move:ground.neutral',  name: '弱A',       dir: 'neutral_attack', duration: 2 },

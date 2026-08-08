@@ -147,7 +147,11 @@ const Studio = {
       const entry = this.motions[slot];
       const already = (this.existing || {})[slot];
       const duration = entry ? entry.frameDuration : (already && already.duration) || 6;
-      const ok = await StudioPreview.playFrames(frames, duration);
+      const motion = STUDIO_MOTIONS.find(m => m.slot === slot) || {};
+      const loop = entry && entry.loop != null ? entry.loop
+        : (already && already.loop != null ? already.loop
+          : (motion.loop != null ? motion.loop : true));
+      const ok = await StudioPreview.playFrames(frames, duration, { loop });
       state.textContent = ok
         ? `${frames.length}コマ／1コマ${duration}フレーム${entry ? '（編集中のもの）' : '（登録済みのもの）'}`
         : 'コマを読み込めませんでした';
@@ -887,6 +891,7 @@ const Studio = {
           frames: (animation.frames || []).length,
           srcs: (animation.frames || []).slice(),
           duration: animation.frameDuration || 6,
+          loop: animation.loop != null ? animation.loop : null,
           // 読み込んで編集し直す時に、足元と表示サイズを元どおりに復元するために要る
           contentBox: animation.contentBox || null,
         };
@@ -902,6 +907,7 @@ const Studio = {
             info.frames = (move.animation.frames || []).length;
             info.srcs = (move.animation.frames || []).slice();
             info.duration = move.animation.frameDuration || 6;
+            info.loop = move.animation.loop != null ? move.animation.loop : null;
             info.contentBox = move.animation.contentBox || null;
           }
           if (move.projectile) info.projectile = { ...move.projectile, sprite: move.projectileSprite };
@@ -1277,6 +1283,17 @@ const Studio = {
     const entry = this.motions[slot];
     this.el('ed-duration').value = entry ? entry.frameDuration : motion.duration;
     this.el('ed-dur-value').textContent = this.el('ed-duration').value;
+    // ループ再生の指定。編集中の値 → 登録済みの値 → モーション定義の既定 の順に拾う。
+    const already0 = (this.existing || {})[slot];
+    const loop = entry && entry.loop != null ? entry.loop
+      : (already0 && already0.loop != null ? already0.loop
+        : (motion.loop != null ? motion.loop : true));
+    this.el('ed-loop').checked = !!loop;
+    // ジャンプは仕組み上ループしないので、指定させると誤解を生む
+    const loopFixed = slot === 'jump' || motion.single;
+    this.el('ed-loop').disabled = loopFixed;
+    this.el('ed-loop').parentElement.classList.toggle('hidden', loopFixed);
+    this.el('ed-loop-note').classList.toggle('hidden', loopFixed);
     this.el('ed-foot').value = entry ? (entry.footOffset || 0) : 0;
     this.el('ed-foot-value').textContent = this.el('ed-foot').value;
     this.el('ed-scale').value = entry ? (entry.sizePercent || 100) : 100;
@@ -1334,6 +1351,7 @@ const Studio = {
       this.el('ed-bgmode').value = 'none';
       this.el('ed-duration').value = already.duration;
       this.el('ed-dur-value').textContent = already.duration;
+      if (already.loop != null) this.el('ed-loop').checked = !!already.loop;
       this.el('ed-foot').value = 0;
       this.el('ed-foot-value').textContent = '0';
       this.el('ed-scale').value = 100;
@@ -1534,6 +1552,7 @@ const Studio = {
     if (!entry || !entry.sources.length) return;
     entry.options = this.motionBgOptions();
     entry.frameDuration = Number(this.el('ed-duration').value);
+    entry.loop = this.el('ed-loop').checked;
 
     const processed = entry.sources.map((source, index) => {
       // 元画像は残しておき、毎回コピーに対して処理する（しきい値を何度でも変えられる）
@@ -1855,6 +1874,8 @@ const Studio = {
         return path;
       });
       const animation = { frames, frameDuration: entry.frameDuration, contentBox: entry.contentBox };
+      // ループは既定なので、止める時だけ書き出して余計な記述を残さない
+      if (entry.loop === false) animation.loop = false;
       if (motion.slot.startsWith('move:')) {
         const slot = motion.slot.slice(5);
         moveData[slot] = moveData[slot] || {};
