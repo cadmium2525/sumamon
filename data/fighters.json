@@ -100,10 +100,10 @@
           "assets/images/fighter/irumine/crouch/frame_007.png",
           "assets/images/fighter/irumine/crouch/frame_008.png"
         ],
-        "frameDuration": 20,
+        "frameDuration": 3,
         "contentBox": {
           "left": 6,
-          "top": 5,
+          "top": 6,
           "right": 245,
           "bottom": 249
         }
