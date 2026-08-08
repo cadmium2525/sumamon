@@ -21,7 +21,10 @@ const Physics = {
   // 吹っ飛び速度 = (技の基本値 + 蓄積ダメージ% * 攻撃側ステータス係数) * (1 - 防御側の重さ軽減)
   computeKnockback(kbBase, damagePercent, attackerStat, defenderDefense) {
     const attackMultiplier = 1 + this.softBonus((attackerStat || 10) - 10, CONFIG.KB_POWER_MAX, CONFIG.KB_POWER_HALF);
-    const raw = kbBase * CONFIG.KB_BASE_MULTIPLIER + damagePercent * CONFIG.KB_DAMAGE_SCALE * attackMultiplier;
+    // 技の基本値にも倍率を掛ける。
+    // 以前は蓄積ダメージに比例する部分にしか掛かっておらず、ちから999でも
+    // 吹っ飛ばしが1.35倍にしかならなかった（低%帯ではほとんど差が出なかった）。
+    const raw = (kbBase * CONFIG.KB_BASE_MULTIPLIER + damagePercent * CONFIG.KB_DAMAGE_SCALE) * attackMultiplier;
     const reduction = this.softBonus((defenderDefense || 10) - 10, CONFIG.DEFENSE_KB_MAX, CONFIG.DEFENSE_KB_HALF);
     return raw * (1 - reduction);
   },

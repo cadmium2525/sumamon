@@ -15,13 +15,18 @@ const CONFIG = {
   //   g    = ステータス - 基準値(ライフ100 / その他10)
   //   HALF = 上限の半分に届くのに必要な伸び幅
   // これにより「伸びるほど効果は緩やかになるが、1ポイントも無駄にならない」形になる。
-  DAMAGE_STAT_MAX: 1.30,   DAMAGE_STAT_HALF: 170,   // ちから/かしこさ → 与ダメージ
-  KB_POWER_MAX: 0.95,      KB_POWER_HALF: 200,      // ちから/かしこさ → 吹っ飛ばし力
-  LIFE_DAMAGE_MAX: 0.40,   LIFE_DAMAGE_HALF: 260,   // ライフ → 被ダメージ軽減
-  DEFENSE_KB_MAX: 0.45,    DEFENSE_KB_HALF: 230,    // 丈夫さ → 吹っ飛びにくさ（重さ）
-  EVASION_SPEED_MAX: 0.70, EVASION_SPEED_HALF: 260, // 回避 → 移動速度（X方向のみ）
+  // 999と最低値の差が小さく、育てた実感が出なかったため全体に広げてある。
+  DAMAGE_STAT_MAX: 1.60,   DAMAGE_STAT_HALF: 190,   // ちから/かしこさ → 与ダメージ
+  KB_POWER_MAX: 1.25,      KB_POWER_HALF: 220,      // ちから/かしこさ → 吹っ飛ばし力
+  LIFE_DAMAGE_MAX: 0.50,   LIFE_DAMAGE_HALF: 280,   // ライフ → 被ダメージ軽減
+  DEFENSE_KB_MAX: 0.55,    DEFENSE_KB_HALF: 250,    // 丈夫さ → 吹っ飛びにくさ（重さ）
+  // 回避 → 移動速度。ここだけ極端に広げてある。
+  // 本家スマブラSPの「いちばん遅いガノンドロフ(1.348) : いちばん速いソニック(3.85)」＝
+  // 約2.86倍の開きを再現する狙い。0.70/260 では999でも1.55倍しか出ず、
+  // 育てても体感が変わらなかった。2.60/420 で回避999が回避10の約2.8倍になる。
+  EVASION_SPEED_MAX: 2.60, EVASION_SPEED_HALF: 420,
   EVASION_ENDLAG_MAX: 0.30, EVASION_ENDLAG_HALF: 220, // 回避 → 技の後隙・着地隙の短縮
-  ACCURACY_CRIT_MAX: 0.22, ACCURACY_CRIT_HALF: 320, // 命中 → クリティカル率
+  ACCURACY_CRIT_MAX: 0.30, ACCURACY_CRIT_HALF: 340, // 命中 → クリティカル率
 
   // 後隙・着地隙の短縮には下限を設ける。0フレームになると
   // 「振り得の技」が生まれてしまい、差し合いが成立しなくなるため。
@@ -37,9 +42,11 @@ const CONFIG = {
   KB_DAMAGE_SCALE: 0.07,
   CRITICAL_CHANCE_BASE: 0.005,
 
-  // 移動（通常は遅め、ダッシュで倍速程度に）
-  WALK_SPEED_BASE: 1.6,
-  DASH_SPEED_BASE: 3.2,
+  // 移動（通常は遅め、ダッシュで倍速程度に）。
+  // 全体的にもっさりしていたため基準を引き上げた。
+  // 回避10（最低値）でもこの速さは出る、という下限になる。
+  WALK_SPEED_BASE: 2.0,
+  DASH_SPEED_BASE: 4.0,
 
   // 左スティックの倒し込み量(0〜1)による 歩き/ダッシュ/ステップ の判定
   // ・DASH_TILT_THRESHOLD以上倒す = ダッシュ判定（保持し続ければ走り、すぐ離せば結果的に短い「ステップ」になる）
@@ -58,10 +65,9 @@ const CONFIG = {
   SHORT_HOP_FRAMES: 6,          // このフレーム数以内にジャンプ入力を離すと小ジャンプ
   SHORT_HOP_CUT_MULTIPLIER: 0.5, // 小ジャンプ時の上昇速度カット率
 
-  // 空中緊急回避（エアドッジ）
-  AIR_DODGE_FRAMES: 22,       // 無敵で移動する時間
-  AIR_DODGE_LAG_FRAMES: 32,   // 回避後の硬直（隙）
+  // 空中緊急回避（エアドッジ）。無敵は下の DODGE_TABLE で管理する。
   AIR_DODGE_SPEED: 6.5,       // 方向入力ありの場合の移動速度
+  AIR_DODGE_LANDING_LAG: 10,  // 方向入力ありの空中回避で着地した時の硬直
 
   // 崖掴まり。
   // 32x70 は狭く、復帰の軌道が少しでもズレると素通りして落ちていた。
@@ -156,10 +162,32 @@ const CONFIG = {
   SHIELD_CHIP_SCALE: 1.15,        // 与ダメージに比例してシールドを削る量
   SHIELD_PUSHBACK_MAX: 3.4,       // ガード時の後退速度上限
 
-  // 回避（シールド+方向）
-  DODGE_SPOT_FRAMES: 24,   // その場回避
-  DODGE_ROLL_FRAMES: 20,   // 横回避（ステップ）
+  // ==== 回避（本家スマブラSP準拠） ====
+  // 無敵は「モーションの内側の窓」で、前後には無敵でないフレームがある。
+  // 以前は回避時間まるごと無敵＋後隙0だったため、その場回避を連打するだけで
+  // 多段ヒット技まで抜けられ、差し合いが成立していなかった。
+  //   total  … 動作全体のフレーム数（この間は一切行動できない）
+  //   inv    … 無敵になる区間 [開始, 終了]（動作開始からの経過フレーム）
+  //   move   … 転がりが進む区間。これ以降は後隙なので減速して止まる
+  DODGE_TABLE: {
+    spot:   { total: 27, inv: [3, 20] },
+    roll:   { total: 33, inv: [4, 16], move: 22 },
+    air:    { total: 49, inv: [3, 27] },   // 方向入力なし
+    airDir: { total: 61, inv: [4, 20] },   // 方向入力あり（着地時に別途硬直）
+  },
   DODGE_ROLL_SPEED: 9,
+
+  // 回避のワンパターン化（SPと同じく、続けて回避するほど弱くなる）。
+  // これが無いと、後隙を付けても「間隔を空けた連打」で結局抜けられてしまう。
+  DODGE_STALE_WINDOW: 90,      // 直前の回避からこのフレーム内なら「連続」とみなす
+  DODGE_STALE_MAX: 3,          // 段階の上限
+  DODGE_STALE_INV_SCALE: 0.6,  // 1段ごとに無敵時間をこの倍率へ（累積）
+  DODGE_STALE_LAG_SCALE: 1.5,  // 1段ごとに後隙をこの倍率へ（累積）
+
+  // ガード解除にかかるフレーム（SPと同じ）。
+  // ただし、ガードから直接ジャンプ・攻撃・掴み・必殺を出す場合は硬直しない
+  // （本家の「ガードキャンセル行動」）。棒立ちで離した時だけ隙になる。
+  SHIELD_DROP_LAG_FRAMES: 11,
 
   // 掴み
   GRAB_RANGE_DEFAULT: 55,

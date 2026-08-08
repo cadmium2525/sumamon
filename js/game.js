@@ -41,6 +41,8 @@ const SURVIVAL_SAVE_VERSION = 1;
 const SURVIVAL_FIGHTER_STATE_KEYS = [
   'x','y','vx','vy','facing','onGround','damagePercent','stocks','dead','tumbling','tumbleRotation',
   'downed','shielding','shieldHP','dazedTimer','dodgeTimer','dodgeType','invincible','isMoving','isDashing',
+  'dodgeTotal','dodgeInvFrom','dodgeInvTo','dodgeMoveUntil','dodgeIntangible','dodgeStaleStage','dodgeStaleTimer',
+  'shieldDropLag','_airDodgeDirectional',
   'attackTimer','recoveryTimer','hitstun','jumpFrames','jumpCutDone','jumpsUsed','jumpAnimTimer',
   'idleAnimTimer','idleAnimFrame','animTimer','animFrame','helpless','kos','falls','selfDestructs',
   'eliminatedAt','dropThroughTimer','ledgeCooldown','ledgeHangFrames','ledgeLocked','onLedge',

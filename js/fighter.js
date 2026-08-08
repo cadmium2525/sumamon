@@ -215,8 +215,16 @@ class Fighter {
     this.shieldHP = CONFIG.SHIELD_MAX;
     this.shieldReleaseTimer = 0;
     this.dazedTimer = 0;     // シールド破壊後のピヨリ
-    this.dodgeTimer = 0;     // その場回避/横回避/空中緊急回避 中
+    this.dodgeTimer = 0;     // その場回避/横回避/空中緊急回避 中（残りフレーム）
     this.dodgeType = null;
+    this.dodgeTotal = 0;       // この回避の全体フレーム（経過 = total - timer）
+    this.dodgeInvFrom = 0;     // 無敵になる区間（動作開始からの経過フレーム）
+    this.dodgeInvTo = 0;
+    this.dodgeMoveUntil = 0;   // 転がりが進む区間の終わり
+    this.dodgeIntangible = false; // 今このフレームが無敵か
+    this.dodgeStaleStage = 0;  // ワンパターン化の段階（連続で回避するほど上がる）
+    this.dodgeStaleTimer = 0;  // 直前の回避からの猶予。0になると段階がリセットされる
+    this.shieldDropLag = 0;    // ガードを棒立ちで離した時の硬直
     this.invincible = 0;
     this.dead = false;
     this.tumbling = false;
@@ -403,12 +411,19 @@ class Fighter {
     if (this.dazedTimer > 0) { this.dazedTimer--; return; } // シールド破壊後のピヨリ：操作不能
     if (this.dodgeTimer > 0) {
       this.dodgeTimer--;
+      // 無敵は動作の内側の窓だけ。前後のフレームは無防備になる。
+      const elapsed = this.dodgeTotal - this.dodgeTimer;
+      this.dodgeIntangible = elapsed >= this.dodgeInvFrom && elapsed <= this.dodgeInvTo;
+      // 転がりは進む区間を過ぎたら止まる（そこから先が後隙）
+      if (this.dodgeType === 'roll' && elapsed >= this.dodgeMoveUntil) this.vx *= 0.72;
       if (this.dodgeTimer <= 0) {
-        this.vx = 0;
-        if (this.dodgeType === 'air') this.hitstun = CONFIG.AIR_DODGE_LAG_FRAMES;
+        this.dodgeIntangible = false;
+        if (this.dodgeType !== 'air') this.vx = 0;
       }
       return;
     }
+    // ガードを棒立ちで離した時の硬直（ガードキャンセル行動なら発生しない）
+    if (this.shieldDropLag > 0) { this.shieldDropLag--; return; }
     if (this.grabbedBy) { return; } // 掴まれている間は操作不能（位置はupdate()側で追従）
     if (this.grabbing) { this.handleGrabInput(input); return; }
     if (this.smashCandidate) { this.handleSmashCharge(input); return; }
@@ -473,20 +488,27 @@ class Fighter {
       if (input.up) dirY = -1; else if (input.down) dirY = 1;
       const mag = Math.hypot(dirX, dirY);
 
-      this.dodgeTimer = CONFIG.AIR_DODGE_FRAMES;
-      this.dodgeType = 'air';
-      this.invincible = Math.max(this.invincible, CONFIG.AIR_DODGE_FRAMES);
-      if (mag > 0.01) {
+      const directional = mag > 0.01;
+      this._beginDodge('air', directional ? 'airDir' : 'air');
+      // 方向を入れた空中回避は着地に硬直が付く（本家と同じく、ぶっぱなしを抑える）
+      this._airDodgeDirectional = directional;
+      if (directional) {
         this.vx = (dirX / mag) * CONFIG.AIR_DODGE_SPEED;
         this.vy = (dirY / mag) * CONFIG.AIR_DODGE_SPEED;
       }
       this._airDodgeUsed = true;
-      this.shielding = false;
       return;
     } else {
       // シールドを離した瞬間だけ猶予を立てる。この数フレーム以内に攻撃を受けると
       // ジャストシールドが成立する（押しっぱなしからの離しでしか出ない）。
-      if (this.shielding) this.shieldReleaseTimer = CONFIG.JUST_SHIELD_WINDOW;
+      if (this.shielding) {
+        this.shieldReleaseTimer = CONFIG.JUST_SHIELD_WINDOW;
+        // ガード解除の硬直。ただし、そのままジャンプ・攻撃・掴み・必殺へ移る場合は
+        // 本家の「ガードキャンセル行動」として硬直しない。
+        // ここを一律に硬直させると、ガードが本家よりずっと重い選択肢になってしまう。
+        const cancelling = input.jump || input.attack || input.special || input.grab;
+        if (!cancelling) this.shieldDropLag = CONFIG.SHIELD_DROP_LAG_FRAMES;
+      }
       this.shielding = false;
       this.shieldHeldFrames = 0;
       if (this.shieldHP < CONFIG.SHIELD_MAX) {
@@ -731,20 +753,46 @@ class Fighter {
     });
   }
 
+  // ---- 回避の共通処理 ----
+  // 無敵の窓と全体フレームを、ワンパターン化の段階を織り込んで決める。
+  // 連続で回避するほど無敵が短く・後隙が長くなるので、連打が成立しなくなる。
+  _beginDodge(type, key) {
+    const table = CONFIG.DODGE_TABLE[key];
+    // 直前の回避から DODGE_STALE_WINDOW 以内なら段階を1つ上げる
+    const stage = this.dodgeStaleTimer > 0
+      ? Math.min(CONFIG.DODGE_STALE_MAX, this.dodgeStaleStage + 1)
+      : 0;
+    this.dodgeStaleStage = stage;
+    this.dodgeStaleTimer = CONFIG.DODGE_STALE_WINDOW;
+
+    const [invFrom, invTo] = table.inv;
+    const invScale = Math.pow(CONFIG.DODGE_STALE_INV_SCALE, stage);
+    const lagScale = Math.pow(CONFIG.DODGE_STALE_LAG_SCALE, stage);
+    const invLength = Math.max(1, Math.round((invTo - invFrom + 1) * invScale));
+    const endlag = Math.max(1, Math.round((table.total - invTo) * lagScale));
+
+    this.dodgeType = type;
+    this.dodgeInvFrom = invFrom;
+    this.dodgeInvTo = invFrom + invLength - 1;
+    // 全体フレームは元の長さを下回らせない。
+    // 無敵が縮むぶんだけ動作まで短くなると、連打するほど「早く動き直せる」という
+    // 逆の得が生まれてしまう。
+    this.dodgeTotal = Math.max(table.total, this.dodgeInvTo + endlag);
+    this.dodgeTimer = this.dodgeTotal;
+    this.dodgeMoveUntil = table.move != null ? table.move : this.dodgeTotal;
+    this.dodgeIntangible = false;   // 1フレーム目はまだ無敵ではない
+    this.shielding = false;
+  }
+
   // ---- 回避（その場/横ステップ）開始 ----
   startDodge(type, dir) {
-    this.shielding = false;
     if (type === 'spot') {
-      this.dodgeTimer = CONFIG.DODGE_SPOT_FRAMES;
-      this.invincible = Math.max(this.invincible, CONFIG.DODGE_SPOT_FRAMES);
+      this._beginDodge('spot', 'spot');
       this.vx = 0;
-      this.dodgeType = 'spot';
     } else {
-      this.dodgeTimer = CONFIG.DODGE_ROLL_FRAMES;
-      this.invincible = Math.max(this.invincible, CONFIG.DODGE_ROLL_FRAMES);
+      this._beginDodge('roll', 'roll');
       this.vx = dir * CONFIG.DODGE_ROLL_SPEED;
       this.facing = dir;
-      this.dodgeType = 'roll';
     }
   }
 
@@ -1140,6 +1188,9 @@ class Fighter {
     this.smashCandidate = null;
     this.landingLag = 0;
     this.crouching = false;
+    // 回避中に被弾したら無敵の窓もガード解除の硬直も打ち切る
+    this.dodgeIntangible = false;
+    this.shieldDropLag = 0;
     this._wantsGrab = false;
     this._projectileRequest = null;
     this._projectileSpawned = false;
@@ -1169,7 +1220,7 @@ class Fighter {
   // options.projectile: 飛び道具によるヒット（攻撃側にはヒットストップを与えない）
   takeHit(attacker, move, options) {
     // moveがnullになるのは呼び出し側の不整合だが、ここで落ちるとバトルごと止まるため必ず弾く
-    if (!move || !attacker || this.invincible > 0 || this.dead) return;
+    if (!move || !attacker || this.invincible > 0 || this.dodgeIntangible || this.dead) return;
 
     // 掴まれている最中に別の攻撃を受けたら掴みは解除される
     // （解除しないと吹っ飛びが掴み側の位置固定に打ち消され、永久に拘束されてしまう）
@@ -1221,6 +1272,10 @@ class Fighter {
         dmg = 0;
         kbBase = 0;
         this.justShieldFlash = CONFIG.JUST_SHIELD_FLASH_FRAMES;
+        // 成立したらガード解除の硬直を帳消しにする。
+        // 本家と同じく「ジャストガードが決まれば即座に反撃へ行ける」ようにするため。
+        // ここを残すと、成功したのに11フレーム動けず反撃が間に合わない。
+        this.shieldDropLag = 0;
         if (attacker && !(options && options.projectile)) {
           attacker.recoveryTimer = Math.max(attacker.recoveryTimer, CONFIG.JUST_SHIELD_ATTACKER_LAG);
           attacker.attackTimer = 0;
@@ -1343,6 +1398,11 @@ class Fighter {
     }
     if (this.ledgeCooldown > 0) this.ledgeCooldown--;
     if (this.dropThroughTimer > 0) this.dropThroughTimer--;
+    // 回避のワンパターン化の猶予。切れたら段階がリセットされる（＝間を置けば元に戻る）
+    if (this.dodgeStaleTimer > 0) {
+      this.dodgeStaleTimer--;
+      if (this.dodgeStaleTimer <= 0) this.dodgeStaleStage = 0;
+    }
 
     this._updateHitWindow();
 
@@ -1426,6 +1486,14 @@ class Fighter {
         this.currentMove = null;
         this.recoveryTimer = 0;
       }
+      // 方向を入れた空中回避で着地した時も硬直する。
+      // 硬直が無いと、崖際で回避を擦りながら降りるのが安全な択になってしまう。
+      if (wasAirborne && this.dodgeTimer > 0 && this.dodgeType === 'air' && this._airDodgeDirectional) {
+        this.landingLag = Physics.endlagFrames(CONFIG.AIR_DODGE_LANDING_LAG, this.stats.evasion);
+        this.dodgeTimer = 0;
+        this.dodgeIntangible = false;
+        this._airDodgeDirectional = false;
+      }
       this.ledgeLocked = false;
       this.fastFalling = false;
       this._airDodgeUsed = false;
@@ -1507,6 +1575,10 @@ class Fighter {
     this.crouching = false;
     this.dazedTimer = 0;
     this.dodgeTimer = 0;
+    this.dodgeIntangible = false;
+    this.dodgeStaleStage = 0;
+    this.dodgeStaleTimer = 0;
+    this.shieldDropLag = 0;
     this.smashCandidate = null;
     this.attackTimer = 0;
     this.currentMove = null;
