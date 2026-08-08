@@ -77,6 +77,18 @@ button:disabled { opacity: .45; }
 .frame.off { opacity: .35; border-style: dashed; }
 .frame.hit { border-color: #ff6b57; box-shadow: 0 0 0 2px rgba(255,107,87,.35) inset; }
 .frame .hitmark { position: absolute; right: 3px; bottom: 2px; color: #ff8f7d; font-size: 10px; font-weight: 900; text-shadow: 0 1px 2px #000; }
+/* このコマだけ手を入れてある印（筆＝手描きマスク／個＝コマ個別の抜き方） */
+.frame .tuned { position: absolute; left: 3px; bottom: 2px; color: #ffd45e; font-size: 10px; font-weight: 900; font-style: normal; text-shadow: 0 1px 2px #000; }
+.frame-edit { position: absolute; right: 2px; top: 2px; width: 22px; height: 22px; padding: 0;
+  border: 1px solid #3d5a78; border-radius: 6px; background: rgba(10,18,28,.8); color: #ffd45e; font-size: 12px; line-height: 1; }
+/* ---- コマ1枚の背景を手で直す画面 ---- */
+.mask-editor .mask-body { display: flex; flex-direction: column; height: calc(100% - 58px); }
+.mask-stage { flex: 1; min-height: 40vh; margin: 8px 10px 0; border: 1px solid #22344a; border-radius: 10px;
+  overflow: hidden; background: repeating-conic-gradient(#20303f 0 25%, #182634 0 50%) 0 0/18px 18px; }
+#mask-canvas { display: block; touch-action: none; cursor: crosshair; }
+.mask-tools { padding: 10px 12px 20px; }
+.mask-tools .row { margin-top: 8px; }
+#mask-own-fields.hidden { display: none; }
 /* 足元が地面から何px浮いているか（崖つかまりなど高さが変わるモーション用） */
 .frame .lift { position: absolute; right: 3px; top: 2px; color: #7ce0ff; font-size: 10px; font-weight: 900; font-style: normal; text-shadow: 0 1px 2px #000; }
 .seg button { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; }
@@ -480,6 +492,50 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
   </section>
 </div>
 
+<!-- コマ1枚ぶんの背景を手で直す画面 -->
+<div id="mask-editor" class="editor mask-editor hidden">
+  <div class="editor-head">
+    <button id="mask-close" type="button">← 戻る</button>
+    <strong id="mask-title">背景を手で調整</strong>
+    <button id="mask-done" type="button" class="primary">反映する</button>
+  </div>
+  <div class="mask-body">
+    <div class="mask-stage"><canvas id="mask-canvas"></canvas></div>
+    <div class="mask-tools">
+      <div class="row seg">
+        <button id="mask-mode-erase" class="seg-on" type="button">消す</button>
+        <button id="mask-mode-keep" type="button">戻す</button>
+        <button id="mask-mode-move" type="button">移動</button>
+      </div>
+      <label>ブラシの大きさ <span id="mask-size-value">28</span>px</label>
+      <input id="mask-size" type="range" min="2" max="200" value="28">
+      <label>ブラシのやわらかさ <span id="mask-soft-value">50</span>% — 大きいほど縁がぼやけます</label>
+      <input id="mask-soft" type="range" min="0" max="100" value="50">
+      <div class="row">
+        <button id="mask-undo" type="button">1つ戻す</button>
+        <button id="mask-clear" type="button">塗りを全部消す</button>
+        <button id="mask-fit" type="button">全体を表示</button>
+      </div>
+      <label class="check"><input id="mask-own" type="checkbox"> このコマだけ別の抜き方にする</label>
+      <div id="mask-own-fields" class="hidden">
+        <label>背景の抜き方（このコマ）</label>
+        <select id="mask-bgmode">
+          <option value="corner">四隅の色を自動で抜く</option>
+          <option value="white">白背景</option>
+          <option value="black">黒背景</option>
+          <option value="none">すでに透過済み（そのまま使う）</option>
+        </select>
+        <label>しきい値 <span id="mask-threshold-value">30</span></label>
+        <input id="mask-threshold" type="range" min="0" max="140" value="30">
+      </div>
+      <p class="note"><b>消す</b>＝なぞった所を透明にします。<b>戻す</b>＝自動で消えすぎた所を元の絵に戻します。<br>
+        2本指でつまむと拡大・縮小、<b>移動</b>を押している間は指で位置をずらせます。<br>
+        ここでの調整は<b>このコマだけ</b>に効きます。全コマまとめて変えたい時は、
+        前の画面の「背景の抜き方」「しきい値」を使ってください。</p>
+    </div>
+  </div>
+</div>
+
 <script>
 // ツールのスクリプトは常に最新を読み込む。
 // 古い版が残っているとリポジトリへ不正な内容をコミットしてしまう恐れがあるため、
@@ -488,7 +544,7 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
   const stamp = Date.now();
   // '../js/procedural-motion.js' はゲーム本体の自動モーション計算。
   // スタジオ側で作り直すと確認できた動きと本番がずれるため、そのまま読み込む。
-  const files = ['../js/procedural-motion', 'studio-motions', 'studio-image', 'studio-video',
+  const files = ['../js/procedural-motion', 'studio-motions', 'studio-image', 'studio-mask', 'studio-video',
     'studio-sheet', 'studio-preview', 'studio-github', 'studio-build', 'studio-app'];
   for (const name of files) {
     try {

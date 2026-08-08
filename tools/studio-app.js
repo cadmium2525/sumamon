@@ -51,6 +51,7 @@ const Studio = {
     this.bindProjectile();
     this.bindAttack();
     this.bindDropper();
+    StudioMaskEditor.bind();
     if (settings.token) this.connect();
   },
 
@@ -331,20 +332,27 @@ const Studio = {
     if (!sheet || !this.editing) return;
     const rects = sheet.rects.filter((_, i) => sheet.used[i]);
     if (!rects.length) return;
-    // 背景を抜いてから足元をそろえる（順序が逆だと中身の位置が分からない）
-    let cuts = this._sheetCutsTransparent(rects);
-    if (this.el('sheet-align').checked) cuts = StudioSheet.alignFeet(cuts);
+    // 元のまま切り出したコマを「素材」として持つ。
+    // 以前はここで背景を抜いた結果を素材にしていたため、取り込んだあとに
+    // しきい値を変えたりコマごとに抜き方を変えたりできなくなっていた。
+    let sources = StudioSheet.cut(sheet.canvas, rects);
+    if (this.el('sheet-align').checked) {
+      // 足元の測定だけは背景を抜いた版で行う（不透明なままだと中身の位置が分からない）
+      const guides = this._sheetCutsTransparent(rects);
+      sources = StudioSheet.alignFeet(sources, { guides });
+    }
     delete this.attacks[this.editing.slot];
     this.motions[this.editing.slot] = {
-      sources: cuts,
+      sources,
       canvases: [],
-      used: cuts.map(() => true),
+      used: sources.map(() => true),
+      frameOptions: sources.map(() => null),
+      masks: sources.map(() => null),
       frameDuration: Number(this.el('ed-duration').value),
-      // 背景はここで抜き終わっているので、この先では触らない
-      options: { mode: 'none', threshold: Number(this.el('ed-threshold').value) },
+      options: { mode: this.el('ed-bgmode').value, threshold: Number(this.el('ed-threshold').value) },
     };
     this.processFrames();
-    this.el('sheet-info').textContent = `${cuts.length}コマを取り込みました。下のコマ一覧で確認してください。`;
+    this.el('sheet-info').textContent = `${sources.length}コマを取り込みました。下のコマ一覧で確認してください。`;
   },
 
   // ---- 技の強さ（モンスターごとの倍率） ----
@@ -1341,6 +1349,9 @@ const Studio = {
         sources,
         canvases: [],
         used: sources.map(() => true),
+        // コマ個別の背景設定と手描きマスク。元画像が変わったら当然作り直しになる
+        frameOptions: sources.map(() => null),
+        masks: sources.map(() => null),
         frameDuration: Number(this.el('ed-duration').value),
         options: { mode: this.el('ed-bgmode').value, threshold: Number(this.el('ed-threshold').value) },
       };
@@ -1370,6 +1381,9 @@ const Studio = {
         sources,
         canvases: [],
         used: sources.map(() => true),
+        // コマ個別の背景設定と手描きマスク。元画像が変わったら当然作り直しになる
+        frameOptions: sources.map(() => null),
+        masks: sources.map(() => null),
         frameDuration: Number(this.el('ed-duration').value),
         options: { mode: this.el('ed-bgmode').value, threshold: Number(this.el('ed-threshold').value) },
       };
@@ -1379,26 +1393,57 @@ const Studio = {
     }
   },
 
+  // モーション全体に効く背景の設定（コマ個別の設定がない時はこれが使われる）
+  motionBgOptions() {
+    const entry = this.editing && this.motions[this.editing.slot];
+    return {
+      mode: this.el('ed-bgmode').value,
+      threshold: Number(this.el('ed-threshold').value),
+      // スポイトで足した背景色。縁からつながっている範囲だけを抜く。
+      extraColors: (entry && entry.extraColors) || [],
+    };
+  },
+
+  // このコマに使う背景設定。コマ個別の設定があればそちらを優先する。
+  frameBgOptions(index) {
+    const entry = this.motions[this.editing.slot];
+    const own = entry && entry.frameOptions && entry.frameOptions[index];
+    if (!own) return this.motionBgOptions();
+    return {
+      mode: own.mode,
+      threshold: own.threshold,
+      extraColors: own.extraColors || [],
+    };
+  },
+
+  // 1コマだけを「自動処理まで終えた状態」で作る（手描きマスクの下敷き）。
+  // 縮小や共通トリミングの前なので、元画像とマスクと大きさがそろっている。
+  autoFrame(index) {
+    const entry = this.motions[this.editing.slot];
+    const source = entry && entry.sources[index];
+    if (!source) return null;
+    const copy = document.createElement('canvas');
+    copy.width = source.width; copy.height = source.height;
+    copy.getContext('2d').drawImage(source, 0, 0);
+    try { StudioImage.removeBackground(copy, this.frameBgOptions(index)); } catch (e) { /* 元のまま使う */ }
+    return copy;
+  },
+
   // 背景透過 → サイズ制限 → 共通トリミング → contentBox算出 まで一括で行う
   processFrames() {
     const entry = this.motions[this.editing.slot];
     if (!entry || !entry.sources.length) return;
-    const entry0 = this.motions[this.editing.slot];
-    const options = {
-      mode: this.el('ed-bgmode').value,
-      threshold: Number(this.el('ed-threshold').value),
-      // スポイトで足した背景色。縁からつながっている範囲だけを抜く。
-      extraColors: (entry0 && entry0.extraColors) || [],
-    };
-    entry.options = options;
+    entry.options = this.motionBgOptions();
     entry.frameDuration = Number(this.el('ed-duration').value);
 
-    const processed = entry.sources.map(source => {
+    const processed = entry.sources.map((source, index) => {
       // 元画像は残しておき、毎回コピーに対して処理する（しきい値を何度でも変えられる）
       const copy = document.createElement('canvas');
       copy.width = source.width; copy.height = source.height;
       copy.getContext('2d').drawImage(source, 0, 0);
-      StudioImage.removeBackground(copy, options);
+      StudioImage.removeBackground(copy, this.frameBgOptions(index));
+      // 手描きマスクは縮小より前に当てる。マスクは元画像と同じ大きさで持っているため。
+      StudioMask.apply(copy, source, entry.masks && entry.masks[index]);
       return StudioImage.limitSize(copy, this.editing.single ? 256 : 720);
     });
 
@@ -1460,12 +1505,24 @@ const Studio = {
       const isHit = used && hitFrames.has(usableIndex);
       const own = showLift && entry.frameBoxes && entry.frameBoxes[index];
       const lift = own ? Math.round(entry.contentBox.bottom - own.bottom) : 0;
+      // このコマだけ手を入れてあることが一覧で分かるようにする
+      const hasMask = !!(entry.masks && entry.masks[index]);
+      const hasOwnBg = !!(entry.frameOptions && entry.frameOptions[index]);
       return `<div class="frame${used ? '' : ' off'}${isHit ? ' hit' : ''}" data-index="${index}">
         <span>${index + 1}</span><img src="${StudioImage.toDataUrl(canvas)}" alt="">
         ${lift >= 3 ? `<i class="lift">↑${lift}</i>` : ''}
         ${isHit ? '<i class="hitmark">判定</i>' : ''}
+        ${hasMask || hasOwnBg ? `<i class="tuned">${hasMask ? '筆' : ''}${hasOwnBg ? '個' : ''}</i>` : ''}
+        <button type="button" class="frame-edit" data-edit="${index}" title="このコマの背景を手で調整">✎</button>
       </div>`;
     }).join('');
+    // 鉛筆はコマ選択とは別の操作なので、先に拾って親へ伝えない
+    container.querySelectorAll('[data-edit]').forEach(node => {
+      node.addEventListener('click', event => {
+        event.stopPropagation();
+        StudioMaskEditor.open(this, Number(node.dataset.edit));
+      });
+    });
     container.querySelectorAll('[data-index]').forEach(node => {
       node.addEventListener('click', () => {
         const index = Number(node.dataset.index);

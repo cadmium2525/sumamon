@@ -287,8 +287,12 @@ const StudioSheet = {
   // コマごとに余白の量が違うと、再生した時にキャラクターが小刻みに揺れる。
   // 各コマの「中身の下端」と「横方向の重心」を全コマで合わせた新しいコマを作る。
   // 高さが変わるモーション（崖つかまり等）のために、ずらす量の上限を設けられる。
-  alignFeet(canvases, { maxShiftRatio = 0.25 } = {}) {
-    const metrics = canvases.map(c => this._bounds(c));
+  // guides … 位置の測定にだけ使う別のコマ列（背景を抜いた版）。
+  // 背景が不透明なままのコマは、四隅まで「中身」になってしまい足元を測れないため、
+  // 測るのは抜いた版、動かすのは元のコマ、と分けられるようにしてある。
+  alignFeet(canvases, { maxShiftRatio = 0.25, guides = null } = {}) {
+    const measured = guides && guides.length === canvases.length ? guides : canvases;
+    const metrics = measured.map(c => this._bounds(c));
     if (metrics.some(m => !m)) return canvases.slice();
     const outW = Math.max(...canvases.map(c => c.width));
     const outH = Math.max(...canvases.map(c => c.height));
