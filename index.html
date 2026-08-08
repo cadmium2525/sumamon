@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=68">
+<link rel="stylesheet" href="css/style.css?v=69">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.23</small>
+    <small class="home-version">Version 1.24</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.24</time><strong>修行地の地図を画面いっぱいに表示するようにしました</strong><p>修行地の地図が画面の半分ほどの大きさに収まっていたのを、<b>画面全体に広げて表示</b>するようにしました。火山・雪山・砂漠・ジャングル・海岸の地形がはっきり見えるようになります。<br>マスモンの立ち絵・所持している修行チケット・選んだ修行地の説明・「戻る」は、<b>地図の上に重ねる形で画面下中央にまとめ</b>ました。地図が隠れすぎないよう、説明の背景はうっすら透かしてあります。<br>地図は端末の画面比に合わせて拡大し、はみ出した分を切って表示します。切り取りで<b>パレパレジャングルの目印が画面の外に出てしまう</b>ため、ジャングルの目印を少し内側へ寄せ、端にある修行地の地名は内側へ伸びるようにしました。16:9から4:3まで、どの横画面でも5つの目印がすべて画面内に収まることを確認しています。</p></article>
           <article><time>Version 1.23</time><strong>修行を「地図から出発する」形に変更／修行の報酬を2.5倍に引き上げ</strong><p><b>修行の入口が変わりました。</b>マスモン管理でマスモンを選んで「修行」を押すと、<b>修行地の地図</b>が開きます。中央の拠点にマスモンが立っているので、<b>行きたい修行地をタップするとマスモンがそこまで歩いて向かい</b>、その修行地で伸びるステータス・適性・内容が下に表示されます。<b>同じ場所をもう一度タップすると「〜に修行に出しますか？」と確認</b>が出るので、そこで決定してください。行き先を変えたい時は別の場所をタップし直すだけです。解禁レベルに届いていない修行地は灰色の目印で表示され、必要なレベルもその場で分かります。<br><b>修行の報酬を2.5倍に引き上げました。</b>これまで最高評価でも対象ステータス+20・ライフ+8にとどまり、修行券1枚に見合わない手応えでしたので、<b>最高評価で対象ステータス+50・ライフ+20</b>に増やしました。5つの修行地すべてが対象で、下位の評価も同じ倍率で底上げしてあります。</p></article>
           <article><time>Version 1.22</time><strong>ジャストガードの成立条件を本家と同じ「離しで成立」に変更しました</strong><p><b>ジャストガードの出し方が変わります。</b>これまでは「攻撃が当たる直前にシールドを<b>張る</b>」と成立していましたが、本家スマブラSPと同じく<b>ガード中に、攻撃が当たる瞬間にシールドを離す</b>と成立するようになりました。<br>ガードを張って相手の攻撃を待ち、当たるタイミングに合わせて離してください。成功すればダメージもシールドの削れもゼロで、相手には大きな隙ができます。押しっぱなしでは成立しません。<br>これは<b>対戦モードと修行の両方に共通</b>の変更です。従来の「張った瞬間に重ねる」方式（スマブラDX〜forのパワーシールド）で慣れていた方は、操作の感覚が変わりますのでご注意ください。<br>あわせて<b>カウレア火山の説明文</b>も新しい操作に合わせて書き換えました。最後の巨岩も「ガードを張って引きつけ、当たる瞬間に離す」で受け止めます。</p></article>
           <article><time>Version 1.21</time><strong>「カウレア火山」を刷新：降り注ぐ火山弾をシールドで凌ぐ耐久ミッションに</strong><p>修行のカウレア火山を作り直しました。ただ岩を避けるだけの内容から、<b>シールドの使い方そのものを試される耐久ミッション</b>に変わります。<br>画面奥の巨大な活火山から<b>火山弾</b>が次々と降ってきます。落下点には<b>赤い警戒ライン</b>が先に出るので、<b>受ける弾と避ける弾を選び分けて</b>ください。シールドは張り続けると削れて小さくなり、<b>0になると割れてしばらく動けなくなります</b>。張りっぱなしでは凌ぎきれません。<br><b>シールドを張った直後に受けると「ジャストガード」</b>となり、シールドが一切削られず高得点になります。<br>展開は3段階です。<b>最初の10秒</b>は小さな弾でタイミング合わせ、<b>10〜50秒</b>は弾が大きく数も増え、時には2発同時に降ってきます。そして<b>残り10秒で火山が大噴火</b>。画面が暗転してスローがかかり、避けられない大きさの<b>ギガ・メテオストーン</b>が落ちてきます。これは<b>ジャストガードでしか完璧に防げません</b>（通常ガードではシールドが割れます）。成功すると閃光と衝撃波とともに巨岩が砕け散ります。<br>ステージは開始時に足場がランダム生成され、以後は固定です。黒ずんだ玄武岩に赤熱した亀裂が走る足場で、背景では溶岩が脈打ち、熱気が立ちのぼり、火山灰が舞います。<br><b>画面の外まで吹き飛ばされたらその時点で終了</b>です。評価はガード数・ジャストガード数・生き残り時間・残りシールドの合計スコアで決まり、最高評価で<b>丈夫さ+20・ライフ+8</b>が手に入ります。</p></article>
@@ -385,14 +386,21 @@
   <div id="screen-practice" class="screen hidden practice-screen">
     <section id="practice-select-panel" class="practice-select-panel">
       <div id="practice-map" class="practice-map">
-        <img class="practice-map-bg" src="assets/images/practice-map.png" alt="修行地の地図">
-        <!-- 修行地の目印とマスモンは、割合座標でJS側から配置する -->
-        <div id="practice-map-spots" class="practice-map-spots"></div>
-        <img id="practice-map-masmon" class="practice-map-masmon" alt="">
+        <!-- 画像と同じ縦横比の枠。画面を覆う大きさまで広げ、はみ出した分は枠の外で切る。
+             目印とマスモンはこの枠の中に割合座標で置くので、切れても地形からズレない。 -->
+        <div class="practice-map-frame">
+          <img class="practice-map-bg" src="assets/images/practice-map.png" alt="修行地の地図">
+          <!-- 修行地の目印とマスモンは、割合座標でJS側から配置する -->
+          <div id="practice-map-spots" class="practice-map-spots"></div>
+          <img id="practice-map-masmon" class="practice-map-masmon" alt="">
+        </div>
+        <div class="practice-map-veil"></div>
       </div>
-      <div id="practice-monster-summary" class="practice-monster-summary"></div>
-      <div id="practice-spot-info" class="practice-spot-info"></div>
-      <button class="back-btn" data-back="masmon-manage">戻る</button>
+      <div class="practice-overlay">
+        <div id="practice-monster-summary" class="practice-monster-summary"></div>
+        <div id="practice-spot-info" class="practice-spot-info"></div>
+        <button class="back-btn" data-back="masmon-manage">戻る</button>
+      </div>
     </section>
     <div id="practice-confirm-modal" class="practice-confirm-modal hidden" role="dialog" aria-modal="true">
       <div class="practice-confirm-dialog">
@@ -615,7 +623,7 @@
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=3"></script>
   <script src="js/growth-system.js?v=43"></script>
-  <script src="js/practice.js?v=20"></script>
+  <script src="js/practice.js?v=21"></script>
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=3"></script>
   <script src="js/game.js?v=45"></script>
