@@ -346,6 +346,9 @@ const Multiplayer = {
       this.localPlayerIndex = member ? member.playerIndex : 0;
       this.renderLobby();
       AppFlow.showScreen('multi-lobby');
+    } else if (data.type === 'versus-go') {
+      // ホストが対戦カード画面で「バトル開始」を押した合図
+      this.versusGo();
     } else if (data.type === 'start') {
       this.beginNetworkBattle(data);
     } else if (data.type === 'state') {
@@ -411,6 +414,24 @@ const Multiplayer = {
     };
     AppFlow.lastLaunchOptions = options;
     AppFlow.playBattleIntro(options);
+  },
+
+  // ---- 対戦カード（開始前のステータス比較）の同期 ----
+  // 全員に同じカードを見せ、ホストが押した合図で一斉に始める。
+  _versusResolve: null,
+  waitForVersusGo() {
+    return new Promise(resolve => { this._versusResolve = resolve; });
+  },
+  versusGo() {
+    const resolve = this._versusResolve;
+    this._versusResolve = null;
+    if (resolve) resolve(true);
+  },
+  sendVersusGo() {
+    if (this.role !== 'host') return;
+    const packet = { type: 'versus-go' };
+    this.guestConnections.forEach(connection => { if (connection.open) connection.send(packet); });
+    this.versusGo();
   },
 
   getRemoteInput(index) { return this.remoteInputs.get(index) || {}; },

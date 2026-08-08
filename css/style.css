@@ -2466,3 +2466,58 @@ body.layout-pending .screen { visibility: hidden; }
   .skin-free-color input[type="color"] { height: 22px; }
   .skin-foot-btn { padding: 5px 13px; font-size: 11px; }
 }
+
+/* ==== 開始前のステータス比較（モンスターファーム風の対戦カード） ==== */
+#screen-versus { justify-content: center; padding: 8px max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left)); }
+.versus-title { margin: 0 0 8px; color: #ffe49a; font-size: 17px; letter-spacing: .1em; text-shadow: 0 2px 6px #000; }
+/* 2人でも4人でも同じ組版で並ぶよう、列数ではなく「均等に分ける」指定にする。
+   人数が増えるほど1枚あたりが細くなるので、中の文字も比率で縮める。 */
+.versus-list { display: flex; justify-content: center; gap: 8px; width: min(1000px, 96vw); max-height: 74vh; }
+.versus-card {
+  /* 上限を付けて、2人の時にカードが間延びしないようにする */
+  flex: 1 1 0; min-width: 0; max-width: 300px;
+  display: flex; flex-direction: column;
+  padding: 8px 9px; border: 2px solid var(--vs-color, #6ab7ff); border-radius: 12px;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--vs-color, #6ab7ff) 26%, #0d1a28), #060e18 78%);
+  box-shadow: 0 6px 20px rgba(0,0,0,.55);
+}
+.versus-card header { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.versus-card header img { width: 34px; height: 34px; object-fit: contain; flex: none; }
+.versus-card header div { min-width: 0; }
+.versus-card .vs-slot { display: block; color: var(--vs-color, #6ab7ff); font-size: 10px; font-weight: 900; letter-spacing: .08em; }
+.versus-card .vs-name { display: block; color: #fff; font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.versus-card .vs-level { color: #ffe49a; font-size: 10px; }
+.versus-stats { margin-top: 7px; display: grid; gap: 4px; }
+/* 項目名は折り返させない。「かしこさ」が2行になると行の高さが揃わず、
+   4人並べた時にカードごとに項目の位置がずれる。 */
+.versus-stat { display: grid; grid-template-columns: 52px 1fr 34px; align-items: center; gap: 5px; }
+.versus-stat b { color: #b9d3e8; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.versus-stat i { display: block; height: 7px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; }
+.versus-stat i span { display: block; height: 100%; border-radius: 4px; background: var(--stat-color, #6ab7ff); }
+/* いちばん高い値には印を付ける。数字を読まなくても優劣が分かるように。 */
+.versus-stat.best b { color: #ffe49a; }
+.versus-stat.best em { color: #ffe49a; }
+.versus-stat em { font-style: normal; color: #e7f1fa; font-size: 11px; font-weight: 800; text-align: right; }
+.versus-wait { margin: 10px 0 0; color: #9fd8ff; font-size: 12px; }
+.versus-wait.hidden { display: none; }
+.versus-actions { display: flex; gap: 10px; margin-top: 12px; }
+.versus-actions button { min-width: 130px; padding: 10px 18px; border-radius: 9px; font-weight: 900;
+  border: 1px solid rgba(255,255,255,.3); color: #fff; background: rgba(255,255,255,.1); }
+.versus-actions button.primary { border-color: #ffd76a; color: #12202e; background: linear-gradient(#ffe9a6, #f3c554); }
+.versus-actions button:disabled { opacity: .45; }
+/* 画面が低い/狭い時は、カードの中身を詰めて4人でも収める */
+@media (max-height: 430px), (max-width: 560px) {
+  .versus-title { font-size: 14px; margin-bottom: 5px; }
+  .versus-card { padding: 6px 7px; }
+  .versus-card header img { width: 26px; height: 26px; }
+  .versus-card .vs-name { font-size: 11px; }
+  .versus-stat { grid-template-columns: 46px 1fr 28px; gap: 4px; }
+  .versus-stat b, .versus-stat em { font-size: 9px; }
+  .versus-actions button { min-width: 104px; padding: 8px 12px; font-size: 13px; }
+}
+
+/* 100人組手の到達報酬 */
+.hundred-reward-list { margin-top: 10px; padding: 10px 12px; border: 1px solid #3f9e63; border-radius: 10px; background: #10251a; }
+.hundred-reward-list strong { display: block; color: #b8f5c8; font-size: 13px; }
+.hundred-reward-list ul { margin: 6px 0; padding-left: 18px; color: #dff3e4; font-size: 12px; line-height: 1.7; }
+.hundred-reward-list span { display: block; margin-top: 4px; color: #ffe49a; font-size: 12px; font-weight: 800; }

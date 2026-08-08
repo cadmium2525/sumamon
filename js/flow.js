@@ -2,6 +2,17 @@
 // ローディング → スタート(TAP START) → ホーム → 地形選択 → ファイター選択(トークン配置)
 // → [CPU戦のみ]CPUレベル選択 → バトル開幕演出(Loading→FIGHT!) → バトル → リザルト
 
+// 100人組手の到達報酬。完全クリアできなくても、そこまでの働きに応じて配る。
+// 各段の合計が完全クリアの報酬（ダイヤ1500・修行チケット5枚・フリー券10枚）に
+// ぴったり一致するよう配分してある。ここを変える時は合計も確認すること。
+const HUNDRED_REWARD_STEPS = [
+  { at: 10,  diamonds: 100, practice: 0, free: 1 },
+  { at: 25,  diamonds: 200, practice: 1, free: 2 },
+  { at: 50,  diamonds: 300, practice: 1, free: 2 },
+  { at: 75,  diamonds: 400, practice: 1, free: 2 },
+  { at: 100, diamonds: 500, practice: 2, free: 3 },
+];
+
 const SHOP_ITEMS = [
   { id: 'vital_elixir', name: '生命の霊薬', price: 350, image: 'assets/images/items/potion-a-large.png', effect: 'ライフか丈夫さを20アップ' },
   { id: 'vital_tonic', name: '生命の小薬', price: 200, image: 'assets/images/items/potion-a-small.png', effect: 'ライフか丈夫さを10アップ' },
@@ -1265,8 +1276,100 @@ const AppFlow = {
     this.playBattleIntro(this.lastLaunchOptions);
   },
 
+  // ---- 開始前のステータス比較（対戦カード） ----
+  // モンスターファーム風に、参加者の能力を並べて見比べてから始める。
+  // 連戦モード（100人組手・エンドレス）では出さない。相手が毎回変わるうえ、
+  // 100回ぶん挟むとテンポが完全に死ぬため。
+  _shouldShowVersus(options) {
+    if (!options) return false;
+    if (options.mode === 'multi') return true;
+    if (options.mode === 'cpu' && ['hundred', 'endless'].includes(options.cpuMode)) return false;
+    return true;
+  },
+
+  renderVersus(roster) {
+    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ',
+                     accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
+    const colors = { life: '#ffd45e', power: '#ff6b6b', intelligence: '#5ad07a',
+                     accuracy: '#ff7ad0', evasion: '#63c8ff', defense: '#7c8cff' };
+    const keys = Object.keys(labels);
+    // 各項目のトップを求めて、数字を読まなくても優劣が分かるようにする
+    const best = {};
+    for (const key of keys) best[key] = Math.max(...roster.map(r => Number(r.stats[key]) || 0));
+    const list = document.getElementById('versus-list');
+    list.innerHTML = roster.map(entry => {
+      const rows = keys.map(key => {
+        const value = Number(entry.stats[key]) || 0;
+        // ライフだけ基準が違う（100始まり）ので、伸びの見え方を揃える
+        const ratio = Math.max(0.04, Math.min(1, value / (key === 'life' ? 1099 : 999)));
+        const top = roster.length > 1 && value === best[key] && value > 0;
+        return `<div class="versus-stat${top ? ' best' : ''}" style="--stat-color:${colors[key]}">
+          <b>${labels[key]}</b><i><span style="width:${(ratio * 100).toFixed(1)}%"></span></i><em>${value}</em>
+        </div>`;
+      }).join('');
+      return `<article class="versus-card" style="--vs-color:${entry.color || '#6ab7ff'}">
+        <header>
+          <img alt="" data-versus-sprite="${this.escapeHtml(entry.spriteSrc || '')}">
+          <div>
+            <span class="vs-slot">${this.escapeHtml(entry.label)}</span>
+            <span class="vs-name">${this.escapeHtml(entry.name)}</span>
+            ${entry.level ? `<span class="vs-level">Lv.${entry.level}</span>` : ''}
+          </div>
+        </header>
+        <div class="versus-stats">${rows}</div>
+      </article>`;
+    }).join('');
+    // スキン（色変更）を反映した立ち絵を貼る
+    list.querySelectorAll('[data-versus-sprite]').forEach((img, index) => {
+      const src = img.dataset.versusSprite;
+      if (!src) { img.removeAttribute('src'); return; }
+      Skin.paintInto(img, src, roster[index] ? roster[index].skin : null);
+    });
+  },
+
+  // 対戦カードを見せて、開始が押されるまで待つ。
+  // 戻り値 true なら開始、false なら取りやめ。
+  showVersus(options) {
+    const roster = (window.previewBattleRoster && previewBattleRoster(options)) || [];
+    if (!roster.length) return Promise.resolve(true);
+    this.renderVersus(roster);
+    const isMulti = options.mode === 'multi';
+    const isHost = isMulti && window.Multiplayer?.role === 'host';
+    const startBtn = document.getElementById('versus-start');
+    const cancelBtn = document.getElementById('versus-cancel');
+    // マルチでは開始できるのはホストだけ。ゲストは待ちの案内を出す。
+    startBtn.classList.toggle('hidden', isMulti && !isHost);
+    cancelBtn.classList.toggle('hidden', isMulti);
+    document.getElementById('versus-wait').classList.toggle('hidden', !(isMulti && !isHost));
+    this.showScreen('versus');
+
+    return new Promise(resolve => {
+      let done = false;
+      const finish = value => {
+        if (done) return;
+        done = true;
+        startBtn.onclick = null;
+        cancelBtn.onclick = null;
+        resolve(value);
+      };
+      startBtn.onclick = () => {
+        if (isHost) Multiplayer.sendVersusGo();   // ゲストにも同時に始めさせる
+        else finish(true);
+      };
+      cancelBtn.onclick = () => finish(false);
+      if (isMulti) {
+        // ホスト・ゲストとも、合図が来た時点で一斉に進む
+        Multiplayer.waitForVersusGo().then(() => finish(true));
+      }
+    });
+  },
+
   // Loading後にバトル画面へ移り、操作不能の3・2・1・FIGHTカウントを表示する。
   async playBattleIntro(startOptions) {
+    if (this._shouldShowVersus(startOptions)) {
+      const go = await this.showVersus(startOptions);
+      if (!go) { this.showScreen('home'); return; }
+    }
     this.showScreen('battle-intro');
     const loadingEl = document.getElementById('battle-intro-loading');
     const fightEl = document.getElementById('battle-intro-fight');
@@ -1328,10 +1431,36 @@ const AppFlow = {
         : 'エンドレスモード終了';
       panel.innerHTML = `<div class="survival-result-summary"><strong>${title}</strong><span>${result.survival.defeated}体 撃破</span></div>`;
 
+      if (result.survival.mode === 'hundred') {
+        // 撃破数に応じた段階報酬。完全クリアできなくても、そこまでの働きは報われる。
+        // 各段の合計が「完全クリアの報酬」（ダイヤ1500・修行券5・フリー券10）になるよう配分してある。
+        const reached = HUNDRED_REWARD_STEPS.filter(step => result.survival.defeated >= step.at);
+        if (reached.length) {
+          const total = reached.reduce((sum, step) => ({
+            diamonds: sum.diamonds + step.diamonds,
+            practice: sum.practice + step.practice,
+            free: sum.free + step.free,
+          }), { diamonds: 0, practice: 0, free: 0 });
+          if (total.diamonds) UserProfileStore.addDiamonds(total.diamonds);
+          if (total.practice) UserProfileStore.addPracticeTickets(total.practice);
+          if (total.free) UserProfileStore.addFreeTrainingTickets(total.free);
+          const rows = reached.map(step => {
+            const parts = [];
+            if (step.diamonds) parts.push(`ダイヤ${step.diamonds}`);
+            if (step.practice) parts.push(`修行チケット${step.practice}枚`);
+            if (step.free) parts.push(`フリー券${step.free}枚`);
+            return `<li>${step.at}体撃破 … ${parts.join(' ／ ')}</li>`;
+          }).join('');
+          panel.insertAdjacentHTML('beforeend',
+            `<div class="hundred-reward-list"><strong>到達報酬</strong><ul>${rows}</ul>`
+            + `<span>合計：ダイヤ${total.diamonds} ／ 修行チケット${total.practice}枚 ／ フリートレーニングチケット${total.free}枚</span></div>`);
+        } else {
+          panel.insertAdjacentHTML('beforeend',
+            `<div class="hundred-reward-list"><span>あと${HUNDRED_REWARD_STEPS[0].at - result.survival.defeated}体で最初の報酬です</span></div>`);
+        }
+      }
+
       if (result.survival.mode === 'hundred' && result.survival.cleared) {
-        UserProfileStore.addDiamonds(500);
-        UserProfileStore.addPracticeTickets(5);
-        panel.insertAdjacentHTML('beforeend', '<div class="diamond-reward">💎 500ダイヤを獲得！</div><div class="breeder-reward">🎟️ 修行チケットを5枚獲得！</div>');
         if (opts.p1MasmonId) {
           const monster = MasmonStore.loadAll().find(item => item.id === opts.p1MasmonId);
           if (monster) {

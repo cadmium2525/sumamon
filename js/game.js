@@ -770,6 +770,116 @@ function loop(timestamp) {
 
 // flow.js から呼ばれるバトル開始処理
 // options: { stageKey, p1Key, p2Key }
+// ==== 参加者のステータス計算 ====
+// startBattle の中のローカル関数だったが、開始前のステータス比較モーダルでも
+// まったく同じ値を出す必要があるためモジュール直下へ出した。
+// 2か所に同じ式を書くと、片方だけ直した時に「表示と実際が違う」事故になる。
+function resolveStats(def, masmon) {
+  if (masmon) {
+    return GROWTH.computeStatsAtLevel(
+      { ...defaultStats(), trainingStats: masmon.trainingStats },
+      masmon.aptitudes,
+      masmon.level,
+    );
+  }
+  return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
+}
+
+function applyCpuLevelStats(stats, def, masmon, cpuLevel) {
+  const level = Math.max(1, Math.min(9, Number(cpuLevel) || 3));
+  const aptitudes = masmon && masmon.aptitudes
+    ? masmon.aptitudes
+    : GROWTH.aptitudesFor(def.key);
+  // AIレベル1は補正なし。1段階ごとにマスモン約3レベル分の成長を加える。
+  // 高レベルCPUは判断力だけでなく、適性に沿った能力値でも育成済みマスモンへ対抗する。
+  const growthLevels = (level - 1) * 3;
+  const adjusted = {};
+  for (const key of GROWTH.STAT_KEYS) {
+    const rank = aptitudes[key] || 'C';
+    const growth = GROWTH.RANK_GROWTH_PER_LEVEL[rank] || GROWTH.RANK_GROWTH_PER_LEVEL.C;
+    adjusted[key] = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round((stats[key] || 1) + growth * growthLevels)));
+  }
+  return adjusted;
+}
+
+// 管理者モードのバトルテスト用：算出済みステータスを手入力値で上書きする。
+// options.statOverrides = { p1: {life,power,...}, cpu: {...} }（未指定のキーは通常計算のまま）
+function applyStatOverrides(stats, override) {
+  if (!override) return stats;
+  const result = { ...stats };
+  for (const key of GROWTH.STAT_KEYS) {
+    const value = Number(override[key]);
+    if (Number.isFinite(value)) result[key] = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round(value)));
+  }
+  return result;
+}
+
+// 開始前のステータス比較に使う参加者一覧。
+// startBattle と同じ関数で計算するので、表示した数値がそのまま試合で使われる。
+window.previewBattleRoster = function previewBattleRoster(options) {
+  if (!options) return [];
+  if (options.mode === 'multi' && Array.isArray(options.multiplayerRoster)) {
+    return options.multiplayerRoster.slice(0, 4).map((entry, index) => {
+      const def = FIGHTERS[entry.fighterKey] || FIGHTERS.irumine;
+      const masmon = {
+        name: entry.name || def.displayName,
+        level: Math.max(1, Number(entry.level) || 1),
+        trainingStats: { ...(entry.trainingStats || {}) },
+        aptitudes: { ...(entry.aptitudes || GROWTH.aptitudesFor(def.key)) },
+        skin: entry.skin || null,
+      };
+      const base = resolveStats(def, masmon);
+      return {
+        label: entry.isCpu ? `CPU${index + 1}` : `${index + 1}P`,
+        name: masmon.name,
+        level: masmon.level,
+        color: def.color,
+        spriteSrc: def.idleImage,
+        skin: masmon.skin,
+        aptitudes: masmon.aptitudes,
+        stats: entry.isCpu ? applyCpuLevelStats(base, def, masmon, 9) : base,
+      };
+    });
+  }
+
+  const p1Def = FIGHTERS[options.p1Key] || FIGHTERS.irumine;
+  const p1Masmon = options.p1MasmonId
+    ? MasmonStore.loadAll().find(m => m.id === options.p1MasmonId) : null;
+  const list = [{
+    label: '1P',
+    name: (p1Masmon && p1Masmon.name) || p1Def.displayName,
+    level: p1Masmon ? p1Masmon.level : null,
+    color: p1Def.color,
+    spriteSrc: p1Def.idleImage,
+    skin: p1Masmon ? p1Masmon.skin : null,
+    aptitudes: (p1Masmon && p1Masmon.aptitudes) || GROWTH.aptitudesFor(p1Def.key),
+    stats: applyStatOverrides(resolveStats(p1Def, p1Masmon), options.statOverrides?.p1),
+  }];
+
+  const selections = options.cpuFighters?.length
+    ? options.cpuFighters.slice(0, 3)
+    : [{ fighterKey: options.p2Key, masmonId: options.p2MasmonId }];
+  selections.forEach((selection, index) => {
+    const def = FIGHTERS[selection.fighterKey] || FIGHTERS.dullahan || FIGHTERS.irumine;
+    const masmon = selection.masmonId
+      ? MasmonStore.loadAll().find(m => m.id === selection.masmonId) : null;
+    const base = resolveStats(def, masmon);
+    const leveled = options.mode === 'cpu'
+      ? applyCpuLevelStats(base, def, masmon, options.cpuLevel) : base;
+    list.push({
+      label: options.mode === 'cpu' ? `CPU${index + 1}` : `${index + 2}P`,
+      name: (masmon && masmon.name) || def.displayName,
+      level: masmon ? masmon.level : null,
+      color: def.color,
+      spriteSrc: def.idleImage,
+      skin: masmon ? masmon.skin : null,
+      aptitudes: (masmon && masmon.aptitudes) || GROWTH.aptitudesFor(def.key),
+      stats: applyStatOverrides(leveled, options.statOverrides?.cpu),
+    });
+  });
+  return list;
+};
+
 window.startBattle = function startBattle(options) {
   currentBattleOptions = options;
   lastSurvivalCheckpointAt = 0;
@@ -786,46 +896,6 @@ window.startBattle = function startBattle(options) {
     : null;
 
   const buildOptions = buildFighterOptions;
-
-  function resolveStats(def, masmon) {
-    if (masmon) {
-      return GROWTH.computeStatsAtLevel(
-        { ...defaultStats(), trainingStats: masmon.trainingStats },
-        masmon.aptitudes,
-        masmon.level,
-      );
-    }
-    return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
-  }
-
-  function applyCpuLevelStats(stats, def, masmon, cpuLevel) {
-    const level = Math.max(1, Math.min(9, Number(cpuLevel) || 3));
-    const aptitudes = masmon && masmon.aptitudes
-      ? masmon.aptitudes
-      : GROWTH.aptitudesFor(def.key);
-    // AIレベル1は補正なし。1段階ごとにマスモン約3レベル分の成長を加える。
-    // 高レベルCPUは判断力だけでなく、適性に沿った能力値でも育成済みマスモンへ対抗する。
-    const growthLevels = (level - 1) * 3;
-    const adjusted = {};
-    for (const key of GROWTH.STAT_KEYS) {
-      const rank = aptitudes[key] || 'C';
-      const growth = GROWTH.RANK_GROWTH_PER_LEVEL[rank] || GROWTH.RANK_GROWTH_PER_LEVEL.C;
-      adjusted[key] = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round((stats[key] || 1) + growth * growthLevels)));
-    }
-    return adjusted;
-  }
-
-  // 管理者モードのバトルテスト用：算出済みステータスを手入力値で上書きする。
-  // options.statOverrides = { p1: {life,power,...}, cpu: {...} }（未指定のキーは通常計算のまま）
-  function applyStatOverrides(stats, override) {
-    if (!override) return stats;
-    const result = { ...stats };
-    for (const key of GROWTH.STAT_KEYS) {
-      const value = Number(override[key]);
-      if (Number.isFinite(value)) result[key] = Math.max(1, Math.min(GROWTH.STAT_MAX, Math.round(value)));
-    }
-    return result;
-  }
 
   window._matchOver = false;
   survivalBattle = null;
