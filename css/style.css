@@ -24,14 +24,111 @@ input, textarea, select {
 .practice-monster-summary img { width: 38px; height: 38px; object-fit: contain; }
 .practice-monster-summary span strong, .practice-monster-summary span small { display: block; }
 .practice-monster-summary span small { color: #ffe49a; font-size: 10px; }
-.practice-course-list { display: grid; grid-template-columns: repeat(5, minmax(135px, 1fr)); gap: 8px; width: min(96vw, 940px); }
-.practice-course-card { position: relative; min-height: 145px; overflow: hidden; padding: 12px 10px; border: 2px solid var(--course-color); border-radius: 12px; color: #fff; background: #102033; background: linear-gradient(160deg, color-mix(in srgb, var(--course-color) 30%, #102033), #07111c 78%); text-align: left; box-shadow: inset 0 0 24px rgba(0,0,0,.35); }
-.practice-course-card strong, .practice-course-card span, .practice-course-card small, .practice-course-card em { display: block; }
-.practice-course-card strong { color: #fff5c5; font-size: 14px; }
-.practice-course-card span { margin-top: 7px; font-size: 11px; font-weight: 850; }
-.practice-course-card small { margin-top: 7px; color: #c3d9e7; font-size: 9px; line-height: 1.35; }
-.practice-course-card em { position: absolute; right: 8px; bottom: 7px; color: #ffe36f; font-size: 9px; font-style: normal; }
-.practice-course-card:disabled { filter: grayscale(.75); opacity: .5; }
+/* ---- 修行地選択の地図 ----
+   背景画像の上に、修行地の目印とマスモンを「割合座標」で重ねる。
+   画像と同じ比率のボックスを作り、その中を % で配置することで、
+   画面サイズが変わっても目印が地形の上からズレない。 */
+.practice-map {
+  position: relative;
+  /* 高さの上限も「幅」の式に含めることで、常に画像と同じ縦横比を保つ。
+     max-height で潰すと object-fit:cover が画像の上下を切り落とし、
+     割合で置いた目印が地形の上からズレてしまう。 */
+  width: min(96vw, 1000px, calc(62vh * 1672 / 941));
+  aspect-ratio: 1672 / 941;   /* 背景画像の縦横比 */
+  margin: 0 auto 8px;
+  border: 2px solid rgba(255,236,180,.35);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(0,0,0,.5);
+}
+.practice-map-bg { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* 目印はマスモンより手前。マスモンが行き先に立つと立ち絵が地名を覆い、
+   どこへ向かったのか読めなくなるため、地名だけは必ず上に出す。 */
+.practice-map-spots { position: absolute; inset: 0; z-index: 2; }
+
+/* 修行地の目印。中心が指定座標に来るように translate(-50%,-50%) で置く */
+.practice-map-spot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 0; border: none; background: none; cursor: pointer;
+}
+.practice-map-spot i {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--course-color);
+  box-shadow: 0 0 10px var(--course-color), 0 2px 4px rgba(0,0,0,.6);
+  animation: practice-spot-pulse 1.8s ease-in-out infinite;
+}
+@keyframes practice-spot-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.22); } }
+.practice-map-spot span {
+  font-size: 10px; font-weight: 900; color: #fff; white-space: nowrap;
+  padding: 1px 6px; border-radius: 6px; background: rgba(0,0,0,.62);
+  text-shadow: 0 1px 3px #000;
+  /* 立ち絵が後ろに重なっても読めるように、背景は透けさせない */
+  position: relative;
+}
+.practice-map-spot span em { font-style: normal; color: #ffb0b0; margin-left: 4px; }
+.practice-map-spot.selected i { box-shadow: 0 0 16px 4px #fff, 0 0 10px var(--course-color); transform: scale(1.3); }
+.practice-map-spot.selected span { background: var(--course-color); color: #10202e; }
+.practice-map-spot.locked i { background: #7a7a7a; box-shadow: none; animation: none; }
+.practice-map-spot.locked span { color: #cfcfcf; }
+
+/* 地図上のマスモン。移動はleft/topのトランジションで見せる */
+.practice-map-masmon {
+  position: absolute;
+  width: 11%; max-width: 96px;
+  transform: translate(-50%, -82%);   /* 足元が目印に来るように少し上へ寄せる */
+  transition: left .75s cubic-bezier(.35,.9,.35,1), top .75s cubic-bezier(.35,.9,.35,1);
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.7));
+  pointer-events: none;
+  z-index: 1;                         /* 目印(z-index:2)より後ろに置く */
+}
+.practice-map-masmon.no-transition { transition: none; }
+
+/* 選択中の修行地の説明。
+   幅は地図とまったく同じ式にする。min(96vw,1000px) だけだと縦長の画面で
+   地図が縦basisで縮んだ時に説明だけが画面幅いっぱいに広がり、地図の下に
+   はみ出した帯のように見えてしまう。 */
+.practice-spot-info { width: min(96vw, 1000px, calc(62vh * 1672 / 941)); margin: 0 auto; min-height: 74px; }
+.practice-spot-hint { margin: 0; padding: 10px; color: #cfe3ff; font-size: 11px; text-align: center; }
+.practice-spot-card {
+  padding: 8px 12px; border: 2px solid var(--course-color); border-radius: 12px; color: #fff;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--course-color) 28%, #102033), #07111c 78%);
+  text-align: left;
+}
+/* 直下の要素だけを縦に並べる。子孫すべてに display:block を掛けると、
+   ステータス行の中に入れた適性バッジまで改行され、「命中↑↑／適性B／ライフ↑」が
+   1文ずつ縦積みになってしまう。 */
+.practice-spot-card > strong { display: block; color: #fff5c5; font-size: 14px; }
+.practice-spot-card > span { display: block; margin-top: 4px; font-size: 11px; font-weight: 850; }
+.practice-spot-card > small { display: block; margin-top: 4px; color: #c3d9e7; font-size: 10px; line-height: 1.35; }
+.practice-spot-card > em { display: block; margin-top: 4px; color: #ffe36f; font-size: 10px; font-style: normal; }
+.practice-spot-card > em.warn { color: #ff9b9b; }
+.practice-spot-card .practice-course-apt { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; }
+
+/* 出発の確認ダイアログ */
+.practice-confirm-modal {
+  position: absolute; inset: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.65);
+}
+.practice-confirm-modal.hidden { display: none; }
+.practice-confirm-dialog {
+  width: min(88vw, 420px); padding: 18px 20px;
+  border: 2px solid rgba(255,236,180,.45); border-radius: 14px;
+  background: linear-gradient(160deg, #16283c, #0a1420);
+  text-align: center;
+}
+.practice-confirm-dialog h2 { margin: 0 0 8px; color: #ffe49a; font-size: 18px; }
+.practice-confirm-dialog p { margin: 0 0 16px; color: #dfeaf5; font-size: 13px; line-height: 1.5; }
+.practice-confirm-buttons { display: flex; gap: 10px; justify-content: center; }
+.practice-confirm-buttons button {
+  min-width: 120px; padding: 9px 14px; border-radius: 9px; font-weight: 900;
+  border: 1px solid rgba(255,255,255,.35); color: #fff; background: rgba(255,255,255,.12);
+}
+#practice-confirm-ok { border-color: #ffd76a; color: #12202e; }
+#practice-confirm-ok { background: linear-gradient(#ffe9a6, #f3c554); }
 .practice-game-panel { position: absolute; inset: 0; display: grid; place-items: center; background: #050a10; }
 .practice-game-panel.hidden { display: none; }
 #practice-canvas { width: 100%; height: 100%; object-fit: contain; background: #172433; }
@@ -77,13 +174,16 @@ input, textarea, select {
 .practice-intro-controls b { color: #9eff9e; margin-right: 6px; }
 .practice-intro-dialog button { margin-top: 8px; padding: 10px 24px; border: 1px solid #9be8ff; border-radius: 8px; color: #08202d; background: #9be8ff; font-weight: 900; }
 
+/* 画面が低い端末では、地図を小さくして説明カードの居場所を確保する */
 @media (orientation: landscape) and (max-height: 420px) {
-  .practice-course-card { min-height: 125px; padding: 8px; }
-  .practice-course-card strong { font-size: 12px; }
-}
-
-@media (orientation: landscape) and (max-width: 700px) {
-  .practice-course-list { grid-template-columns: repeat(3, minmax(135px, 1fr)); }
+  .practice-map { width: min(96vw, 1000px, calc(56vh * 1672 / 941)); }
+  .practice-spot-info { width: min(96vw, 1000px, calc(56vh * 1672 / 941)); }
+  .practice-map-spot span { font-size: 9px; padding: 1px 4px; }
+  .practice-map-spot i { width: 15px; height: 15px; }
+  .practice-spot-info { min-height: 62px; }
+  .practice-spot-card { padding: 6px 10px; }
+  .practice-spot-card strong { font-size: 12px; }
+  .practice-spot-card small { font-size: 9px; }
 }
 body.layout-pending .screen { visibility: hidden; }
 

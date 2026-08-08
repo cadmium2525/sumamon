@@ -728,7 +728,11 @@ const AppFlow = {
   },
 
   openPractice() {
-    alert('修行は近日実装予定です。今しばらくお待ちください。');
+    const masmon = this._selectedManageMasmon();
+    if (!masmon) { alert('先にマスモンを選んでください'); return; }
+    if (!window.PracticeGame) return;
+    PracticeGame.openSelection(masmon);
+    this.showScreen('practice');
   },
 
   _selectedManageMasmon() {

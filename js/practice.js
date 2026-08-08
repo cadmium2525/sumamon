@@ -6,6 +6,18 @@ const PRACTICE_COURSES = {
   volcano: { name: 'カウレア火山', stat: 'defense', statLabel: '丈夫さ', color: '#e45b35', duration: 60, description: '降り注ぐ火山弾をシールドで凌ぐ。最後の巨岩はジャストガードで', level: 10 },
 };
 
+// 修行地選択の地図。背景画像(assets/images/practice-map.png)の
+// どこにマスモンを立たせるかを「画像に対する割合(0〜1)」で持つ。
+// 割合で持つことで、画面サイズが変わっても同じ場所を指す。
+const PRACTICE_MAP_SPOTS = {
+  base:    { x: 0.492, y: 0.605, label: '拠点' },       // 中央のたき火
+  volcano: { x: 0.205, y: 0.215, label: 'カウレア火山' }, // 左上の噴火する山
+  snow:    { x: 0.455, y: 0.185, label: 'パパス雪山' },   // 中央上の雪山
+  desert:  { x: 0.815, y: 0.290, label: 'マンディー砂漠' }, // 右上の砂丘と遺跡
+  jungle:  { x: 0.105, y: 0.600, label: 'パレパレジャングル' }, // 左のジャングル
+  coast:   { x: 0.855, y: 0.760, label: 'トーブル海岸' }, // 右下の砂浜と海
+};
+
 // ==== 「マンディー砂漠」＝技の練習場 ====
 // 関門ごとに「この技で壊せ」という指定がランダムで決まり、鉄板に白チョークで書かれる。
 // 指定どおりの技を当てれば1発で砕け、違う技は弾かれて減点。
@@ -82,8 +94,8 @@ const DESERT_RANK_SCORES = [
   { grade: 'C', min: 400 },
   { grade: 'D', min: 180 },
 ];
-// Sランク報酬「ちから+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
-const DESERT_REWARD_BASE = { stat: 20, life: 8 };
+// Sランク報酬「ちから+50 / ライフ+20」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
+const DESERT_REWARD_BASE = { stat: 50, life: 20 };
 
 // ==== 「パレパレジャングル」＝順番を読む反射神経の練習場 ====
 // フェーズごとに足場と石板がランダムに組み直され、石板に刻まれた紋章の
@@ -131,8 +143,8 @@ const JUNGLE_RANK_SCORES = [
   { grade: 'C', min: 1100 },
   { grade: 'D', min: 500 },
 ];
-// Sランク報酬「かしこさ+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率で按分する
-const JUNGLE_REWARD_BASE = { stat: 20, life: 8 };
+// Sランク報酬「かしこさ+50 / ライフ+20」を基準に、他ランクは既存のグレード倍率で按分する
+const JUNGLE_REWARD_BASE = { stat: 50, life: 20 };
 
 // ==== 「トーブル海岸」＝広いマップを駆け巡る破壊ミッション ====
 // 砂浜／海中／洞窟の3エリアが横に繋がった広大なマップに20個の標的を置く。
@@ -189,12 +201,13 @@ const COAST_RANK_TARGETS = [
 ];
 // ランクごとの上昇量も仕様で決め打ち。Eは修行失敗＝上昇なし。
 // 適性倍率は他の修行と同じように掛かるので、適性Cでちょうどこの値になる。
+// （旧値 20/15/10/5/2・8/6/4/2/1 をそれぞれ2.5倍したもの。端数は四捨五入）
 const COAST_REWARDS = {
-  S: { stat: 20, life: 8 },
-  A: { stat: 15, life: 6 },
-  B: { stat: 10, life: 4 },
-  C: { stat: 5,  life: 2 },
-  D: { stat: 2,  life: 1 },
+  S: { stat: 50, life: 20 },
+  A: { stat: 38, life: 15 },
+  B: { stat: 25, life: 10 },
+  C: { stat: 13, life: 5 },
+  D: { stat: 5,  life: 3 },
   E: { stat: 0,  life: 0 },
 };
 
@@ -247,8 +260,8 @@ const VOLCANO_RANK_SCORES = [
   { grade: 'C', min: 1100 },
   { grade: 'D', min: 500 },
 ];
-// Sランク報酬「丈夫さ+20 / ライフ+8」。他ランクは既存のグレード倍率で按分する。
-const VOLCANO_REWARD_BASE = { stat: 20, life: 8 };
+// Sランク報酬「丈夫さ+50 / ライフ+20」。他ランクは既存のグレード倍率で按分する。
+const VOLCANO_REWARD_BASE = { stat: 50, life: 20 };
 
 // 「パパス雪山」専用パラメータ。強制縦スクロールで追い立てられながら、
 // 左右に揺れる足場を渡り、後半はツララを避けて少しでも高く登る。
@@ -293,8 +306,8 @@ const SNOW_RANK_ALTITUDE = [
   { grade: 'C', min: 130 },
   { grade: 'D', min: 70 },
 ];
-// Sランク報酬「回避+20 / ライフ+8」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
-const SNOW_REWARD_BASE = { stat: 20, life: 8 };
+// Sランク報酬「回避+50 / ライフ+20」を基準に、他ランクは既存のグレード倍率(S/A/B/C/D/E)で按分する
+const SNOW_REWARD_BASE = { stat: 50, life: 20 };
 
 const PRACTICE_CONTROL_HELP = [
   '移動: 左スティック（左右）／ジャンプ: JUMPボタン（2段ジャンプ対応）',
@@ -330,9 +343,18 @@ const PracticeGame = {
   init() {
     this.canvas = document.getElementById('practice-canvas');
     this.ctx = this.canvas.getContext('2d');
-    document.getElementById('practice-course-list').addEventListener('click', event => {
-      const button = event.target.closest('[data-practice-course]');
-      if (button && !button.disabled) this.start(button.dataset.practiceCourse, this.monster, false);
+    // 地図の目印。作り直される要素なので、親側に一度だけ付ける
+    // （毎回addEventListenerすると1タップが2回効いてしまう）。
+    document.getElementById('practice-map-spots').addEventListener('click', event => {
+      const button = event.target.closest('[data-practice-spot]');
+      if (button) this._tapSpot(button.dataset.practiceSpot);
+    });
+    document.getElementById('practice-confirm-cancel').addEventListener('click', () => {
+      document.getElementById('practice-confirm-modal').classList.add('hidden');
+    });
+    document.getElementById('practice-confirm-ok').addEventListener('click', () => {
+      document.getElementById('practice-confirm-modal').classList.add('hidden');
+      if (this.selectedSpot) this.start(this.selectedSpot, this.monster, false);
     });
     document.getElementById('practice-quit').addEventListener('click', () => this.quit());
     document.getElementById('practice-result-close').addEventListener('click', () => this.closeResult());
@@ -360,25 +382,103 @@ const PracticeGame = {
     this._detachSharedPad();
     this.admin = false;
     this.monster = monster;
+    this.selectedSpot = null; // 地図上でマスモンが今いる修行地（nullなら拠点）
     document.getElementById('practice-select-panel').classList.remove('hidden');
     document.getElementById('practice-game-panel').classList.add('hidden');
     document.getElementById('practice-intro-modal').classList.add('hidden');
     document.getElementById('practice-result-modal').classList.add('hidden');
+    document.getElementById('practice-confirm-modal').classList.add('hidden');
+
     const def = FIGHTERS[monster.baseFighterKey] || FIGHTERS.irumine;
     const summary = document.getElementById('practice-monster-summary');
     summary.innerHTML = `<img alt=""><span><strong>${this.escape(monster.name)} Lv.${monster.level}</strong><small>修行チケット ${UserProfileStore.data.practiceTickets || 0}枚</small></span>`;
     Skin.paintInto(summary.querySelector('img'), def.idleImage, monster.skin);
+
+    // 地図上の目印を置く
     const tickets = Number(UserProfileStore.data.practiceTickets) || 0;
-    document.getElementById('practice-course-list').innerHTML = Object.entries(PRACTICE_COURSES).map(([key, course]) => {
-      // 伸び方は対象ステータスの適性で変わるため、コース選択時に確認できるようにする
-      const rank = (monster.aptitudes && monster.aptitudes[course.stat]) || 'C';
-      const locked = course.level && monster.level < course.level;
-      const disabled = locked || tickets < 1;
-      return `<button class="practice-course-card" data-practice-course="${key}" style="--course-color:${course.color}" ${disabled ? 'disabled' : ''}>
-        <strong>${course.name}</strong><span>${course.statLabel} ↑↑<span class="practice-course-apt">適性<i class="stat-apt rank-${rank}" data-rank="${rank}">${rank}</i></span><br>ライフ ↑</span><small>${course.description}</small>
-        <em>${locked ? `Lv.${course.level}で解禁` : tickets < 1 ? '修行券が必要' : '修行券 1枚'}</em>
-      </button>`;
-    }).join('');
+    document.getElementById('practice-map-spots').innerHTML =
+      Object.entries(PRACTICE_COURSES).map(([key, course]) => {
+        const spot = PRACTICE_MAP_SPOTS[key];
+        if (!spot) return '';
+        const locked = course.level && monster.level < course.level;
+        return `<button class="practice-map-spot${locked ? ' locked' : ''}" data-practice-spot="${key}"
+          style="left:${spot.x * 100}%; top:${spot.y * 100}%; --course-color:${course.color}">
+          <i></i><span>${this.escape(course.name)}${locked ? `<em>Lv.${course.level}</em>` : ''}</span>
+        </button>`;
+      }).join('');
+
+    // マスモンは拠点に立たせる（idle画像。スキンもそのまま反映する）
+    const masmon = document.getElementById('practice-map-masmon');
+    Skin.paintInto(masmon, def.idleImage, monster.skin);
+    this._moveMasmonTo('base', true);
+    this._renderSpotInfo(null, tickets);
+  },
+
+  // 地図上のマスモンを指定の修行地へ移動させる（instantなら演出なしで即座に）
+  _moveMasmonTo(key, instant) {
+    const spot = PRACTICE_MAP_SPOTS[key] || PRACTICE_MAP_SPOTS.base;
+    const el = document.getElementById('practice-map-masmon');
+    if (!el) return;
+    el.classList.toggle('no-transition', !!instant);
+    el.style.left = `${spot.x * 100}%`;
+    el.style.top = `${spot.y * 100}%`;
+    if (instant) {
+      // 次のフレームでトランジションを戻す（即時配置にアニメが乗らないように）
+      requestAnimationFrame(() => el.classList.remove('no-transition'));
+    }
+  },
+
+  // 選択中の修行地の説明を出す。未選択なら案内文。
+  _renderSpotInfo(key, tickets) {
+    const info = document.getElementById('practice-spot-info');
+    if (!info) return;
+    if (tickets == null) tickets = Number(UserProfileStore.data.practiceTickets) || 0;
+    if (!key) {
+      info.innerHTML = '<p class="practice-spot-hint">修行地をタップするとマスモンが向かいます。もう一度タップで決定します。</p>';
+      return;
+    }
+    const course = PRACTICE_COURSES[key];
+    const monster = this.monster;
+    const rank = (monster.aptitudes && monster.aptitudes[course.stat]) || 'C';
+    const locked = course.level && monster.level < course.level;
+    const note = locked ? `Lv.${course.level}で解禁`
+      : tickets < 1 ? '修行券が足りません' : '修行券 1枚を使います';
+    info.innerHTML = `<div class="practice-spot-card" style="--course-color:${course.color}">
+      <strong>${this.escape(course.name)}</strong>
+      <span>${course.statLabel} ↑↑<span class="practice-course-apt">適性<i class="stat-apt rank-${rank}" data-rank="${rank}">${rank}</i></span>　ライフ ↑</span>
+      <small>${this.escape(course.description)}</small>
+      <em class="${locked || tickets < 1 ? 'warn' : ''}">${note}</em>
+    </div>`;
+  },
+
+  // 修行地をタップした時。1回目は移動、同じ所をもう1回タップで確認ダイアログ。
+  _tapSpot(key) {
+    const course = PRACTICE_COURSES[key];
+    if (!course) return;
+    const tickets = Number(UserProfileStore.data.practiceTickets) || 0;
+    if (this.selectedSpot !== key) {
+      // 1回目：マスモンをそこへ向かわせる
+      this.selectedSpot = key;
+      this._moveMasmonTo(key, false);
+      this._renderSpotInfo(key, tickets);
+      document.querySelectorAll('[data-practice-spot]').forEach(el => {
+        el.classList.toggle('selected', el.dataset.practiceSpot === key);
+      });
+      return;
+    }
+    // 2回目：出発するか確認する
+    if (course.level && this.monster.level < course.level) {
+      this._renderSpotInfo(key, tickets);
+      return;
+    }
+    if (tickets < 1) {
+      this._renderSpotInfo(key, tickets);
+      return;
+    }
+    document.getElementById('practice-confirm-title').textContent = course.name;
+    document.getElementById('practice-confirm-text').textContent =
+      `${this.monster.name}を${course.name}に修行に出しますか？（修行券を1枚使います）`;
+    document.getElementById('practice-confirm-modal').classList.remove('hidden');
   },
 
   startAdmin(courseKey, fighterKey) {
