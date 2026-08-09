@@ -247,6 +247,8 @@ class Fighter {
     this.jumpAnimTimer = -1;
     this.prevShieldHeld = false;
     this._airDodgeUsed = false;
+    this._airDodgeDirectional = false;
+    this._airDodgeGlideFrames = 0;
 
     // 崖掴まり
     this.onLedge = null;
@@ -500,6 +502,7 @@ class Fighter {
       this._beginDodge('air', directional ? 'airDir' : 'air');
       // 方向を入れた空中回避は着地に硬直が付く（本家と同じく、ぶっぱなしを抑える）
       this._airDodgeDirectional = directional;
+      this._airDodgeGlideFrames = directional ? CONFIG.AIR_DODGE_GLIDE_FRAMES : 0;
       if (directional) {
         this.vx = (dirX / mag) * CONFIG.AIR_DODGE_SPEED;
         this.vy = (dirY / mag) * CONFIG.AIR_DODGE_SPEED;
@@ -711,6 +714,10 @@ class Fighter {
     this.recoveryTimer = 0;
     this.jumpsUsed = 0;
     this._usedUpSpecialAirborne = false;
+    // 本家と同様、崖を掴んだ時点で空中回避も再び使えるようにする。
+    this._airDodgeUsed = false;
+    this._airDodgeDirectional = false;
+    this._airDodgeGlideFrames = 0;
     this.helpless = false;
     this.ledgeHangFrames = 0;
     this.facing = ledge.edge === 'left' ? 1 : -1;
@@ -1474,8 +1481,12 @@ class Fighter {
 
     // 吹っ飛び速度の減衰。スマブラでは吹っ飛びが徐々に弱まっていくため、
     // 低%の被弾でステージ端まで流され続けることがない。
+    // 空中回避は技による移動であり、吹っ飛びではない。ここで吹っ飛び用の
+    // 減速をかけると約120pxで止まり、復帰を伸ばす手段として機能しなくなる。
+    // 地上のその場回避・転がりは従来どおり減速対象に残す。
     const controllable = this.hitstun <= 0 && this.landingLag <= 0 && !this.downed &&
-      !this.tumbling && this.dazedTimer <= 0 && this.dodgeTimer <= 0;
+      !this.tumbling && this.dazedTimer <= 0 &&
+      (this.dodgeTimer <= 0 || this.dodgeType === 'air');
     if (!controllable) {
       if (this.onGround) {
         this.vx *= CONFIG.GROUND_FRICTION;
@@ -1496,7 +1507,18 @@ class Fighter {
     this.groundDistance = Physics.distanceToGround(this, platforms);
     this.proceduralClock++;
     this._recordSwingTrail();
-    Physics.applyGravity(this, this.fallSpeed);
+    // 方向を入れた空中回避だけは、前半を滑空として重力を止める。
+    // 方向なし回避まで止めると、その場で落下をやり過ごす強すぎる択になる。
+    const airDodgeGliding = this.dodgeTimer > 0 && this.dodgeType === 'air' &&
+      this._airDodgeDirectional && this._airDodgeGlideFrames > 0;
+    if (!airDodgeGliding) Physics.applyGravity(this, this.fallSpeed);
+    if (airDodgeGliding) {
+      this._airDodgeGlideFrames--;
+      // 滑空の6.5を持ち越すと台の下を横断して自滅するため、終了時に横慣性だけ落とす。
+      if (this._airDodgeGlideFrames <= 0) {
+        this.vx *= CONFIG.AIR_DODGE_GLIDE_END_SPEED_RATIO;
+      }
+    }
     this.x += this.vx;
     this.y += this.vy;
     Physics.resolvePlatformCollision(this, platforms);

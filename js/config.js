@@ -71,6 +71,12 @@ const CONFIG = {
 
   // 空中緊急回避（エアドッジ）。無敵は下の DODGE_TABLE で管理する。
   AIR_DODGE_SPEED: 6.5,       // 方向入力ありの場合の移動速度
+  // 方向回避の前半は重力を止めて滑空する。本家と同様に、高度を大きく失わず
+  // 復帰距離を伸ばせる時間として全体38Fのうち30Fを割り当てる。
+  AIR_DODGE_GLIDE_FRAMES: 30,
+  // 滑空終了後も6.5のまま進ませると台の下へ潜り込みやすいため、
+  // 操作が戻る前に横慣性だけを安全な速度へ落とす。
+  AIR_DODGE_GLIDE_END_SPEED_RATIO: 0.2,
   AIR_DODGE_LANDING_LAG: 10,  // 方向入力ありの空中回避で着地した時の硬直
 
   // 崖掴まり。
@@ -179,7 +185,7 @@ const CONFIG = {
     spot:   { total: 27, inv: [3, 20] },
     roll:   { total: 33, inv: [4, 16], move: 22 },
     air:    { total: 49, inv: [3, 27] },   // 方向入力なし
-    airDir: { total: 61, inv: [4, 20] },   // 方向入力あり（着地時に別途硬直）
+    airDir: { total: 38, inv: [4, 20] },   // 方向入力あり（着地時に別途硬直）
   },
   DODGE_ROLL_SPEED: 9,
 

@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.50</small>
+    <small class="home-version">Version 1.51</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.51</time><strong>空中回避を復帰に使える滑空へ作り直しました</strong><p>方向を入れた空中回避で、横へ少し進む間に大きく落ちてしまう問題を直しました。これからは入力方向へ滑っている間の落下がほぼ止まり、動作も短くなります。<b>中央へ向けて空中回避してから2段ジャンプ・上必殺を使う</b>と、遠くや深い位置からでも戻りやすくなります。滑り終わりには速度を落とすため、勢いのまま台の下へ潜り込むことも防いでいます。空中回避はこれまでどおり滞空中に1回だけですが、着地だけでなく崖を掴んだ時にも再び使えるようになります。</p></article>
           <article><time>Version 1.50</time><strong>ジャンプまわりを本家スマブラSPに合わせました（踏切3フレーム・小ジャンプ・空中の効き）</strong><p>空中の挙動を本家スマブラSPに近づける調整を3つ入れました。<br><b>1. ジャンプに「踏切」3フレームが入りました。</b>これまではボタンを押した瞬間に浮いていましたが、本家は全キャラ共通で<b>踏切3フレーム</b>があり、4フレーム目に離陸します。この間は<b>地上に居るので攻撃を食らいます</b>。「跳ぼうとしたところを潰す」という読み合いは、このフレームがあって初めて成立します。踏切中は攻撃・掴み・ガードも出せません（本家と同じ）。<b>空中ジャンプに踏切はありません</b>。これまでどおり押した瞬間に出ます。<br><b>2. 小ジャンプが高くなりました。</b>これまで小ジャンプは大ジャンプの<b>28%</b>しかなく、本家（<b>45〜55%</b>）と比べて低すぎました。<b>49%</b>に調整しています。あわせて成立条件も本家方式にしました。<b>踏切の間にボタンを離していれば小ジャンプ</b>で、<b>離陸したあとで小ジャンプに変えることはできません</b>（これまでは離陸後6フレーム以内なら変えられました）。<br><b>3. 空中で速度が乗るのが速くなりました。</b>最高速度に達するまで<b>26フレーム</b>かかっていたものを<b>20フレーム</b>にしました。本家は概ね15〜25フレームです。空中で方向を変えた時の反応が良くなり、<b>2段ジャンプ後の横移動が効くようになります</b>。最高速度そのものは変えていません。<br><b>ご注意：</b>タップジャンプ（上入力でジャンプ）を<b>ONにしていると、上＋Aが上強ではなく空上になります</b>。上を入れた時点で踏切に入り、本家では踏切中の攻撃入力が空中攻撃として出るためです。本家でも同じ挙動で、これを避けたい場合は設定でタップジャンプをOFFにしてください。</p></article>
           <article><time>Version 1.49</time><strong>吹き飛ばされた後に空中で2回跳べてしまう問題を直しました（本家スマブラSP準拠）</strong><p><b>吹き飛ばされたあと、空中でジャンプを2回使えてしまう</b>問題を直しました。本来この2回は「地上ジャンプ1回＋空中ジャンプ1回」で、<b>地上ジャンプは地面を蹴るためのもの</b>です。ところが吹き飛ばされて地面を離れた時にこの枠が残ったままだったため、<b>空中で2回跳べる</b>状態になっていました。<br>本家では、ジャンプ以外の理由で地面を離れた時（吹き飛ばされた・台から歩いて落ちた）に空中で使えるのは<b>空中ジャンプ1回だけ</b>です。これからは同じ扱いになります。<br><b>影響する場面</b>は3つです。<b>吹き飛ばされた時</b>・<b>台から歩いて落ちた時</b>・<b>崖から手を離した時</b>。いずれも空中で跳べるのは1回になります。自分からジャンプして飛び上がった場合はこれまでどおり（残り1回）で、<b>着地すれば元に戻ります</b>。<br>そのぶん<b>復帰は本家と同じ厳しさ</b>になります。深く飛ばされた時は、空中ジャンプと上必殺の使いどころがこれまで以上に重要です。</p></article>
           <article><time>Version 1.48</time><strong>CPUが場外まで追いかけて勝手に落ちる問題を直しました</strong><p><b>CPUが場外の相手を追いかけて自滅し、勝手に負ける</b>問題を直しました。段位戦で「場外に飛ばされて動けずにいたら、追撃に来たCPUが3回続けて落ちて勝ってしまった」というご報告からの修正です。<br>原因は<b>CPUが「戻れる距離かどうか」を高さでしか見ていなかった</b>ことです。足場より下がって初めて危険と判断していたため、<b>高い位置で場外へ流れている間は接近し続け</b>、気づいた時には戻れない位置にいました。実際に測ると<b>崖の外652px</b>まで出てしまい、レベル9では<b>20回中19回</b>ストックを使い切って自滅していました（自力で戻れるのは、空中ジャンプが残っていても240〜400px程度です）。<br>さらに悪いことに、CPUは追いかける途中で<b>空中ジャンプを2回とも使い切って</b>いました。残るのは上必殺だけですが、これは出すと着地するまで一切動けなくなる技です。外へ流れる勢いが残ったまま出してしまうため、<b>そのまま運ばれて落ちる</b>、という流れになっていました。<br>これからは<b>戻れる範囲にいる相手にしか手を出しません</b>。届かない位置にいる相手は追わず、<b>崖のそばで待ち構えます</b>。相手が戻ってくれば、これまでどおり迎え撃ちます。あわせて、上必殺は<b>外へ流れる勢いを止めてから</b>出すようにしたので、復帰そのものも成功しやすくなっています。<br>検証では、場外に留まる相手に対する<b>自滅が全レベルで0回</b>になりました（修正前は最大で20回中19回）。通常の撃ち合いでも自滅が減っています。</p></article>
@@ -668,14 +669,14 @@
 
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-  <script src="js/config.js?v=12"></script>
+  <script src="js/config.js?v=13"></script>
   <script src="js/audio.js?v=9"></script>
   <script src="js/moves.js?v=30"></script>
   <script src="js/physics.js?v=37"></script>
   <script src="js/procedural-motion.js?v=3"></script>
   <script src="js/skin.js?v=2"></script>
   <script src="js/skin-editor.js?v=3"></script>
-  <script src="js/fighter.js?v=60"></script>
+  <script src="js/fighter.js?v=61"></script>
   <script src="js/fighters-data.js?v=10"></script>
   <script src="js/debug-mode.js?v=12"></script>
   <script src="js/stage.js?v=33"></script>
