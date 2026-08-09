@@ -1709,7 +1709,7 @@ const AppFlow = {
     }
     const rewardRows = [
       `マスモンEXP +${reward.masmonExp.toLocaleString()}`,
-      reward.diamonds ? `💎 +${reward.diamonds.toLocaleString()}` : null,
+      reward.diamonds ? `<span class="rank-diamond-icon" aria-hidden="true">💎</span> +${reward.diamonds.toLocaleString()}` : null,
       reward.breederExp ? `ブリーダーEXP +${reward.breederExp.toLocaleString()}` : null,
       reward.practiceTickets ? `修行チケット +${reward.practiceTickets}枚` : null,
       reward.trainingTickets ? `専用トレーニングチケット +${reward.trainingTickets}枚` : null,

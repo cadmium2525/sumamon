@@ -1495,7 +1495,7 @@ body.layout-pending .screen { visibility: hidden; }
 .rank-empty { color: #bfd2df; font-size: 10px; line-height: 1.55; }
 .fighter-rank-badge { position: absolute; z-index: 9; top: 5px; left: 5px; width: 29px; height: 29px; border-radius: 50%; font-size: 13px; }
 .fighter-title-count { position: absolute; z-index: 8; top: 6px; left: 39px; padding: 3px 6px; border-radius: 8px; color: #ffe9a1; background: rgba(0,0,0,.74); font-size: 8px; font-weight: 850; }
-.manage-rank-badge { position: absolute; z-index: 9; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-style: normal; }
+.manage-rank-badge { position: static; z-index: 9; grid-column: 3; grid-row: 1 / 3; justify-self: end; width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-style: normal; }
 .rank-result-card { padding: 7px 9px; border: 1px solid #73849a; border-radius: 10px; background: rgba(5,13,23,.78); text-align: center; }
 .rank-result-card.win { border-color: #f1ca55; background: linear-gradient(145deg, rgba(81,57,10,.78), rgba(12,19,28,.9)); }
 .rank-result-card > small, .rank-result-card > strong { display: block; }
@@ -1503,6 +1503,8 @@ body.layout-pending .screen { visibility: hidden; }
 .rank-result-card > strong { color: #ffe58e; font-size: 16px; }
 .rank-result-card > p { margin: 3px 0; font-size: 10px; line-height: 1.35; }
 .rank-result-card ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 9px; margin: 5px 0 0; padding: 0; list-style: none; color: #d9efff; font-size: 9px; }
+.rank-result-card li { display: inline-flex; align-items: center; }
+.rank-diamond-icon { display: inline-block; margin-right: 2px; line-height: 1; transform: translateY(-1px); }
 .rank-result-card > em { display: block; margin-top: 3px; color: #9ff0bd; font-size: 9px; font-style: normal; }
 .rank-promotion { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 4px 0; font-size: 18px; }
 .rank-promotion span { color: #a9bac9; }
@@ -1860,7 +1862,7 @@ body.layout-pending .screen { visibility: hidden; }
 }
 .masmon-roster-card {
   display: grid;
-  grid-template-columns: 40px auto;
+  grid-template-columns: 40px minmax(0, 1fr) 27px;
   grid-template-rows: 1fr 1fr;
   width: 100%;
   min-width: 0;
@@ -1877,6 +1879,23 @@ body.layout-pending .screen { visibility: hidden; }
   font-weight: 700;
   text-align: left;
   white-space: nowrap;
+}
+.masmon-roster-card > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.masmon-roster-card .hundred-clear-badge {
+  position: static;
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
+  width: 18px;
+  height: 18px;
+  border-width: 1px;
+  font-size: 6px;
+}
+.masmon-roster-card .hundred-clear-badge + .manage-rank-badge {
+  grid-row: 1;
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
 }
 .masmon-roster-card.selected {
   border-color: #ffe277;

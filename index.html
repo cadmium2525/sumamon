@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=75">
+<link rel="stylesheet" href="css/style.css?v=76">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.41</small>
+    <small class="home-version">Version 1.42</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.42</time><strong>段位表示の位置を整えました</strong><p>段位戦の昇格結果で、ダイヤのマークだけ少し下にずれて見える問題を直しました。マスモン管理では、段位バッジをモンスター画像の上からカード右側の専用スペースへ移し、姿と重ならないようにしました。</p></article>
           <article><time>Version 1.41</time><strong>CPU戦に「段位戦」を追加</strong><p>育てたマスモンでEからSまで昇格し、S到達後は四大大会、全制覇後はレジェンド杯へ挑めるようになりました。段位・大会制覇・レジェンド優勝回数はマスモンごとに記録されます。勝利時は段階に応じて大量のマスモンEXP、ダイヤ、修行・トレーニングチケットを獲得でき、敗北しても段位は下がらず10%分のEXPを受け取れます。通常CPU戦のマスモンEXPも従来の3倍に調整しました。マルチのEXP2倍は終了し、1位は修行チケット、2位以下はフリートレーニングチケットを獲得する方式へ変更しています。</p></article>
           <article><time>Version 1.40</time><strong>モンスター作成スタジオ：背景とキャラの色が近くても抜けるようにしました</strong><p>※この回はゲーム側の変更はありません。<b>モンスター作成スタジオ</b>の機能追加です。<br><b>背景とキャラの色が近い絵で、キャラの方が消えてしまう</b>問題を直しました。実際にご提供いただいた画像で確かめたところ、<b>キャラがほとんど消え、逆に背景が残る</b>状態でした。<br>原因は<b>キャラが画像の端で切れていること</b>でした。これまでは画像の縁をぐるりと調べて背景の色を集めていたため、<b>端で切れたキャラの色まで「背景の色」として登録</b>されていました。実測すると、キャラ本体の色と「背景の色」の差はわずか<b>5.7</b>。抜くかどうかの目安が30なので、本体が真っ先に消えていたわけです。しきい値をいくら動かしても、本体と背景を分けられない状態でした。<br>そこで<b>「背景を推定して抜く」</b>を追加しました。縁の色をそのまま使うのではなく、<b>「この場所の背景は何色のはずか」を画像全体にわたって割り出して</b>から比べます。割り出す時は<b>大きく外れた色を捨てながら</b>段階的に精度を上げるので、<b>端に写り込んだキャラは自動的に無視されます</b>。<br>同じ画像で試すと、<b>本体は丸ごと残り、背景は消えました</b>。仕上げに<b>本体から離れた小さな消し残りを自動で取り除く</b>ようにしてあるので、あとはブラシで少し整えるだけです。手に持った武器のように<b>離れていても大きい部分は消えません</b>。<br>使い分けは簡単です。ふつうの絵はこれまでどおり<b>「四隅の色を自動で抜く」</b>で十分です。<b>背景とキャラの色が近い時や、キャラが画像の端で切れている時</b>だけ、新しい方を選んでください。<b>コマごとに選べる</b>ので、1コマだけこちらに切り替えることもできます。</p></article>
           <article><time>Version 1.39</time><strong>ネンドロ実装！</strong><p>ネンドロです！</p></article>
@@ -676,7 +677,7 @@
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=4"></script>
   <script src="js/game.js?v=51"></script>
-    <script src="js/flow.js?v=64"></script>
+    <script src="js/flow.js?v=65"></script>
   <script src="js/pwa.js?v=14"></script>
 </body>
 </html>
