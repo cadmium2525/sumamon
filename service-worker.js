@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v139';
+const CACHE_NAME = 'smamon-app-v140';
 const APP_SHELL = [
   './',
   './index.html',
@@ -110,7 +110,7 @@ const APP_SHELL = [
 ];
 
 // 中核ファイル（HTML/CSS/JS/JSON）と、あとから取れば足りるメディアを分ける。
-// APP_SHELL全体は60MBを超えるため、全部そろうまで待つと更新の用意に数分かかり、
+// 全部そろうまで待つと更新の用意に数分かかり、
 // 「起動したのに更新が終わらない」状態になっていた。
 function isCoreAsset(url) {
   return /\.(html|css|js|json|webmanifest)$/.test(url) || url === './';

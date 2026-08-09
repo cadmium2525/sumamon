@@ -392,10 +392,15 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
     <label>背景の抜き方</label>
     <select id="ed-bgmode">
       <option value="corner">四隅の色を自動で抜く</option>
+      <option value="surface">背景を推定して抜く（背景と色が近い時）</option>
       <option value="white">白背景</option>
       <option value="black">黒背景</option>
       <option value="none">すでに透過済み（そのまま使う）</option>
     </select>
+    <p class="note" style="margin-top:6px"><b>「背景を推定して抜く」</b>は、
+      背景とキャラの色が近い時や、<b>キャラが画像の端で切れている</b>時に使ってください。
+      画像の縁から「この場所の背景は何色のはず」を割り出して比べるので、
+      縁に写り込んだキャラの色につられません。ふつうの絵は「四隅の色」で十分です。</p>
     <label>しきい値 <span id="ed-threshold-value">30</span> — 大きくすると背景を多く抜きます</label>
     <input id="ed-threshold" type="range" min="0" max="140" value="30">
     <div class="dropper-box">
@@ -551,6 +556,7 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
         <label>背景の抜き方（このコマ）</label>
         <select id="mask-bgmode">
           <option value="corner">四隅の色を自動で抜く</option>
+          <option value="surface">背景を推定して抜く（背景と色が近い時）</option>
           <option value="white">白背景</option>
           <option value="black">黒背景</option>
           <option value="none">すでに透過済み（そのまま使う）</option>

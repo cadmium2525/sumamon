@@ -86,20 +86,234 @@ const StudioImage = {
     return d[3] === 0 ? null : [d[0], d[1], d[2]];
   },
 
+  // 背景を「1枚の絵の中で場所によって変わるもの」として推定する。
+  //
+  // 縁の色を代表色として集める方式は、被写体が画像の縁に接していると破綻する。
+  // 縁に写り込んだ被写体の色まで「背景の代表色」として登録され、
+  // 塗りつぶしが本体を内側から食べてしまうため。
+  // （実測：黄色いモンスターが左端と下端で切れている絵で、本体色と代表色の距離が5.7。
+  //   しきい値30を大きく下回るので本体がほぼ全部消え、逆に背景は残った）
+  //
+  // そこで、縁のピクセルにチャンネルごとの2次曲面を当てはめ、
+  // 「この座標なら背景は何色のはず」を予測できるようにする。
+  // 当てはめは残差の大きい点を落としながら繰り返す（ロバスト回帰）。
+  // こうすると、縁に写り込んだ被写体は外れ値として自動的に無視される。
+  //
+  // 次数を3以上に上げると、縁の被写体まで曲面が追いかけてしまい逆に悪化する（実測済み）。
+  // 背景のグラデーションを追うには2次で足りる。
+  // 当てはめは「粗いモデルから順に」行う。
+  // いきなり2次曲面を当てると、曲面が柔らかすぎて被写体の側へ曲がってしまい、
+  // 「被写体のいる場所の背景は被写体色」という当てはめになって本体が全部消える
+  // （実測：縁の38%が被写体の絵で、被写体位置の予測背景が被写体色そのものになった）。
+  // まず定数（＝中央値）だけで大きく外れた点を落とし、次に平面、最後に2次曲面と
+  // 自由度を上げていけば、被写体は最初の段階で外れ値として除かれる。
+  // tolerance は段階が進むほど厳しくする。
+  FIT_STAGES: [
+    { terms: 1, tolerance: 3.5 },   // 定数（中央値）
+    { terms: 3, tolerance: 3.0 },   // 平面
+    { terms: 6, tolerance: 2.5 },   // 2次曲面
+    { terms: 6, tolerance: 2.5 },
+  ],
+
+  fitBackgroundSurface(canvas) {
+    const ctx = this._ctx(canvas);
+    const { width: w, height: h } = canvas;
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    // 縁のピクセルを全部集める（間引くと外れ値の判定が不安定になる）
+    const px = [], py = [], pr = [], pg = [], pb = [];
+    const add = (x, y) => {
+      const i = (y * w + x) * 4;
+      if (data[i + 3] === 0) return;             // 既に透明なところは手がかりにならない
+      px.push(x); py.push(y);
+      pr.push(data[i]); pg.push(data[i + 1]); pb.push(data[i + 2]);
+    };
+    for (let x = 0; x < w; x++) { add(x, 0); add(x, h - 1); }
+    for (let y = 1; y < h - 1; y++) { add(0, y); add(w - 1, y); }
+    const n = px.length;
+    if (n < 60) return null;
+
+    // 基底 [1, X, Y, X^2, XY, Y^2]（X,Y は -1〜1 に正規化）
+    const TERMS = 6;
+    const basis = new Float64Array(n * TERMS);
+    for (let k = 0; k < n; k++) {
+      const X = (px[k] / (w - 1)) * 2 - 1;
+      const Y = (py[k] / (h - 1)) * 2 - 1;
+      const o = k * TERMS;
+      basis[o] = 1; basis[o + 1] = X; basis[o + 2] = Y;
+      basis[o + 3] = X * X; basis[o + 4] = X * Y; basis[o + 5] = Y * Y;
+    }
+
+    const channels = [pr, pg, pb];
+    const keep = new Uint8Array(n).fill(1);
+    let coef = null;
+
+    for (let stage = 0; stage < this.FIT_STAGES.length; stage++) {
+      const { terms, tolerance } = this.FIT_STAGES[stage];
+      let fitted;
+      if (terms === 1) {
+        // 定数だけの段階は、平均ではなく中央値を使う。
+        // 半分近くが被写体でも中央値なら背景側に留まる。
+        fitted = channels.map(values => {
+          const sample = [];
+          for (let k = 0; k < n; k++) if (keep[k]) sample.push(values[k]);
+          sample.sort((a, b) => a - b);
+          const out = new Float64Array(TERMS);
+          out[0] = sample[sample.length >> 1];
+          return out;
+        });
+      } else {
+        // 正規方程式 (BᵀB)c = Bᵀt をチャンネルごとに解く（先頭 terms 個の基底だけ使う）
+        const A = new Float64Array(terms * terms);
+        const rhs = [new Float64Array(terms), new Float64Array(terms), new Float64Array(terms)];
+        let used = 0;
+        for (let k = 0; k < n; k++) {
+          if (!keep[k]) continue;
+          used++;
+          const o = k * TERMS;
+          for (let a = 0; a < terms; a++) {
+            const ba = basis[o + a];
+            for (let b = 0; b < terms; b++) A[a * terms + b] += ba * basis[o + b];
+            for (let c = 0; c < 3; c++) rhs[c][a] += ba * channels[c][k];
+          }
+        }
+        if (used < terms * 4) break;      // 手がかりが足りない：ここまでの結果を使う
+        const solved = [0, 1, 2].map(c => this._solve(A.slice(), rhs[c].slice(), terms));
+        if (solved.some(s => !s)) break;  // 解けない：ここまでの結果を使う
+        fitted = solved.map(s => { const out = new Float64Array(TERMS); out.set(s); return out; });
+      }
+      coef = fitted;
+      if (stage === this.FIT_STAGES.length - 1) break;
+
+      // 残差の中央値とMADで外れ値（＝縁に写り込んだ被写体）を落とす
+      const residuals = new Float64Array(n);
+      for (let k = 0; k < n; k++) {
+        const o = k * TERMS;
+        let sum = 0;
+        for (let c = 0; c < 3; c++) {
+          let predicted = 0;
+          for (let a = 0; a < terms; a++) predicted += basis[o + a] * coef[c][a];
+          const d = predicted - channels[c][k];
+          sum += d * d;
+        }
+        residuals[k] = Math.sqrt(sum);
+      }
+      const sorted = Float64Array.from(residuals).sort();
+      const median = sorted[sorted.length >> 1];
+      const deviations = Float64Array.from(residuals, r => Math.abs(r - median)).sort();
+      const mad = deviations[deviations.length >> 1] || 1e-6;
+      const limit = median + tolerance * 1.4826 * mad;
+      let survivors = 0;
+      for (let k = 0; k < n; k++) { keep[k] = residuals[k] < limit ? 1 : 0; survivors += keep[k]; }
+      // 縁のほとんどが被写体で埋まっている絵では、これ以上絞っても当てにならない
+      if (survivors < n * 0.2) return coef;
+    }
+    return coef;
+  },
+
+  // 6元1次連立方程式をガウスの消去法（部分ピボット選択）で解く
+  _solve(A, b, size) {
+    for (let col = 0; col < size; col++) {
+      let pivot = col;
+      for (let row = col + 1; row < size; row++) {
+        if (Math.abs(A[row * size + col]) > Math.abs(A[pivot * size + col])) pivot = row;
+      }
+      if (Math.abs(A[pivot * size + col]) < 1e-9) return null;   // 解けない（縁が単調すぎる等）
+      if (pivot !== col) {
+        for (let k = 0; k < size; k++) {
+          const t = A[col * size + k]; A[col * size + k] = A[pivot * size + k]; A[pivot * size + k] = t;
+        }
+        const t = b[col]; b[col] = b[pivot]; b[pivot] = t;
+      }
+      const diag = A[col * size + col];
+      for (let row = col + 1; row < size; row++) {
+        const factor = A[row * size + col] / diag;
+        if (!factor) continue;
+        for (let k = col; k < size; k++) A[row * size + k] -= factor * A[col * size + k];
+        b[row] -= factor * b[col];
+      }
+    }
+    const x = new Float64Array(size);
+    for (let row = size - 1; row >= 0; row--) {
+      let sum = b[row];
+      for (let k = row + 1; k < size; k++) sum -= A[row * size + k] * x[k];
+      x[row] = sum / A[row * size + row];
+    }
+    return x;
+  },
+
+  // 本体から離れた小さな残りかすを消す。
+  // 背景を場所ごとに推定しても、草地のような細かい模様は少しだけ残る。
+  // それらは本体とつながっていない小さな島になるので、大きさで捨てられる。
+  // 手に持った武器のように「離れているが必要な部分」を消さないよう、
+  // 最大の塊に対する割合で判断する（既定2%）。
+  removeSpecks(canvas, { minRatio = 0.02, alphaMin = 40 } = {}) {
+    const ctx = this._ctx(canvas);
+    const { width: w, height: h } = canvas;
+    const image = ctx.getImageData(0, 0, w, h);
+    const data = image.data;
+    const label = new Int32Array(w * h).fill(-1);
+    const sizes = [];
+    const stack = [];
+    for (let start = 0; start < w * h; start++) {
+      if (label[start] !== -1 || data[start * 4 + 3] < alphaMin) continue;
+      const id = sizes.length;
+      let count = 0;
+      label[start] = id; stack.push(start);
+      while (stack.length) {
+        const p = stack.pop();
+        count++;
+        const x = p % w, y = (p - (p % w)) / w;
+        if (x > 0)     { const q = p - 1; if (label[q] === -1 && data[q * 4 + 3] >= alphaMin) { label[q] = id; stack.push(q); } }
+        if (x < w - 1) { const q = p + 1; if (label[q] === -1 && data[q * 4 + 3] >= alphaMin) { label[q] = id; stack.push(q); } }
+        if (y > 0)     { const q = p - w; if (label[q] === -1 && data[q * 4 + 3] >= alphaMin) { label[q] = id; stack.push(q); } }
+        if (y < h - 1) { const q = p + w; if (label[q] === -1 && data[q * 4 + 3] >= alphaMin) { label[q] = id; stack.push(q); } }
+      }
+      sizes.push(count);
+    }
+    if (sizes.length < 2) return canvas;
+    const largest = Math.max(...sizes);
+    const floor = largest * minRatio;
+    let removed = 0;
+    for (let p = 0; p < w * h; p++) {
+      const id = label[p];
+      if (id === -1) continue;
+      if (sizes[id] >= floor) continue;
+      data[p * 4 + 3] = 0;
+      removed++;
+    }
+    if (removed) ctx.putImageData(image, 0, 0);
+    return canvas;
+  },
+
   // 背景透過。
   // 「画像全体で色が一致するピクセルを消す」のではなく、
   // 画像の縁（とスポイトで指した位置）から色がつながっている範囲だけを消す。
   // こうするとキャラクターの内側にある同系色は残るため、
   // 背景と同じ色の服や装備が欠けてしまう事故が起きない。
+  //
+  // mode が 'surface' の時だけ、比べる相手が「代表色の一覧」ではなく
+  // 「その座標で予測した背景色」になる（→ fitBackgroundSurface）。
+  // 塗りつぶしの手順そのものは全モード共通。
   removeBackground(canvas, { mode = 'corner', threshold = 30, color = null,
-                             feather = 18, extraColors = [], seeds = [] } = {}) {
+                             feather = 18, extraColors = [], seeds = [],
+                             despeckle = null, speckRatio = 0.02 } = {}) {
     if (mode === 'none') return canvas;
-    if (mode === 'corner' && this.hasTransparentCorners(canvas) && !extraColors.length) return canvas;
+    if ((mode === 'corner' || mode === 'surface')
+        && this.hasTransparentCorners(canvas) && !extraColors.length) return canvas;
+
+    let surface = null;
+    if (mode === 'surface') {
+      surface = this.fitBackgroundSurface(canvas);
+      // 当てはめられない絵（縁がほぼ一色、極端に小さい等）は従来方式へ落とす
+      if (!surface) mode = 'corner';
+    }
 
     let targets;
     if (mode === 'white') targets = [[255, 255, 255]];
     else if (mode === 'black') targets = [[0, 0, 0]];
     else if (mode === 'color' && color) targets = [color];
+    else if (mode === 'surface') targets = [];
     else targets = this.borderColors(canvas);
     targets = targets.concat(extraColors.filter(Boolean));
 
@@ -110,8 +324,39 @@ const StudioImage = {
     const inner = threshold;
     const outer = threshold + Math.max(1, feather);
 
-    const distanceToTargets = i => {
-      let best = Infinity;
+    // その座標で予測した背景色との距離。曲面を使わないモードでは常に未使用。
+    // 塗りつぶしは行順に進まないので、Yを含む項は先に全行ぶん計算しておく。
+    // こうすると1画素あたり掛け算2回で済む。
+    let surfaceDistance = null;
+    if (surface) {
+      const c0 = new Float64Array(h * 3);   // 定数項
+      const c1 = new Float64Array(h * 3);   // X の係数
+      const c2 = [surface[0][3], surface[1][3], surface[2][3]];  // X^2 の係数（Yに依らない）
+      for (let y = 0; y < h; y++) {
+        const Y = (y / (h - 1)) * 2 - 1;
+        for (let c = 0; c < 3; c++) {
+          const k = surface[c];
+          c0[y * 3 + c] = k[0] + k[2] * Y + k[5] * Y * Y;
+          c1[y * 3 + c] = k[1] + k[4] * Y;
+        }
+      }
+      surfaceDistance = (i, x, y) => {
+        const X = (x / (w - 1)) * 2 - 1;
+        const XX = X * X;
+        const row = y * 3;
+        let sum = 0;
+        for (let c = 0; c < 3; c++) {
+          const predicted = c0[row + c] + c1[row + c] * X + c2[c] * XX;
+          const d = data[i + c] - predicted;
+          sum += d * d;
+        }
+        return Math.sqrt(sum);
+      };
+    }
+
+    const distanceToTargets = (i, x, y) => {
+      // スポイトで足した色は、曲面モードでも「ここは背景」として効かせる
+      let best = surfaceDistance ? surfaceDistance(i, x, y) : Infinity;
       for (const t of targets) {
         const dr = data[i] - t[0], dg = data[i + 1] - t[1], db = data[i + 2] - t[2];
         const d = Math.sqrt(dr * dr + dg * dg + db * db);
@@ -143,15 +388,18 @@ const StudioImage = {
         push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1);
         continue;
       }
-      const distance = distanceToTargets(i);
+      const x = p % w, y = (p - (p % w)) / w;
+      const distance = distanceToTargets(i, x, y);
       if (distance >= outer) continue;              // 背景ではない：ここで止まる
       if (distance <= inner) data[i + 3] = 0;
       else data[i + 3] = Math.round(data[i + 3] * ((distance - inner) / (outer - inner)));
-      const x = p % w, y = (p - (p % w)) / w;
       push(x - 1, y); push(x + 1, y); push(x, y - 1); push(x, y + 1);
     }
 
     ctx.putImageData(image, 0, 0);
+    // 残りかす消しは、既定では曲面モードだけ。従来モードの結果は変えない。
+    const wantSpeck = despeckle === null ? surface !== null : despeckle;
+    if (wantSpeck) this.removeSpecks(canvas, { minRatio: speckRatio });
     return canvas;
   },
 
