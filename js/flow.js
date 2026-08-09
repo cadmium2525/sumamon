@@ -122,7 +122,9 @@ const AppFlow = {
     const urls = new Set([
       'assets/images/home.webp', 'assets/images/logo.webp', 'assets/images/app-icon.png',
       'assets/images/stage-select-background.webp', 'assets/images/masmon-manage-background.webp',
-      'assets/images/masmon-manage-buttons.webp', 'assets/images/item-shop-background.webp',
+      'assets/images/ui/menu-training.webp', 'assets/images/ui/menu-practice.webp',
+      'assets/images/ui/menu-skin.webp', 'assets/images/ui/menu-back.webp',
+      'assets/images/item-shop-background.webp',
       'assets/images/training-background.webp', 'assets/images/fighter-select-background.webp',
       'assets/images/ui/training-ticket.webp', 'assets/images/ui/practice-ticket.webp',
       'assets/images/battle/gong3.webp', 'assets/images/battle/gong2.webp',
@@ -224,11 +226,40 @@ const AppFlow = {
     document.getElementById('home-practice-tickets').textContent = `修行券 ${UserProfileStore.data.practiceTickets || 0}`;
   },
 
+  // プロフィールのアイコンは、モンスターの定義から引く。
+  // モンスターを1体増やすたびにここへ書き足す作りだと必ず入れ忘れるので、
+  // スタジオで登録したストックアイコンがそのまま使われるようにしてある。
   _profileIconSrc(iconKey) {
-    if (iconKey === 'nendoro') return 'assets/images/fighter/nendoro/stock.png';
-    return iconKey === 'dullahan'
-      ? 'assets/images/fighter/dullahan/stock.png'
-      : 'assets/images/fighter/irumine/stock.png';
+    const list = window.FIGHTERS || {};
+    const def = list[iconKey];
+    if (def && (def.stockIcon || def.idleImage)) return def.stockIcon || def.idleImage;
+    // 消えたモンスターを指しているプロフィールでも、空欄にはしない
+    const fallback = Object.values(list).find(item => item && item.stockIcon);
+    return (fallback && fallback.stockIcon) || '';
+  },
+
+  // アイコンに選べるモンスター。ストックアイコンを持つものだけを並べる
+  // （持っていないと画像が出ず、選べてしまうと空欄のアイコンになるため）。
+  _profileIconChoices() {
+    return Object.entries(window.FIGHTERS || {})
+      .filter(([, def]) => def && def.stockIcon)
+      .map(([key, def]) => ({ key, name: def.displayName || key, src: def.stockIcon }));
+  },
+
+  renderProfileIconOptions(selectedKey) {
+    const box = document.getElementById('mypage-icon-options');
+    if (!box) return;
+    const choices = this._profileIconChoices();
+    box.innerHTML = choices.map(choice => `
+      <button class="mypage-icon-option${choice.key === selectedKey ? ' selected' : ''}"
+              data-mypage-icon="${this.escapeHtml(choice.key)}"
+              aria-label="${this.escapeHtml(choice.name)}を選択">
+        <img src="${this.escapeHtml(choice.src)}" alt="${this.escapeHtml(choice.name)}">
+      </button>`).join('');
+    // 選ばれていたモンスターが居なくなっていた時は、先頭を選んだ状態にしておく
+    if (choices.length && !choices.some(choice => choice.key === selectedKey)) {
+      box.firstElementChild?.classList.add('selected');
+    }
   },
 
   renderItemShop() {
@@ -512,11 +543,13 @@ const AppFlow = {
       this.showScreen('mypage');
     });
 
-    document.querySelectorAll('.mypage-icon-option').forEach(option => {
-      option.addEventListener('click', () => {
-        document.querySelectorAll('.mypage-icon-option').forEach(item => item.classList.toggle('selected', item === option));
-        document.getElementById('mypage-current-icon').src = this._profileIconSrc(option.dataset.mypageIcon);
-      });
+    // 選択肢はモンスターが増えるたびに作り直すため、
+    // 個々のボタンではなく入れ物側で受ける（作り直しても結びつきが切れない）
+    document.getElementById('mypage-icon-options').addEventListener('click', event => {
+      const option = event.target.closest('.mypage-icon-option');
+      if (!option) return;
+      document.querySelectorAll('.mypage-icon-option').forEach(item => item.classList.toggle('selected', item === option));
+      document.getElementById('mypage-current-icon').src = this._profileIconSrc(option.dataset.mypageIcon);
     });
     document.getElementById('mypage-save').addEventListener('click', () => this.saveMyPage());
     document.getElementById('mypage-logout').addEventListener('click', () => this.logoutFromMyPage());
@@ -1087,9 +1120,7 @@ const AppFlow = {
     document.getElementById('mypage-diamonds').textContent = `💎 ${UserProfileStore.data.diamonds || 0}`;
     document.getElementById('mypage-practice-tickets').textContent = `修行券 ${UserProfileStore.data.practiceTickets || 0}`;
     document.getElementById('mypage-nickname').value = nickname;
-    document.querySelectorAll('.mypage-icon-option').forEach(option => {
-      option.classList.toggle('selected', option.dataset.mypageIcon === iconKey);
-    });
+    this.renderProfileIconOptions(iconKey);
     document.getElementById('mypage-message').textContent = '';
     this.renderMyPageItems();
     this.renderMyPageRecords();

@@ -375,8 +375,13 @@ const UserProfileStore = {
     this.save();
   },
 
+  // 選べるアイコンはモンスターの定義から決まる。
+  // ここにキーを並べる作りだと、モンスターを増やすたびに書き足しが要り、
+  // 忘れると「選んでも保存されない」という分かりにくい不具合になる。
   setIcon(iconKey) {
-    this.data.iconKey = ['irumine', 'dullahan', 'nendoro'].includes(iconKey) ? iconKey : 'irumine';
+    const list = (typeof window !== 'undefined' && window.FIGHTERS) || {};
+    const known = list[iconKey] && list[iconKey].stockIcon;
+    this.data.iconKey = known ? iconKey : (this.data.iconKey || 'irumine');
     this.save();
   },
 

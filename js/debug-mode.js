@@ -287,7 +287,10 @@ const DebugMotionViewer = {
     list.innerHTML = records.map(record => {
       const seen = Number(record.lastSeenAt) || 0;
       const online = now - seen < 125000;
-      const icon = record.iconKey === 'dullahan' ? FIGHTERS.dullahan.stockIcon : FIGHTERS.irumine.stockIcon;
+      // 画面側と同じ引き方にしておかないと、新しいモンスターを選んだ人だけ
+      // 管理者一覧でイルミネに見える、という食い違いが起きる
+      const icon = window.AppFlow ? AppFlow._profileIconSrc(record.iconKey)
+        : (FIGHTERS[record.iconKey]?.stockIcon || FIGHTERS.irumine?.stockIcon || '');
       return `<article class="admin-player-row">
         <img src="${icon}" alt=""><span><strong>${this.escape(record.nickname || record.username || '名称未設定')}</strong><small>@${this.escape(record.username || 'unknown')}</small></span>
         <span><b class="${online ? 'online' : 'offline'}">${online ? 'オンライン' : 'オフライン'}</b><small>${this.escape(screenLabels[record.screen] || record.screen || '不明')}${record.mode ? ` / ${this.escape(record.mode)}` : ''}</small></span>
