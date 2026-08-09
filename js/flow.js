@@ -49,6 +49,8 @@ const AppFlow = {
   selectedStageKey: null,
   selectedCpuLevel: 3,
   selectedCpuCount: 1,
+  selectedRankMasmonId: null,
+  selectedRankChallenge: null,
   selectedManageMasmonId: null,
   manageIdleTimer: null,
   shopToastTimer: null,
@@ -332,6 +334,100 @@ const AppFlow = {
     this.showScreen('stage-select');
   },
 
+  openRankBattle() {
+    this.selectedMode = 'cpu';
+    this.selectedCpuMode = 'rank';
+    this.selectedCpuCount = 1;
+    const masmons = MasmonStore.loadAll().filter(monster => FIGHTERS[monster.baseFighterKey]);
+    if (!masmons.some(monster => monster.id === this.selectedRankMasmonId)) {
+      this.selectedRankMasmonId = masmons[0]?.id || null;
+      this.selectedRankChallenge = null;
+    }
+    this.renderRankScreen();
+    this.showScreen('rank');
+  },
+
+  renderRankScreen() {
+    const list = MasmonStore.loadAll().filter(monster => FIGHTERS[monster.baseFighterKey]);
+    const masmonList = document.getElementById('rank-masmon-list');
+    const challengeList = document.getElementById('rank-challenge-list');
+    const preview = document.getElementById('rank-opponent-preview');
+    if (!list.length) {
+      masmonList.innerHTML = '<p class="rank-empty">段位戦に出場できるマスモンがいません。<br>通常CPU戦で勝利し、マスモンを登録してください。</p>';
+      challengeList.innerHTML = '';
+      preview.innerHTML = '<p>マスモンを登録すると挑戦できます</p>';
+      return;
+    }
+    if (!list.some(monster => monster.id === this.selectedRankMasmonId)) {
+      this.selectedRankMasmonId = list[0].id;
+    }
+    masmonList.innerHTML = list.map(monster => {
+      const base = FIGHTERS[monster.baseFighterKey] || {};
+      const titles = Object.values(monster.titles || {}).filter(Boolean).length;
+      return `<button class="rank-masmon-card${monster.id === this.selectedRankMasmonId ? ' selected' : ''}" data-rank-masmon="${monster.id}">
+        <img src="${base.stockIcon || base.idleImage || ''}" alt=""><span><strong>${this.escapeHtml(monster.name)}</strong><small>Lv.${monster.level} ／ 大会${titles}/4</small></span>
+        <b class="rank-emblem rank-${monster.rank || 'E'}">${monster.rank || 'E'}</b>
+      </button>`;
+    }).join('');
+
+    const monster = list.find(item => item.id === this.selectedRankMasmonId);
+    const challenges = RankBattle.available(monster);
+    if (!challenges.some(challenge => challenge.type === this.selectedRankChallenge?.type && challenge.key === this.selectedRankChallenge?.key)) {
+      const first = challenges.find(challenge => !challenge.locked) || null;
+      this.selectedRankChallenge = first ? { type: first.type, key: first.key } : null;
+    }
+    challengeList.innerHTML = challenges.map(challenge => {
+      const selected = challenge.type === this.selectedRankChallenge?.type && challenge.key === this.selectedRankChallenge?.key;
+      const firstClear = challenge.type === 'rank' || !challenge.cleared;
+      const reward = RankBattle.rewardFor(challenge, { firstClear });
+      const status = challenge.cleared ? '制覇済・再挑戦' : challenge.type === 'rank' ? '勝利で昇格' : '初回制覇報酬';
+      return `<button class="rank-challenge-card${selected ? ' selected' : ''}${challenge.cleared ? ' cleared' : ''}" data-rank-type="${challenge.type}" data-rank-challenge="${challenge.key}" ${challenge.locked ? 'disabled' : ''}>
+        <span><strong>${this.escapeHtml(challenge.name)}</strong><small>${status}</small></span>
+        <em>EXP ${reward.masmonExp.toLocaleString()}<br>💎 ${reward.diamonds.toLocaleString()}</em>
+      </button>`;
+    }).join('');
+
+    const challenge = challenges.find(item => item.type === this.selectedRankChallenge?.type && item.key === this.selectedRankChallenge?.key);
+    if (!challenge) {
+      preview.innerHTML = '<p>挑戦先がありません</p>';
+      return;
+    }
+    const opponent = FIGHTERS[challenge.def.fighterKey] || FIGHTERS.irumine;
+    const titleCount = Object.values(monster.titles || {}).filter(Boolean).length;
+    preview.innerHTML = `<header class="rank-opponent-header">
+      <img src="${opponent.stockIcon || opponent.idleImage || ''}" alt="">
+      <span><small>${this.escapeHtml(challenge.def.flavor || '昇格をかけた一戦')}</small><strong>${this.escapeHtml(challenge.name)}</strong><em>${opponent.displayName} ／ CPU Lv.${challenge.def.cpuLevel}</em></span>
+    </header>
+    <div class="rank-opponent-stats">${this._buildBattleStatRows(challenge.def.stats)}</div>
+    ${monster.rank === 'S' ? `<div class="rank-title-progress">四大大会 ${titleCount}/4${monster.legendWins ? ` ／ レジェンド優勝 ${monster.legendWins}回` : ''}</div>` : ''}
+    <button id="rank-challenge-start" class="rank-challenge-start">挑戦する</button>`;
+  },
+
+  startRankChallenge() {
+    const monster = MasmonStore.loadAll().find(item => item.id === this.selectedRankMasmonId);
+    if (!monster || !this.selectedRankChallenge) return;
+    const challenge = RankBattle.available(monster).find(item =>
+      item.type === this.selectedRankChallenge.type && item.key === this.selectedRankChallenge.key && !item.locked);
+    if (!challenge) return;
+    this.selectedCpuCount = 1;
+    this.lastLaunchOptions = {
+      stageKey: challenge.def.stageKey,
+      p1Key: monster.baseFighterKey,
+      p2Key: challenge.def.fighterKey,
+      p1MasmonId: monster.id,
+      p2MasmonId: null,
+      cpuCount: 1,
+      cpuFighters: [{ fighterKey: challenge.def.fighterKey, masmonId: null }],
+      mode: 'cpu',
+      cpuMode: 'rank',
+      cpuLevel: challenge.def.cpuLevel,
+      // 段位戦は大会ごとに強さを固定し、相手種の適性による揺らぎを出さない。
+      statOverrides: { cpu: { ...challenge.def.stats } },
+      rankChallenge: { type: challenge.type, key: challenge.key },
+    };
+    this.playBattleIntro(this.lastLaunchOptions);
+  },
+
   async openEndlessRanking() {
     const modal = document.getElementById('endless-ranking-modal');
     const list = document.getElementById('endless-ranking-list');
@@ -372,6 +468,8 @@ const AppFlow = {
         fighterKey: m.baseFighterKey, masmonId: m.id,
         label: `${m.name}（Lv.${m.level}）`, img: base.idleImage, color: base.color,
         hundredBadge: !!m.badges?.hundred,
+        rank: m.rank || 'E', titleCount: Object.values(m.titles || {}).filter(Boolean).length,
+        legendWins: Math.max(0, Number(m.legendWins) || 0),
       });
     });
     list.innerHTML = templateCards.join('') + masmonCards.join('');
@@ -383,11 +481,13 @@ const AppFlow = {
     });
   },
 
-  _fighterCardHtml({ fighterKey, masmonId, label, img, color, hundredBadge = false }) {
+  _fighterCardHtml({ fighterKey, masmonId, label, img, color, hundredBadge = false, rank = null, titleCount = 0, legendWins = 0 }) {
     const bg = img ? `background-image:url('${img}')` : `background-color:${color}`;
     return `
       <button class="select-card fighter-card" data-fighter="${fighterKey}" ${masmonId ? `data-masmon="${masmonId}"` : ''} style="${bg}">
         ${hundredBadge ? '<span class="hundred-clear-badge" title="100人組手クリア">100</span>' : ''}
+        ${rank ? `<span class="fighter-rank-badge rank-${rank}" title="段位 ${rank}">${rank}</span>` : ''}
+        ${titleCount || legendWins ? `<span class="fighter-title-count">大会 ${titleCount}/4${legendWins ? `・伝説${legendWins}` : ''}</span>` : ''}
         <span class="select-card-label">${label}</span>
       </button>
     `;
@@ -439,6 +539,26 @@ const AppFlow = {
     });
     document.getElementById('btn-mode-hundred').addEventListener('click', () => this.openCpuMode('hundred'));
     document.getElementById('btn-mode-endless').addEventListener('click', () => this.openCpuMode('endless'));
+    document.getElementById('btn-mode-rank').addEventListener('click', () => this.openRankBattle());
+    document.getElementById('rank-masmon-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-rank-masmon]');
+      if (!button) return;
+      this.selectedRankMasmonId = button.dataset.rankMasmon;
+      this.selectedRankChallenge = null;
+      this.renderRankScreen();
+    });
+    document.getElementById('rank-challenge-list').addEventListener('click', event => {
+      const button = event.target.closest('[data-rank-challenge]');
+      if (!button || button.disabled) return;
+      this.selectedRankChallenge = {
+        type: button.dataset.rankType,
+        key: button.dataset.rankChallenge,
+      };
+      this.renderRankScreen();
+    });
+    document.getElementById('rank-opponent-preview').addEventListener('click', event => {
+      if (event.target.closest('#rank-challenge-start')) this.startRankChallenge();
+    });
     document.getElementById('survival-resume-continue').addEventListener('click', () => {
       const saved = this.pendingSurvivalResume;
       if (!saved) return;
@@ -698,7 +818,8 @@ const AppFlow = {
       const base = FIGHTERS[m.baseFighterKey] || {};
       const selected = m.id === this.selectedManageMasmonId ? ' selected' : '';
       return `<button class="masmon-roster-card${selected}" data-masmon-id="${m.id}" aria-label="マスモンを選択">
-        <img src="${base.idleImage || ''}" alt="">${m.badges?.hundred ? '<i class="hundred-clear-badge">100</i>' : ''}<span></span><small>Lv.${m.level}</small>
+        <img src="${base.idleImage || ''}" alt="">${m.badges?.hundred ? '<i class="hundred-clear-badge">100</i>' : ''}
+        <i class="manage-rank-badge rank-${m.rank || 'E'}">${m.rank || 'E'}</i><span></span><small>Lv.${m.level}</small>
       </button>`;
     }).join('');
     list.forEach((m, index) => {
@@ -714,7 +835,8 @@ const AppFlow = {
     if (selected) {
       const base = FIGHTERS[selected.baseFighterKey] || {};
       this._startManageIdleAnimation(base, image, selected.skin);
-      name.textContent = `${selected.name}　Lv.${selected.level}`;
+      const titleCount = Object.values(selected.titles || {}).filter(Boolean).length;
+      name.textContent = `${selected.name}　Lv.${selected.level}　段位 ${selected.rank || 'E'}${titleCount ? `　大会 ${titleCount}/4` : ''}${selected.legendWins ? `　レジェンド ${selected.legendWins}勝` : ''}`;
       if (statPanel) {
         const stats = GROWTH.computeStatsAtLevel(
           { ...defaultStats(), trainingStats: selected.trainingStats }, selected.aptitudes, selected.level);
@@ -1006,6 +1128,7 @@ const AppFlow = {
       { label: 'CPU戦・通常バトル', record: records.cpu?.normal },
       { label: 'CPU戦・100人組手', record: records.cpu?.hundred },
       { label: 'CPU戦・エンドレス', record: records.cpu?.endless },
+      { label: 'CPU戦・段位戦', record: records.cpu?.rank },
       { label: 'マルチ対戦', record: records.multi },
     ];
     document.getElementById('mypage-record-list').innerHTML = entries.map(entry => {
@@ -1505,6 +1628,12 @@ const AppFlow = {
       return;
     }
 
+    // 段位戦は固定報酬なので、通常戦のEXP・ブリーダーEXP・50ダイヤを通さない。
+    if (opts.rankChallenge) {
+      this._renderRankBattleResult(panel, opts, p1Entry);
+      return;
+    }
+
     if (opts.p1MasmonId) {
       this._renderMasmonExpResult(panel, opts, p1Entry);
     } else if (p1Entry && p1Entry.rank === 1) {
@@ -1512,6 +1641,18 @@ const AppFlow = {
     } else {
       panel.classList.add('hidden');
       panel.innerHTML = '';
+    }
+
+    if (opts.mode === 'multi' && p1Entry) {
+      if (p1Entry.rank === 1) {
+        UserProfileStore.addPracticeTickets(1);
+        panel.classList.remove('hidden');
+        panel.insertAdjacentHTML('beforeend', '<div class="multi-ticket-reward">修行チケットを1枚獲得！</div>');
+      } else {
+        UserProfileStore.addFreeTrainingTickets(1);
+        panel.classList.remove('hidden');
+        panel.insertAdjacentHTML('beforeend', '<div class="multi-ticket-reward">フリートレーニングチケットを1枚獲得！</div>');
+      }
     }
 
     const breederResult = UserProfileStore.addBreederExp(50);
@@ -1523,6 +1664,69 @@ const AppFlow = {
       UserProfileStore.addDiamonds(reward);
       panel.insertAdjacentHTML('beforeend', `<div class="diamond-reward">💎 ${reward}ダイヤを獲得！</div>`);
     }
+    this._updateHomeProfile();
+  },
+
+  _renderRankBattleResult(panel, opts, p1Entry) {
+    const monster = MasmonStore.loadAll().find(item => item.id === opts.p1MasmonId);
+    const def = RankBattle.definition(opts.rankChallenge.type, opts.rankChallenge.key);
+    if (!monster || !def) {
+      panel.innerHTML = '<div>段位戦の結果を読み込めませんでした</div>';
+      return;
+    }
+    const challenge = { ...opts.rankChallenge, name: def.name, def };
+    const won = !!p1Entry && p1Entry.rank === 1;
+    const firstClear = challenge.type === 'rank'
+      || (challenge.type === 'tournament' && !monster.titles?.[challenge.key])
+      || (challenge.type === 'legend' && (Number(monster.legendWins) || 0) === 0);
+    const fullReward = RankBattle.rewardFor(challenge, { firstClear });
+    const reward = won ? fullReward : {
+      masmonExp: Math.max(1, Math.round(fullReward.masmonExp * 0.1)),
+      diamonds: 0, breederExp: 0, practiceTickets: 0, trainingTickets: 0,
+    };
+    const startLevel = monster.level;
+    const startExp = monster.exp;
+    const levelResult = GROWTH.addExp(monster, reward.masmonExp);
+    const progress = won ? RankBattle.applyWin(monster, challenge) : null;
+    monster.trainingTickets = Math.max(0, Number(monster.trainingTickets) || 0) + reward.trainingTickets;
+    MasmonStore.update(monster);
+
+    if (reward.diamonds) UserProfileStore.addDiamonds(reward.diamonds);
+    const breederResult = reward.breederExp ? UserProfileStore.addBreederExp(reward.breederExp) : null;
+    if (reward.practiceTickets) UserProfileStore.addPracticeTickets(reward.practiceTickets);
+
+    let headline = '挑戦失敗';
+    let progressHtml = '<p>段位は下がりません。力をつけて何度でも挑戦できます。</p>';
+    if (won && progress?.promoted) {
+      headline = '昇格！';
+      progressHtml = `<div class="rank-promotion"><span>${progress.fromRank}</span><i>→</i><strong>${progress.toRank}</strong></div>`;
+    } else if (won && challenge.type === 'tournament') {
+      headline = progress?.tournamentCleared ? '四大大会 初制覇！' : '四大大会 再制覇！';
+      progressHtml = `<p>${this.escapeHtml(def.name)}を制しました${progress?.allTournamentsDone ? '<br><b>レジェンド杯が解禁！</b>' : ''}</p>`;
+    } else if (won && challenge.type === 'legend') {
+      headline = progress?.legendCleared ? 'レジェンド杯 初優勝！' : 'レジェンド杯 優勝！';
+      progressHtml = `<div class="legend-win-mark">LEGEND × ${monster.legendWins}</div>`;
+    }
+    const rewardRows = [
+      `マスモンEXP +${reward.masmonExp.toLocaleString()}`,
+      reward.diamonds ? `💎 +${reward.diamonds.toLocaleString()}` : null,
+      reward.breederExp ? `ブリーダーEXP +${reward.breederExp.toLocaleString()}` : null,
+      reward.practiceTickets ? `修行チケット +${reward.practiceTickets}枚` : null,
+      reward.trainingTickets ? `専用トレーニングチケット +${reward.trainingTickets}枚` : null,
+    ].filter(Boolean).map(text => `<li>${text}</li>`).join('');
+    panel.innerHTML = `<div class="rank-result-card ${won ? 'win' : 'lose'}">
+      <small>${this.escapeHtml(def.name)}</small><strong>${headline}</strong>${progressHtml}
+      <ul>${rewardRows}</ul>
+      ${levelResult.leveledUp ? `<em>Lv.${levelResult.fromLevel} → Lv.${levelResult.toLevel} ／ レベルアップ分チケット +${levelResult.ticketsGained}枚</em>` : ''}
+      ${breederResult?.toLevel > breederResult?.fromLevel ? `<em>ブリーダー Lv.${breederResult.toLevel}にアップ！</em>` : ''}
+    </div>
+    <div class="masmon-exp-result rank-exp-result">
+      <div class="masmon-exp-heading"><b id="masmon-exp-level">Lv.${startLevel}</b><span id="masmon-exp-numbers"></span></div>
+      <div class="masmon-exp-track"><div id="masmon-exp-fill" class="masmon-exp-fill"></div></div>
+      <div id="masmon-level-callout" class="masmon-level-callout"></div>
+    </div>`;
+    this._animateMasmonExp(startLevel, startExp, reward.masmonExp);
+    this.buildFighterList();
     this._updateHomeProfile();
   },
 
@@ -1584,8 +1788,7 @@ const AppFlow = {
       falls: p1Entry?.falls || 0,
       cpuLevel: opts.cpuLevel,
     });
-    const expMultiplier = opts.mode === 'multi' ? 2 : 1;
-    const expGain = expResult.total * expMultiplier;
+    const expGain = expResult.total;
     const startLevel = record.level;
     const startExp = record.exp;
     const levelResult = GROWTH.addExp(record, expGain);
@@ -1594,7 +1797,7 @@ const AppFlow = {
     panel.innerHTML = `
       <div class="masmon-exp-result">
         <div><strong>${record.name}</strong>　EXP +${expGain}</div>
-        <div class="exp-breakdown">順位 +${expResult.placementExp} ／ 撃墜 +${expResult.koExp} ／ 被撃墜 -${expResult.fallPenalty} ／ ${opts.mode === 'multi' ? 'マルチ報酬 ×2' : `CPU倍率 ×${expResult.levelMultiplier.toFixed(1)}`}</div>
+        <div class="exp-breakdown">順位 +${expResult.placementExp} ／ 撃墜 +${expResult.koExp} ／ 被撃墜 -${expResult.fallPenalty} ／ ${opts.mode === 'multi' ? 'マルチ対戦' : `CPU倍率 ×${expResult.levelMultiplier.toFixed(1)}`}</div>
         <div class="masmon-exp-heading"><b id="masmon-exp-level">Lv.${startLevel}</b><span id="masmon-exp-numbers"></span></div>
         <div class="masmon-exp-track"><div id="masmon-exp-fill" class="masmon-exp-fill"></div></div>
         <div id="masmon-level-callout" class="masmon-level-callout"></div>

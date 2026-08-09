@@ -37,11 +37,27 @@ for (let lvl = 1; lvl <= 9; lvl++) {
   CPU_LEVEL_PARAMS[lvl] = params;
 }
 
+// レジェンド杯専用。1〜9の補間を10段階へ広げると既存AIまで変わるため、独立値にする。
+// 物理や入力回数には手を加えず、判断の速さと正確さだけを限界まで高めている。
+CPU_LEVEL_PARAMS[10] = {
+  decisionInterval: 2,
+  decisionJitter: 1,
+  errorRate: 0,
+  aggressiveness: 0.95,
+  reactChance: 0.95,
+  smashChance: 0.35,
+  grabChance: 0.20,
+  edgeGuardSkill: 1,
+  projectileGuard: 1,
+  punishSkill: 0.98,
+  justShieldSkill: 0.70,
+};
+
 class CPUController {
   constructor(fighter, opponent, level) {
     this.fighter = fighter;
     this.opponent = opponent;
-    this.level = Math.min(9, Math.max(1, level || 3));
+    this.level = Math.min(10, Math.max(1, level || 3));
     this.params = CPU_LEVEL_PARAMS[this.level];
     this.decisionCooldown = 0;
     this.currentIntent = this._blankInput();

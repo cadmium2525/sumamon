@@ -7,6 +7,8 @@ const GROWTH = {
   LEVEL_MAX: 99,
   STAT_MAX: 999,
   STAT_KEYS: ['life', 'power', 'intelligence', 'accuracy', 'evasion', 'defense'],
+  // 適正ランクとは別物。段位はSまであり、文字列比較ではなくこの順番で昇格を判定する。
+  RANK_ORDER: ['E', 'D', 'C', 'B', 'A', 'S'],
   RANKS: ['E', 'D', 'C', 'B', 'A'],
   APTITUDE_MULTIPLIER: { E: 0.6, D: 0.8, C: 1.0, B: 1.25, A: 1.5 },
   FIXED_APTITUDES: {
@@ -168,12 +170,13 @@ const GROWTH = {
   },
 
   computeBattleExp({ placement, totalFighters, kos, falls, cpuLevel }) {
-    const placementRewards = [100, 70, 50, 35];
+    // 通常対戦のレベル上げが長すぎたため、調整点をここへ集約して従来の3倍にする。
+    const placementRewards = [300, 210, 150, 105];
     const placementExp = placementRewards[Math.min(placementRewards.length - 1, Math.max(0, placement - 1))];
-    const koExp = Math.max(0, kos || 0) * 30;
-    const fallPenalty = Math.max(0, falls || 0) * 12;
+    const koExp = Math.max(0, kos || 0) * 90;
+    const fallPenalty = Math.max(0, falls || 0) * 36;
     const levelMultiplier = 0.8 + Math.max(1, Math.min(9, cpuLevel || 3)) * 0.1;
-    const total = Math.max(20, Math.round((placementExp + koExp - fallPenalty) * levelMultiplier));
+    const total = Math.max(60, Math.round((placementExp + koExp - fallPenalty) * levelMultiplier));
     return { total, placementExp, koExp, fallPenalty, levelMultiplier };
   },
 };
@@ -219,6 +222,10 @@ const MasmonStore = {
     record.exp = record.exp || 0;
     record.trainingTickets = record.trainingTickets || 0;
     record.trainingStats = record.trainingStats || {};
+    // 既存ユーザーの個体にも読み込み時点で段位戦の初期状態を与える。
+    record.rank = GROWTH.RANK_ORDER.includes(record.rank) ? record.rank : 'E';
+    record.titles = (record.titles && typeof record.titles === 'object') ? record.titles : {};
+    record.legendWins = Math.max(0, Number(record.legendWins) || 0);
     // スキン（色変更）。{ groups:{...}, splits:[...] } / 未設定なら元の色
     record.skin = record.skin || null;
     // 解放済みのプリセット色（マスモンごと）。プリセットは1色につき染色セット1個で
@@ -252,6 +259,9 @@ const MasmonStore = {
       exp: 0,
       trainingTickets: 0,
       trainingStats: {},
+      rank: 'E',
+      titles: {},
+      legendWins: 0,
       aptitudes: GROWTH.aptitudesFor(baseFighterKey),
       createdAt: new Date().toISOString(),
     };
@@ -289,6 +299,7 @@ function normalizeBattleRecords(records = {}) {
       normal: normalize(records.cpu?.normal || blank()),
       hundred: normalize(records.cpu?.hundred || blank()),
       endless: normalize(records.cpu?.endless || blank()),
+      rank: normalize(records.cpu?.rank || blank()),
     },
     multi: normalize(records.multi || blank()),
   };
@@ -411,7 +422,7 @@ const UserProfileStore = {
     this.data.battleRecords = normalizeBattleRecords(this.data.battleRecords);
     const record = mode === 'multi'
       ? this.data.battleRecords.multi
-      : this.data.battleRecords.cpu[['normal', 'hundred', 'endless'].includes(mode) ? mode : 'normal'];
+      : this.data.battleRecords.cpu[['normal', 'hundred', 'endless', 'rank'].includes(mode) ? mode : 'normal'];
     const rank = Math.max(1, Number(result.rank) || 1);
     record.matches++;
     if (rank === 1) record.wins++;

@@ -1444,8 +1444,8 @@ body.layout-pending .screen { visibility: hidden; }
 .fight-start-btn { touch-action: manipulation; }
 .fight-start-btn:active { transform: scale(0.96); }
 
-.cpu-mode-list { display: grid; grid-template-columns: repeat(3, minmax(150px, 220px)); gap: 12px; width: min(94vw, 720px); }
-.cpu-mode-card { min-height: 120px; padding: 18px; border: 2px solid rgba(255,255,255,.35); border-radius: 12px; color: #fff; background: rgba(8,25,45,.86); }
+.cpu-mode-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: min(94vw, 920px); }
+.cpu-mode-card { min-width: 0; min-height: 120px; padding: 18px; border: 2px solid rgba(255,255,255,.35); border-radius: 12px; color: #fff; background: rgba(8,25,45,.86); }
 .cpu-mode-card strong, .cpu-mode-card small { display: block; }
 .cpu-mode-card strong { font-size: 20px; }
 .cpu-mode-card small { margin-top: 10px; color: #b9d8ec; }
@@ -1455,6 +1455,73 @@ body.layout-pending .screen { visibility: hidden; }
 .endless-mode-column { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .endless-mode-column .cpu-mode-card { width: 100%; }
 .endless-ranking-button { width: 100%; padding: 8px 10px; border: 1px solid #f1ce65; border-radius: 9px; color: #fff1ad; background: rgba(38,27,8,.9); font-weight: 900; }
+
+/* ==== 段位戦 ==== */
+#screen-rank { justify-content: flex-start; gap: 7px; overflow: hidden; padding: max(8px, env(safe-area-inset-top)) max(48px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(48px, env(safe-area-inset-left)); background: radial-gradient(circle at 55% 30%, #24364f, #080d16 78%); }
+#screen-rank > .screen-heading { flex: 0 0 auto; margin: 0; color: #ffe49a; font-size: clamp(18px, 3vw, 25px); }
+.rank-battle-shell { display: grid; grid-template-columns: minmax(0, .86fr) minmax(0, 1.12fr) minmax(0, 1.25fr); width: min(1040px, 100%); min-height: 0; flex: 1 1 auto; gap: 9px; }
+.rank-pane { min-width: 0; min-height: 0; overflow: hidden; padding: 9px; border: 1px solid rgba(240,204,102,.42); border-radius: 12px; background: linear-gradient(155deg, rgba(21,38,57,.95), rgba(6,14,24,.94)); box-shadow: 0 8px 24px rgba(0,0,0,.38); }
+.rank-pane h2 { margin: 0 0 7px; color: #ffe7a1; font-size: 13px; letter-spacing: .08em; }
+.rank-masmon-list, .rank-challenge-list { display: grid; align-content: start; gap: 6px; max-height: calc(100% - 24px); overflow-y: auto; padding-right: 2px; touch-action: pan-y; }
+.rank-masmon-card, .rank-challenge-card { position: relative; display: flex; min-width: 0; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.22); border-radius: 9px; color: #fff; background: rgba(255,255,255,.055); text-align: left; }
+.rank-masmon-card.selected, .rank-challenge-card.selected { border-color: #ffdc68; background: rgba(112,79,10,.42); box-shadow: inset 0 0 0 1px rgba(255,229,138,.25), 0 0 11px rgba(255,200,55,.23); }
+.rank-masmon-card img { width: 38px; height: 38px; flex: 0 0 auto; object-fit: contain; border-radius: 7px; background: rgba(0,0,0,.3); }
+.rank-masmon-card span, .rank-challenge-card span { min-width: 0; flex: 1; }
+.rank-masmon-card strong, .rank-masmon-card small, .rank-challenge-card strong, .rank-challenge-card small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-masmon-card strong, .rank-challenge-card strong { font-size: 11px; }
+.rank-masmon-card small, .rank-challenge-card small { margin-top: 2px; color: #a9c5d9; font-size: 8px; }
+.rank-challenge-card.cleared small { color: #8ef0b2; }
+.rank-challenge-card em { flex: 0 0 auto; color: #ffe393; font-size: 8px; font-style: normal; font-weight: 800; line-height: 1.35; text-align: right; }
+.rank-emblem, .fighter-rank-badge, .manage-rank-badge { display: grid; place-items: center; border: 2px solid var(--rank-edge, #6c7888); color: #fff; background: linear-gradient(145deg, var(--rank-light, #aebccc), var(--rank-deep, #4d5d70)); box-shadow: inset 0 1px 2px rgba(255,255,255,.42), 0 2px 5px rgba(0,0,0,.52); font-weight: 950; text-shadow: 0 1px 2px #000; }
+.rank-emblem { width: 31px; height: 31px; flex: 0 0 auto; border-radius: 50%; font-size: 15px; }
+.rank-emblem.rank-E, .fighter-rank-badge.rank-E, .manage-rank-badge.rank-E { --rank-light:#9dccff; --rank-deep:#3379bc; --rank-edge:#d6ebff; }
+.rank-emblem.rank-D, .fighter-rank-badge.rank-D, .manage-rank-badge.rank-D { --rank-light:#8fe8d9; --rank-deep:#159d88; --rank-edge:#d4fff8; }
+.rank-emblem.rank-C, .fighter-rank-badge.rank-C, .manage-rank-badge.rank-C { --rank-light:#8ee86e; --rank-deep:#318d25; --rank-edge:#dcffd2; }
+.rank-emblem.rank-B, .fighter-rank-badge.rank-B, .manage-rank-badge.rank-B { --rank-light:#d797ff; --rank-deep:#7a2bb1; --rank-edge:#f2ddff; }
+.rank-emblem.rank-A, .fighter-rank-badge.rank-A, .manage-rank-badge.rank-A { --rank-light:#ff927b; --rank-deep:#c92e19; --rank-edge:#ffe2d8; }
+.rank-emblem.rank-S, .fighter-rank-badge.rank-S, .manage-rank-badge.rank-S { --rank-light:#fff3a6; --rank-deep:#d58a08; --rank-edge:#fff9d7; }
+.rank-opponent-preview { display: flex; flex-direction: column; }
+.rank-opponent-header { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.rank-opponent-header img { width: 50px; height: 50px; flex: 0 0 auto; object-fit: contain; }
+.rank-opponent-header span { min-width: 0; }
+.rank-opponent-header small, .rank-opponent-header strong, .rank-opponent-header em { display: block; }
+.rank-opponent-header small { color: #9bc1d8; font-size: 8px; }
+.rank-opponent-header strong { overflow: hidden; color: #ffe49a; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.rank-opponent-header em { color: #fff; font-size: 9px; font-style: normal; }
+.rank-opponent-stats { display: grid; flex: 1 1 auto; align-content: center; gap: 3px; padding-top: 5px; }
+.rank-title-progress { margin-top: 4px; color: #d7c4ff; font-size: 9px; text-align: center; }
+.rank-challenge-start { flex: 0 0 auto; margin-top: 6px; padding: 7px 14px; border: 1px solid #ffe086; border-radius: 9px; color: #1e1605; background: linear-gradient(#ffefad, #eab738); font-size: 12px; font-weight: 950; }
+#screen-rank > .back-btn { position: static; flex: 0 0 auto; margin: 0; padding: 5px 19px; }
+.rank-empty { color: #bfd2df; font-size: 10px; line-height: 1.55; }
+.fighter-rank-badge { position: absolute; z-index: 9; top: 5px; left: 5px; width: 29px; height: 29px; border-radius: 50%; font-size: 13px; }
+.fighter-title-count { position: absolute; z-index: 8; top: 6px; left: 39px; padding: 3px 6px; border-radius: 8px; color: #ffe9a1; background: rgba(0,0,0,.74); font-size: 8px; font-weight: 850; }
+.manage-rank-badge { position: absolute; z-index: 9; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-style: normal; }
+.rank-result-card { padding: 7px 9px; border: 1px solid #73849a; border-radius: 10px; background: rgba(5,13,23,.78); text-align: center; }
+.rank-result-card.win { border-color: #f1ca55; background: linear-gradient(145deg, rgba(81,57,10,.78), rgba(12,19,28,.9)); }
+.rank-result-card > small, .rank-result-card > strong { display: block; }
+.rank-result-card > small { color: #b7ccda; font-size: 9px; }
+.rank-result-card > strong { color: #ffe58e; font-size: 16px; }
+.rank-result-card > p { margin: 3px 0; font-size: 10px; line-height: 1.35; }
+.rank-result-card ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 9px; margin: 5px 0 0; padding: 0; list-style: none; color: #d9efff; font-size: 9px; }
+.rank-result-card > em { display: block; margin-top: 3px; color: #9ff0bd; font-size: 9px; font-style: normal; }
+.rank-promotion { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 4px 0; font-size: 18px; }
+.rank-promotion span { color: #a9bac9; }
+.rank-promotion strong { color: #fff0a5; font-size: 28px; animation: rankUpPop .7s ease-out; }
+.legend-win-mark { margin: 4px auto; color: #fff0ad; font-size: 13px; font-weight: 950; letter-spacing: .08em; }
+.rank-exp-result { margin-top: 6px; }
+.multi-ticket-reward { margin-top: 6px; color: #bff7ca; font-weight: 850; }
+@keyframes rankUpPop { 0% { transform: scale(.3); opacity: 0; } 65% { transform: scale(1.28); } 100% { transform: scale(1); opacity: 1; } }
+
+@media (max-height: 430px) {
+  #screen-cpu-mode > .screen-heading { margin-bottom: 7px; }
+  #screen-cpu-mode .cpu-count-picker { margin-bottom: 7px; }
+  .cpu-mode-card { min-height: 104px; padding: 11px; }
+  .cpu-mode-card strong { font-size: 16px; }
+  .cpu-mode-card small { margin-top: 6px; font-size: 10px; }
+  .cpu-mode-reward { margin-top: 7px; font-size: 9px; }
+  .endless-ranking-button { padding: 5px 7px; font-size: 10px; }
+  .rank-battle-shell { grid-template-columns: minmax(0,.85fr) minmax(0,1.1fr) minmax(0,1.25fr); }
+}
 .survival-resume-modal { position: fixed; z-index: 920; inset: 0; display: flex; align-items: center; justify-content: center; padding: max(14px, env(safe-area-inset-top)) max(48px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(48px, env(safe-area-inset-left)); background: rgba(0,0,0,.78); }
 .survival-resume-modal.hidden { display: none; }
 .survival-resume-dialog { width: min(520px, 82vw); padding: 18px; border: 2px solid #e5c35d; border-radius: 15px; color: #fff; background: linear-gradient(145deg, #1b3047, #08131f); text-align: center; box-shadow: 0 15px 45px rgba(0,0,0,.72); }
