@@ -337,7 +337,6 @@ const AppFlow = {
   openRankBattle() {
     this.selectedMode = 'cpu';
     this.selectedCpuMode = 'rank';
-    this.selectedCpuCount = 1;
     const masmons = MasmonStore.loadAll().filter(monster => FIGHTERS[monster.baseFighterKey]);
     if (!masmons.some(monster => monster.id === this.selectedRankMasmonId)) {
       this.selectedRankMasmonId = masmons[0]?.id || null;
@@ -409,7 +408,6 @@ const AppFlow = {
     const challenge = RankBattle.available(monster).find(item =>
       item.type === this.selectedRankChallenge.type && item.key === this.selectedRankChallenge.key && !item.locked);
     if (!challenge) return;
-    this.selectedCpuCount = 1;
     this.lastLaunchOptions = {
       stageKey: challenge.def.stageKey,
       p1Key: monster.baseFighterKey,
@@ -533,8 +531,7 @@ const AppFlow = {
     });
     document.querySelectorAll('.cpu-count-btn').forEach(button => {
       button.addEventListener('click', () => {
-        this.selectedCpuCount = Math.max(1, Math.min(3, Number(button.dataset.cpuCount) || 1));
-        document.querySelectorAll('.cpu-count-btn').forEach(el => el.classList.toggle('active', el === button));
+        this.setCpuCount(button.dataset.cpuCount);
       });
     });
     document.getElementById('btn-mode-hundred').addEventListener('click', () => this.openCpuMode('hundred'));
@@ -1230,13 +1227,25 @@ const AppFlow = {
     document.getElementById('fighter-status-modal').classList.add('hidden');
   },
 
-  _resetFighterSelectState() {
-    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
-    this.tokens = { p1: null };
-    if (!survivalMode) {
-      for (let i = 1; i <= this.selectedCpuCount; i++) this.tokens[`cpu${i}`] = null;
+  _syncCpuCountPicker() {
+    const picker = document.getElementById('cpu-count-picker');
+    if (!picker) return;
+    const visible = this.selectedMode === 'cpu'
+      && ['normal', 'hundred', 'endless'].includes(this.selectedCpuMode);
+    picker.classList.toggle('hidden', !visible);
+    const label = document.getElementById('cpu-count-label');
+    if (label) {
+      label.textContent = this.selectedCpuMode === 'normal'
+        ? '対戦するCPUの人数'
+        : '同時に出てくるCPUの人数';
     }
-    this.activeTokenId = null;
+    picker.querySelectorAll('.cpu-count-btn').forEach(button => {
+      button.classList.toggle('active', Number(button.dataset.cpuCount) === this.selectedCpuCount);
+    });
+  },
+
+  _rebuildFighterTokenBar() {
+    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
     const tokenBar = document.getElementById('token-bar');
     if (this.selectedMode === 'cpu') {
       tokenBar.classList.remove('hidden');
@@ -1248,6 +1257,38 @@ const AppFlow = {
       tokenBar.classList.add('hidden');
       tokenBar.innerHTML = '';
     }
+  },
+
+  // 人数変更で選び直しを強いると操作感が悪いため、残せる玉は維持して欄だけ組み直す。
+  setCpuCount(count) {
+    const nextCount = Math.max(1, Math.min(3, Number(count) || 1));
+    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
+    const previous = this.tokens || {};
+    const nextTokens = { p1: previous.p1 || null };
+    if (!survivalMode) {
+      for (let i = 1; i <= nextCount; i++) nextTokens[`cpu${i}`] = previous[`cpu${i}`] || null;
+    }
+    this.selectedCpuCount = nextCount;
+    this.tokens = nextTokens;
+    if (this.activeTokenId && !Object.prototype.hasOwnProperty.call(nextTokens, this.activeTokenId)) {
+      this.activeTokenId = null;
+    }
+    this._syncCpuCountPicker();
+    this._rebuildFighterTokenBar();
+    this._renderTokenBar();
+    this._renderCardBadges();
+    this._updateFightButtonVisibility();
+  },
+
+  _resetFighterSelectState() {
+    const survivalMode = ['hundred', 'endless'].includes(this.selectedCpuMode);
+    this.tokens = { p1: null };
+    if (!survivalMode) {
+      for (let i = 1; i <= this.selectedCpuCount; i++) this.tokens[`cpu${i}`] = null;
+    }
+    this.activeTokenId = null;
+    this._syncCpuCountPicker();
+    this._rebuildFighterTokenBar();
     document.getElementById('fighter-select-heading').textContent = survivalMode
       ? `${this.selectedCpuMode === 'hundred' ? '100人組手' : 'エンドレス'} 使用モンスター選択`
       : this.selectedMode === 'cpu' ? '1P・CPUの玉をモンスターへ移動してください' : 'ファイター選択';
@@ -1628,7 +1669,7 @@ const AppFlow = {
       return;
     }
 
-    // 段位戦は固定報酬なので、通常戦のEXP・ブリーダーEXP・50ダイヤを通さない。
+    // 段位戦は専用報酬なので、通常戦のEXP・ブリーダーEXP・50ダイヤを通さない。
     if (opts.rankChallenge) {
       this._renderRankBattleResult(panel, opts, p1Entry);
       return;
@@ -1680,8 +1721,18 @@ const AppFlow = {
       || (challenge.type === 'tournament' && !monster.titles?.[challenge.key])
       || (challenge.type === 'legend' && (Number(monster.legendWins) || 0) === 0);
     const fullReward = RankBattle.rewardFor(challenge, { firstClear });
+    // 初回報酬の割合制では、負け続ける間ずっと初回扱いとなり、わざと自滅する方が
+    // 勝つより効率の良い稼ぎ方になってしまう。通常戦と同じ戦績計算なら、即自滅は
+    // 下限近くに留まり、撃墜を取って競り負けた試合はその内容に応じて報われる。
+    const lossBreakdown = won ? null : GROWTH.computeBattleExp({
+      placement: p1Entry ? p1Entry.rank : 2,
+      totalFighters: 2,
+      kos: p1Entry?.kos || 0,
+      falls: p1Entry?.falls || 0,
+      cpuLevel: def.cpuLevel,
+    });
     const reward = won ? fullReward : {
-      masmonExp: Math.max(1, Math.round(fullReward.masmonExp * 0.1)),
+      masmonExp: lossBreakdown.total,
       diamonds: 0, breederExp: 0, practiceTickets: 0, trainingTickets: 0,
     };
     const startLevel = monster.level;
@@ -1696,7 +1747,7 @@ const AppFlow = {
     if (reward.practiceTickets) UserProfileStore.addPracticeTickets(reward.practiceTickets);
 
     let headline = '挑戦失敗';
-    let progressHtml = '<p>段位は下がりません。力をつけて何度でも挑戦できます。</p>';
+    let progressHtml = '<p>段位は下がりません。順位・撃墜・被撃墜から経験値を計算しました。</p>';
     if (won && progress?.promoted) {
       headline = '昇格！';
       progressHtml = `<div class="rank-promotion"><span>${progress.fromRank}</span><i>→</i><strong>${progress.toRank}</strong></div>`;
@@ -1714,9 +1765,13 @@ const AppFlow = {
       reward.practiceTickets ? `修行チケット +${reward.practiceTickets}枚` : null,
       reward.trainingTickets ? `専用トレーニングチケット +${reward.trainingTickets}枚` : null,
     ].filter(Boolean).map(text => `<li>${text}</li>`).join('');
+    const lossBreakdownHtml = lossBreakdown
+      ? `<div class="rank-loss-exp-breakdown">順位 +${lossBreakdown.placementExp} ／ 撃墜 +${lossBreakdown.koExp} ／ 被撃墜 -${lossBreakdown.fallPenalty} ／ CPU倍率 ×${lossBreakdown.levelMultiplier.toFixed(1)}</div>`
+      : '';
     panel.innerHTML = `<div class="rank-result-card ${won ? 'win' : 'lose'}">
       <small>${this.escapeHtml(def.name)}</small><strong>${headline}</strong>${progressHtml}
       <ul>${rewardRows}</ul>
+      ${lossBreakdownHtml}
       ${levelResult.leveledUp ? `<em>Lv.${levelResult.fromLevel} → Lv.${levelResult.toLevel} ／ レベルアップ分チケット +${levelResult.ticketsGained}枚</em>` : ''}
       ${breederResult?.toLevel > breederResult?.fromLevel ? `<em>ブリーダー Lv.${breederResult.toLevel}にアップ！</em>` : ''}
     </div>

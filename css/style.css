@@ -1505,6 +1505,7 @@ body.layout-pending .screen { visibility: hidden; }
 .rank-result-card ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 9px; margin: 5px 0 0; padding: 0; list-style: none; color: #d9efff; font-size: 9px; }
 .rank-result-card li { display: inline-flex; align-items: center; }
 .rank-diamond-icon { display: inline-block; margin-right: 2px; line-height: 1; transform: translateY(-1px); }
+.rank-loss-exp-breakdown { margin-top: 4px; color: #b9d2e5; font-size: 8px; }
 .rank-result-card > em { display: block; margin-top: 3px; color: #9ff0bd; font-size: 9px; font-style: normal; }
 .rank-promotion { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 4px 0; font-size: 18px; }
 .rank-promotion span { color: #a9bac9; }
@@ -1549,9 +1550,16 @@ body.layout-pending .screen { visibility: hidden; }
 .fighter-longpress-guide { z-index: 5; margin: -5px 0 5px; padding: 4px 13px; border-radius: 12px; color: #fff4bd; background: rgba(0,0,0,.58); font-size: 11px; font-weight: 800; }
 .hundred-clear-badge { position: absolute; z-index: 8; top: 5px; right: 5px; display: grid; place-items: center; width: 32px; height: 32px; border: 2px solid #fff1a5; border-radius: 50%; color: #fff8c9; background: radial-gradient(circle at 35% 30%, #ffda57, #9d5400); box-shadow: 0 0 12px rgba(255,213,67,.75); font-size: 10px; font-style: normal; font-weight: 950; }
 .masmon-roster-card { position: relative; }
-.cpu-count-picker { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 7px 12px; border-radius: 20px; background: rgba(0,0,0,.35); font-size: 12px; }
+.cpu-count-picker { z-index: 5; display: flex; align-items: center; gap: 7px; margin-bottom: 12px; padding: 7px 12px; border-radius: 20px; background: rgba(0,0,0,.55); font-size: 12px; }
+.cpu-count-picker.hidden { display: none; }
 .cpu-count-btn { padding: 6px 11px; border: 1px solid rgba(255,255,255,.35); border-radius: 16px; color: #fff; background: rgba(255,255,255,.08); }
 .cpu-count-btn.active { color: #09213a; background: #8edbff; font-weight: 800; }
+
+@media (orientation: landscape) and (max-height: 430px) {
+  #screen-fighter-select .cpu-count-picker { gap: 5px; margin-bottom: 5px; padding: 4px 9px; font-size: 10px; }
+  #screen-fighter-select .cpu-count-btn { padding: 4px 8px; }
+  #screen-fighter-select #fighter-list { margin-top: 4px; }
+}
 
 /* ==== バトル開幕演出 ==== */
 .fight-callout {
