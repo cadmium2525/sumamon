@@ -44,6 +44,7 @@ const SURVIVAL_FIGHTER_STATE_KEYS = [
   'dodgeTotal','dodgeInvFrom','dodgeInvTo','dodgeMoveUntil','dodgeIntangible','dodgeStaleStage','dodgeStaleTimer',
   'shieldDropLag','_airDodgeDirectional',
   'attackTimer','recoveryTimer','hitstun','jumpFrames','jumpCutDone','jumpsUsed','jumpAnimTimer',
+  'jumpSquat','jumpSquatShort','_groundedLastFrame',
   'idleAnimTimer','idleAnimFrame','animTimer','animFrame','helpless','kos','falls','selfDestructs',
   'eliminatedAt','dropThroughTimer','ledgeCooldown','ledgeHangFrames','ledgeLocked','onLedge',
   '_usedUpSpecialAirborne','_airDodgeUsed','survivalHandled','survivalCpuLevel',

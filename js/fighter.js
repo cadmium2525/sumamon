@@ -198,6 +198,8 @@ class Fighter {
     this.jumpsUsed = 0;
     // 直前フレームの接地状態。「地面を離れた瞬間」を取るために持つ
     this._groundedLastFrame = false;
+    this.jumpSquat = 0;        // 踏切の残りフレーム（本家は全キャラ3）
+    this.jumpSquatShort = false; // 踏切中に離した＝小ジャンプになる
     this.damagePercent = 0;
     this.stocks = CONFIG.STOCK_DEFAULT;
 
@@ -468,6 +470,10 @@ class Fighter {
     }
 
     const shieldEdge = this.shieldEdge; // updateEdges()で算出済み
+    // 踏切（jumpsquat）中は本家同様どの行動も出せない。
+    // ここを空けておくと、跳ぶ気配を見せてから攻撃へ化けられてしまい、
+    // 「跳ぼうとしたところを潰す」という読み合いが成り立たなくなる。
+    const inJumpSquat = this.jumpSquat > 0;
 
     // ---- シールド／回避（シールド + 方向） ----
     if (input.shield && wasOnGround && this.attackTimer <= 0) {
@@ -525,7 +531,7 @@ class Fighter {
     this.crouching = wasOnGround && input.down && !this.isDashing &&
       this.attackTimer <= 0 && this.recoveryTimer <= 0 && this.landingLag <= 0;
 
-    if (this.attackTimer <= 0) {
+    if (this.attackTimer <= 0 && !inJumpSquat) {
       const stickX = input.stickX || 0;
       const absX = Math.abs(stickX);
       if (wasOnGround) {
@@ -572,27 +578,41 @@ class Fighter {
       }
     }
 
-    // ---- ジャンプ（タップジャンプ設定＋小ジャンプ/大ジャンプ判定） ----
+    // ---- ジャンプ ----
+    // 本家スマブラSPに合わせる。
+    // ・地上ジャンプは「踏切（jumpsquat）3フレーム」を挟んでから離陸する。
+    //   全キャラ共通で3フレーム。この間は地上に居るので攻撃を食らう。
+    //   跳ぼうとしたところを潰す、という攻防はこのフレームがあって成立する。
+    // ・小ジャンプかどうかは踏切の間に決まる。踏切中にボタンを離していれば小ジャンプ。
+    //   以前は離陸してから6フレーム以内に上昇速度を半分にしていたが、本家では
+    //   一度離陸したあとで小ジャンプへ変えることはできない。
+    // ・空中ジャンプに踏切は無く、押した瞬間に出る。高さも一定（小ジャンプにならない）。
     const tapJumpEnabled = window.GameSettings ? window.GameSettings.tapJumpEnabled : true;
     const jumpHeldCombined = input.jump || (tapJumpEnabled && input.up);
     const jumpPressed = jumpHeldCombined && !this.prevJumpHeld;
-    if (jumpPressed && this.jumpsUsed < CONFIG.MAX_JUMPS) {
-      this.vy = Physics.jumpVelocity(this.jumpPower);
-      this.jumpsUsed++;
-      this.onGround = false;
-      this.jumpFrames = 0;
-      this.jumpCutDone = false;
-      this.jumpAnimTimer = 0;
-    }
-    if (!this.jumpCutDone) {
-      this.jumpFrames++;
-      const jumpReleased = this.prevJumpHeld && !jumpHeldCombined;
-      if (jumpReleased && this.jumpFrames <= CONFIG.SHORT_HOP_FRAMES && this.vy < 0) {
-        // 早離し → 小ジャンプ（上昇速度をカット）
-        this.vy *= CONFIG.SHORT_HOP_CUT_MULTIPLIER;
-        this.jumpCutDone = true;
-      } else if (this.jumpFrames > CONFIG.SHORT_HOP_FRAMES) {
-        this.jumpCutDone = true; // 猶予を過ぎたら大ジャンプ確定
+
+    if (this.jumpSquat > 0) {
+      // 踏切中に離したら小ジャンプ。離陸後は変えられない。
+      if (!jumpHeldCombined) this.jumpSquatShort = true;
+      this.jumpSquat--;
+      if (this.jumpSquat <= 0) {
+        const ratio = this.jumpSquatShort ? CONFIG.SHORT_HOP_VELOCITY_RATIO : 1;
+        this.vy = Physics.jumpVelocity(this.jumpPower) * ratio;
+        this.jumpsUsed++;
+        this.onGround = false;
+        this.jumpAnimTimer = 0;
+        this.jumpSquatShort = false;
+      }
+    } else if (jumpPressed && this.jumpsUsed < CONFIG.MAX_JUMPS) {
+      if (wasOnGround) {
+        // 地上：踏切に入る（まだ浮かない）
+        this.jumpSquat = CONFIG.JUMPSQUAT_FRAMES;
+        this.jumpSquatShort = false;
+      } else {
+        // 空中ジャンプ：即座に出る
+        this.vy = Physics.jumpVelocity(this.jumpPower);
+        this.jumpsUsed++;
+        this.jumpAnimTimer = 0;
       }
     }
     this.prevJumpHeld = jumpHeldCombined;
@@ -607,14 +627,14 @@ class Fighter {
     // ---- 掴み ----
     const grabPressed = input.grab && !this.prevGrabHeld;
     this.prevGrabHeld = input.grab;
-    if (grabPressed && wasOnGround && this.attackTimer <= 0) {
+    if (grabPressed && wasOnGround && this.attackTimer <= 0 && !inJumpSquat) {
       this._wantsGrab = true;
     }
 
     // ---- 通常攻撃 A ----
     // 地上で方向キー(横/上/下)が先行入力されていれば強攻撃、Aとほぼ同時なら溜め可能なスマッシュ
     const attackPressed = input.attack && !this.prevAttackHeld;
-    if (attackPressed && this.attackTimer <= 0) {
+    if (attackPressed && this.attackTimer <= 0 && !inJumpSquat) {
       const dir = this.getHeldDirection(input);
       if (wasOnGround && this.isDashing && dir !== 'up' && dir !== 'down') {
         // ダッシュ中のA → ダッシュ攻撃（進行方向へ滑り込みながら攻撃）
@@ -651,7 +671,7 @@ class Fighter {
 
     // ---- 必殺技 B（地上・空中共通） ----
     const specialPressed = input.special && !this.prevSpecialHeld;
-    if (specialPressed && this.attackTimer <= 0) {
+    if (specialPressed && this.attackTimer <= 0 && !inJumpSquat) {
       const dir = this.getHeldDirection(input);
       const moveKey = dir || 'neutral';
       const move = (this.moveSet.special && this.moveSet.special[moveKey]) || MOVES.special[moveKey];
