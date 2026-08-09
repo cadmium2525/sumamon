@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.43</small>
+    <small class="home-version">Version 1.44</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.44</time><strong>CPU戦の報酬表示を最新内容へ更新しました</strong><p>モード選択画面で、通常戦の戦績に応じた経験値、100人組手の到達報酬、段位戦の勝利報酬を実際に獲得できる内容に合わせて確認できるようにしました。</p></article>
           <article><time>Version 1.43</time><strong>段位戦の敗北報酬とCPU人数設定を修正しました</strong><p>段位戦で、わざと負け続ける方が大量の経験値を稼げてしまう状態を直しました。敗北時は順位・撃墜・被撃墜から経験値を計算するため、即自滅では少量になり、惜しい敗北は戦った内容に応じて報われます。勝利時の報酬は変更していません。CPU人数はモード選択後のモンスター選択画面で変更できるようになり、1Pや既に選んだCPUを残したまま1～3人を切り替えられます。</p></article>
           <article><time>Version 1.42</time><strong>段位表示の位置を整えました</strong><p>段位戦の昇格結果で、ダイヤのマークだけ少し下にずれて見える問題を直しました。マスモン管理では、段位バッジをモンスター画像の上からカード右側の専用スペースへ移し、姿と重ならないようにしました。</p></article>
           <article><time>Version 1.41</time><strong>CPU戦に「段位戦」を追加</strong><p>育てたマスモンでEからSまで昇格し、S到達後は四大大会、全制覇後はレジェンド杯へ挑めるようになりました。段位・大会制覇・レジェンド優勝回数はマスモンごとに記録されます。勝利時は段階に応じて大量のマスモンEXP、ダイヤ、修行・トレーニングチケットを獲得でき、敗北しても段位は下がらず10%分のEXPを受け取れます。通常CPU戦のマスモンEXPも従来の3倍に調整しました。マルチのEXP2倍は終了し、1位は修行チケット、2位以下はフリートレーニングチケットを獲得する方式へ変更しています。</p></article>
@@ -506,13 +507,13 @@
   <div id="screen-cpu-mode" class="screen hidden">
     <div class="screen-heading">CPU戦 モード選択</div>
     <div class="cpu-mode-list">
-      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small><span class="cpu-mode-reward">報酬　💎50・ブリーダーEXP 50</span></button>
-      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>100体撃破でクリアバッジ獲得</small><span class="cpu-mode-reward reward-premium">クリア報酬　💎500・修行券 5枚</span></button>
+      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small><span class="cpu-mode-reward">マスモンEXP（戦績で変動）・💎50<br>ブリーダーEXP 50</span></button>
+      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>100体撃破でクリアバッジ獲得</small><span class="cpu-mode-reward reward-premium">到達報酬　最大💎1,500・修行券5枚<br>フリー券10枚＋クリアバッジ</span></button>
       <div class="endless-mode-column">
         <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>限界まで撃破数に挑戦</small><span class="cpu-mode-reward reward-ranking">報酬なし・ランキングに記録</span></button>
         <button id="btn-endless-ranking" class="endless-ranking-button">🏆 エンドレスランキング</button>
       </div>
-      <button id="btn-mode-rank" class="cpu-mode-card rank-mode-card"><strong>段位戦</strong><small>Eランクから頂点をめざす</small><span class="cpu-mode-reward reward-premium">大量EXP・専用チケット・💎</span></button>
+      <button id="btn-mode-rank" class="cpu-mode-card rank-mode-card"><strong>段位戦</strong><small>Eランクから頂点をめざす</small><span class="cpu-mode-reward reward-premium">勝利報酬　EXP1,500～・💎100～<br>専用トレ券1枚～＋ブリーダーEXP</span></button>
     </div>
     <button class="back-btn" data-back="home">戻る</button>
     <div id="endless-ranking-modal" class="endless-ranking-modal hidden" role="dialog" aria-modal="true" aria-labelledby="endless-ranking-title">
