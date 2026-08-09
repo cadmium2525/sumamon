@@ -196,6 +196,8 @@ class Fighter {
     this.groundedSolid = false; // 乗っている足場が「地面」か（下入力ですり抜けない）
     this.dropThroughTimer = 0;
     this.jumpsUsed = 0;
+    // 直前フレームの接地状態。「地面を離れた瞬間」を取るために持つ
+    this._groundedLastFrame = false;
     this.damagePercent = 0;
     this.stocks = CONFIG.STOCK_DEFAULT;
 
@@ -710,7 +712,12 @@ class Fighter {
     } else {
       this.vy = 0;
     }
+    // 崖を離れた時も地上ジャンプ枠は戻らない。本家でも、崖につかまって
+    // 回復するのは空中ジャンプと上必殺であって、地上ジャンプではない。
+    // ここを0のままにすると、崖から下りるだけで空中2回跳べてしまう。
+    if (this.jumpsUsed < 1) this.jumpsUsed = 1;
     this.onGround = false;
+    this._groundedLastFrame = false;
   }
 
   // 崖をよじ登ってステージに上がる
@@ -1473,6 +1480,19 @@ class Fighter {
     this.x += this.vx;
     this.y += this.vy;
     Physics.resolvePlatformCollision(this, platforms);
+
+    // 地面を離れた時点で「地上ジャンプの権利」を失う。
+    //
+    // 本家では、ジャンプ以外の理由で地面を離れた時（吹き飛ばされた・台から歩いて
+    // 落ちた）に空中で使えるのは空中ジャンプ1回だけで、地上ジャンプを空中で
+    // 使うことはできない。以前はジャンプ回数が0のままだったため、
+    // 吹き飛ばされた側が空中で2回跳べてしまい、復帰が本家より大幅に楽だった。
+    //
+    // 直前のフレームの接地状態と比べる。ジャンプ・被弾は update() の外側
+    // （applyInput / takeHit）で onGround を落とすため、このフレーム内の
+    // 変化だけを見ていると取りこぼす。
+    if (this._groundedLastFrame && !this.onGround && this.jumpsUsed < 1) this.jumpsUsed = 1;
+    this._groundedLastFrame = this.onGround;
 
     if (this.tumbling && this.onGround) {
       this.tumbling = false;
