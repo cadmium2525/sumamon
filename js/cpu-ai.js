@@ -132,8 +132,10 @@ class CPUController {
     }
 
     // 飛んでくる弾への対処。行動方針の再決定サイクルとは別に毎フレーム見る。
+    // これも台の外へ出過ぎない判定を通す。以前は素通りしていたため、
+    // 弾を避ける動きのまま場外へ流れることがあった。
     const versusProjectile = this._projectileDefense();
-    if (versusProjectile) return versusProjectile;
+    if (versusProjectile) return this._keepOnStage(versusProjectile);
 
     if (this.decisionCooldown > 0) {
       this.decisionCooldown--;
@@ -143,9 +145,12 @@ class CPUController {
       this.decisionCooldown = Math.round(p.decisionInterval + Math.random() * p.decisionJitter);
     }
 
-    // 相手の隙への反撃も毎フレーム見る（再決定を待つと隙が終わってしまう）
+    // 相手の隙への反撃も毎フレーム見る（再決定を待つと隙が終わってしまう）。
+    // ここも台の外へ出過ぎない判定を通す。素通りさせていたため、
+    // 場外で止まっている相手を「隙だらけ」と見て延々と追いかけ、
+    // 戻れない距離まで出ていた。
     const punish = this._computePunish();
-    if (punish) return punish;
+    if (punish) return this._keepOnStage(punish);
 
     // 攻撃への反応（ガード/回避）は行動方針の再決定サイクルとは別に毎フレームチェックする
     const reactive = this._computeReactiveDefense();
@@ -154,24 +159,95 @@ class CPUController {
     return this._keepOnStage(this.currentIntent);
   }
 
-  // 台の端より先へ歩き続けないようにする。
-  // 低レベルほど同じ行動方針を長く持ち続ける（最大60フレーム）ため、
+  // 崖の外へ出てよい距離。「今の手持ちで戻れる距離」の半分までとする。
+  //
+  // 実測値（コスモ・崖の外側へ何pxまでなら復帰できたか）:
+  //   空中ジャンプ2回残り 240 ／ 1回残り 400 ／ 上必殺のみ 40 ／ helpless 0
+  // 2回残りの方が短いのは、復帰処理が空中ジャンプを早い段階で使い切るため。
+  // 見込みで多く見積もると落ちるので、実測どおりの値を使う。
+  //
+  // ただし上の数字は「復帰だけに専念した場合」で、追いかけながらだと使えない。
+  // 追撃中は空中ジャンプを移動に使ってしまい、戻る段になると手持ちが無い。
+  // 実測でも、上限を戻れる距離の半分(0.5)に置くと67%が自滅し、0.3で47%、
+  // 0.2で29%、0.12で11%。しかも「場外へ出た率」と「自滅率」がほぼ一致した。
+  // つまり追撃で一歩でも台の外へ出ると、ほぼそのまま落ちる。
+  //
+  // そこで、崖のすぐ外に居る相手にしか手を出さない値にする。
+  // これ以上を狙わせても、当たる前に自滅して相手にストックを渡すだけになる。
+  static PURSUIT_SAFETY = 0.1;
+
+  _pursuitLimit() {
+    const self = this.fighter;
+    if (self.helpless) return 0;
+    const maxJumps = (typeof CONFIG !== 'undefined' && CONFIG.MAX_JUMPS) || 2;
+    const jumpsLeft = Math.max(0, maxJumps - (self.jumpsUsed || 0));
+    const reach = jumpsLeft >= 2 ? 240 : (jumpsLeft === 1 ? 400 : 40);
+    return Math.round(reach * CPUController.PURSUIT_SAFETY);
+  }
+
+  // 台の外へ出過ぎないようにする。
+  //
+  // 地上：低レベルほど同じ行動方針を長く持ち続ける（最大60フレーム）ため、
   // 相手を追い越したあともそのまま歩き、場外へ出て落ちることがあった。
-  // 止めるのは「地上で外側へ歩く」入力だけ。ジャンプや復帰は妨げない。
+  //
+  // 空中：以前はここを素通りしていた。場外の相手を追って飛び出しても、
+  // 足場より高いうちは _isInDanger が反応しないため、外向きの接近入力が
+  // 出続けて戻れない距離まで流れていた（実測：崖の外652pxまで出てしまい、
+  // レベル9は20回中19回、ストックを使い切って自滅した）。
+  // 追撃そのものは残したいので、止めるのは「戻れる範囲を超えた時」だけにする。
   _keepOnStage(input) {
     const self = this.fighter;
-    if (!input || !self.onGround) return input;
+    if (!input) return input;
     const stage = this._mainPlatform();
     if (!stage) return input;
     const cx = self.x + self.w / 2;
-    const margin = 26;
-    if (input.right && cx > stage.x + stage.w - margin) {
-      input.right = false;
-      if (input.stickX > 0) input.stickX = 0;
+
+    if (self.onGround) {
+      const margin = 26;
+      if (input.right && cx > stage.x + stage.w - margin) {
+        input.right = false;
+        if (input.stickX > 0) input.stickX = 0;
+      }
+      if (input.left && cx < stage.x + margin) {
+        input.left = false;
+        if (input.stickX < 0) input.stickX = 0;
+      }
+      return input;
     }
-    if (input.left && cx < stage.x + margin) {
+
+    // 空中。崖から出てよい距離を超えたら、外向きをやめて内側へ向き直す。
+    //
+    // ただし「今どこに居るか」だけで判断すると間に合わない。
+    // 空中の加速は1フレーム0.135しかなく、外向きの速度が乗っていると
+    // 逆を入れてから止まるまでに大きく流される（速度6で約133px）。
+    // 実測でも、上限20pxのところを内向き入力のまま265pxまで流されていた。
+    // そこで「このままだとどこまで出るか」＝現在地＋制動距離で判断する。
+    // 外向きの勢いが乗っているぶん、逆を入れてから止まるまでに流される
+    // （空中の加速は1フレーム0.135しかなく、速度6なら約133px）。
+    // 「このままだとどこまで出るか」で判断しないと、止めた時にはもう手遅れになる。
+    const accel = (typeof CONFIG !== 'undefined' && CONFIG.AIR_ACCEL) || 0.135;
+    const maxJumps = (typeof CONFIG !== 'undefined' && CONFIG.MAX_JUMPS) || 2;
+    const jumpsLeft = Math.max(0, maxJumps - (self.jumpsUsed || 0));
+
+    // 場外では、追撃のために最後の空中ジャンプを使わせない。
+    // 使い切ると残るのは上必殺だけになり、実測で崖の外40pxまでしか戻れなくなる。
+    // 復帰処理（_recoveryIntent）はここを通らないので、戻るためには使える。
+    if ((cx < stage.x || cx > stage.x + stage.w) && jumpsLeft <= 1) input.jump = false;
+
+    const limit = this._pursuitLimit();
+    const vx = self.vx || 0;
+    const brake = (vx * vx) / (2 * accel);
+    const outLeft = (stage.x - cx) + (vx < 0 ? brake : 0);
+    const outRight = (cx - (stage.x + stage.w)) + (vx > 0 ? brake : 0);
+    // ここでは外向きの入力を消すだけにする。内側へ引き戻すのは復帰処理の仕事で、
+    // 戻れる範囲を超えたかどうかは _isInDanger が見ている。
+    // 入力を無理に上書きすると、復帰に必要なジャンプまで潰してしまう。
+    if (outLeft > limit && input.left) {
       input.left = false;
       if (input.stickX < 0) input.stickX = 0;
+    } else if (outRight > limit && input.right) {
+      input.right = false;
+      if (input.stickX > 0) input.stickX = 0;
     }
     return input;
   }
@@ -331,6 +407,31 @@ class CPUController {
     const dirSign = dx >= 0 ? 1 : -1;
     const meleeRange = 70 * (self.attackScale || 1);
 
+    // 相手が「自分が戻れる範囲」より外に居るなら、そもそも追いかけない。
+    //
+    // 追いかけても届かないうえ、途中で空中ジャンプを使い切ってしまい、
+    // 残るのは上必殺だけ（実測で崖の外40pxしか戻れない）になる。
+    // それを使うと行動不能になり、外向きの勢いのまま流されて落ちる。
+    // 実際これが「場外で止まっている相手を追って3回とも自滅した」の中身だった。
+    // 届く位置まで相手が戻ってくれば、下の通常処理でちゃんと迎え撃つ。
+    const stage = this._mainPlatform();
+    if (stage) {
+      const oppCx = opp.x + opp.w / 2;
+      const oppOut = Math.max(stage.x - oppCx, oppCx - (stage.x + stage.w));
+      if (oppOut > this._pursuitLimit()) {
+        const selfCx = self.x + self.w / 2;
+        const ledgeX = oppCx < stage.x ? stage.x + 30 : stage.x + stage.w - 30;
+        const toward = ledgeX > selfCx ? 1 : -1;
+        // 崖のそばまで寄って待ち構える。ジャンプも攻撃もしない。
+        if (Math.abs(ledgeX - selfCx) > 24) {
+          input.left = toward < 0;
+          input.right = toward > 0;
+          input.stickX = toward * 0.6;
+        }
+        return input;
+      }
+    }
+
     if (dist > meleeRange) {
       // 接近
       input.left = dirSign < 0;
@@ -376,6 +477,12 @@ class CPUController {
       const offStage = cx < stage.x - 8 || cx > stage.x + stage.w + 8;
       // 台の外に居て、なおかつ足場の高さより下がっている＝戻らないと落ちる
       if (offStage && surfaceY + self.h > floor - 24) return true;
+      // 高さに関係なく、戻れる範囲より外へ出ていたら危険とみなす。
+      // 以前は「足場より下がってから」しか反応しなかったため、高い位置で
+      // 外へ流れている間は接近入力が出続け、気づいた時には戻れない距離にいた
+      // （実測：崖の外652pxまで出て、レベル9は20回中19回ストックを使い切った）。
+      const out = Math.max(stage.x - cx, cx - (stage.x + stage.w));
+      if (out > this._pursuitLimit()) return true;
       // 台の下へ潜り込んだ
       if (surfaceY > floor + 50) return true;
     }
@@ -413,6 +520,20 @@ class CPUController {
 
     // ジャンプを使い切って落ちているなら上必殺。ここで出し惜しむと落ちるだけなので、
     // 以前のように確率で出さない選択はしない（自滅の主因だった）。
+    //
+    // ただし、外向きの勢いが残っているうちは出してはいけない。
+    // 上必殺を出すと着地するまで一切操作できなくなるため、その勢いのまま
+    // 流されて戻れなくなる。実測でも、この状態から横速度-2.2のまま
+    // 崖の外652pxまで運ばれて落ちていた（何を入力しても効かない）。
+    // 先に横の勢いを殺し、内側へ向き直ってから出す。
+    const driftingOut = (toward > 0 && self.vx < -0.4) || (toward < 0 && self.vx > 0.4);
+    // 落ちすぎると向き直す余裕も無くなるので、その時は賭けに出る
+    const lastChance = below && (self.y + self.h) > floor + 220;
+    if (driftingOut && !lastChance) {
+      input.left = toward < 0; input.right = toward > 0; input.stickX = toward;
+      return input;
+    }
+
     if (below || self.vy > 0) {
       // 左右を入れたままBを押すと横必殺が出てしまうため、上入力のみにする
       input.up = true;
