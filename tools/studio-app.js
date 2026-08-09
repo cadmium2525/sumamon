@@ -1671,11 +1671,16 @@ const Studio = {
       StudioImage.removeBackground(copy, this.frameBgOptions(index));
       // 手描きマスクは縮小より前に当てる。マスクは元画像と同じ大きさで持っているため。
       StudioMask.apply(copy, source, entry.masks && entry.masks[index]);
-      return StudioImage.limitSize(copy, this.editing.single ? 256 : 720);
+      // 1枚物（ストックアイコン）は正方形に切ってから256pxで書き出すため、
+      // 手前の上限は倍の512にしておく。ここで256まで縮めてしまうと、
+      // 正方形に切り取る段階で拡大することになり、ぼやける。
+      return StudioImage.limitSize(copy, this.editing.single ? 512 : 720);
     });
 
     if (this.editing.single) {
-      entry.canvases = [StudioImage.toSquare(processed[0], 128)];
+      // 256pxにする理由は、マイページのアイコンが実測でデバイス246px使うため。
+      // 128だと約2倍に引き伸ばされて、ここだけ眠い絵になる。
+      entry.canvases = [StudioImage.toSquare(processed[0], 256)];
       entry.used = [true];
       entry.contentBox = null;
     } else {

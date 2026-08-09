@@ -1745,7 +1745,9 @@ body.layout-pending .screen { visibility: hidden; }
 }
 .masmon-menu-hit {
   width: 100%;
-  aspect-ratio: 2.58 / 1;
+  /* 4枚とも同じ寸法の画像に揃えてあるので、その比をそのまま使う。
+     ここがずれると、絵が枠の中で縮んでボタンごとに幅が変わって見える */
+  aspect-ratio: 574 / 229;
   border: 0;
   border-radius: 10px;
   background: center / contain no-repeat;

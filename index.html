@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=79">
+<link rel="stylesheet" href="css/style.css?v=80">
 </head>
 <body class="layout-pending">
 
@@ -63,14 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.46</small>
+    <small class="home-version">Version 1.47</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
-          <article><time>Version 1.46</time><strong>マスモン管理のボタンを縦1列に／プロフィールのアイコンに新しいモンスターが自動で並ぶようにしました</strong><p><b>マスモン管理のボタンを縦1列に並べ替えました。</b>これまでは2段2列でしたが、上から<b>トレーニング → 修行 → スキン変更 → 戻る</b>の順に縦へ並びます。押す場所が一直線になるので、片手でも迷わず選べます。<br><b>プロフィールのアイコンに、新しく作ったモンスターが自動で並ぶ</b>ようにしました。これまでは選べるモンスターがあらかじめ決められていたため、<b>スタジオでモンスターを増やしてもアイコンには出てこない</b>状態でした。これからは、作成スタジオで<b>ストックアイコンを登録したモンスターがそのまま選択肢に加わります</b>。マイページのアイコン欄を開くだけで反映されるので、追加の作業は要りません。<br>なお<b>ストックアイコンを登録していないモンスターは選択肢に出ません</b>。選べても絵が出ず、空欄のアイコンになってしまうためです。管理者画面のプレイヤー一覧も同じ引き方に揃えたので、誰がどのアイコンを使っていても正しく表示されます。</p></article>
+          <article><time>Version 1.47</time><strong>マスモン管理のボタンを縦1列に／プロフィールのアイコンに新しいモンスターが自動で並ぶようにしました／残機アイコンを軽くしました</strong><p><b>残機アイコンの読み込みを軽くしました。</b>3体ぶんで<b>792KB</b>あったものを<b>60KB</b>にしています（92%減）。画面では大きくても82pxほどでしか使わないのに、元は500px近い大きさで持っていたためです。表示に必要な256pxへそろえたうえで、見た目が変わらない範囲まで圧縮しました。<br>あわせて、作成スタジオが書き出す残機アイコンも<b>128px から 256px</b>へ上げています。マイページのアイコンは高精細な画面だと246px使うため、128pxでは約2倍に引き伸ばされて、そこだけぼやけて見えていました。</p><p><b>マスモン管理のボタンを縦1列に並べ替えました。</b>これまでは2段2列でしたが、上から<b>トレーニング → 修行 → スキン変更 → 戻る</b>の順に縦へ並びます。押す場所が一直線になるので、片手でも迷わず選べます。<br><b>プロフィールのアイコンに、新しく作ったモンスターが自動で並ぶ</b>ようにしました。これまでは選べるモンスターがあらかじめ決められていたため、<b>スタジオでモンスターを増やしてもアイコンには出てこない</b>状態でした。これからは、作成スタジオで<b>ストックアイコンを登録したモンスターがそのまま選択肢に加わります</b>。マイページのアイコン欄を開くだけで反映されるので、追加の作業は要りません。<br>なお<b>ストックアイコンを登録していないモンスターは選択肢に出ません</b>。選べても絵が出ず、空欄のアイコンになってしまうためです。管理者画面のプレイヤー一覧も同じ引き方に揃えたので、誰がどのアイコンを使っていても正しく表示されます。</p></article>
           <article><time>Version 1.45</time><strong>管理画面と販売所を新しい装いにし、専用BGMを追加しました</strong><p>マスモン管理は背景とメニューボタンを分け、端末の大きさが変わっても表示とタップ位置がずれにくくなりました。アイテム販売所には新しい背景を追加し、マスモン管理・スキン変更・販売所では、それぞれの画面に合ったBGMが流れます。ネンドロの残機・プロフィール用アイコンも追加しました。</p></article>
           <article><time>Version 1.44</time><strong>CPU戦の報酬表示を最新内容へ更新しました</strong><p>モード選択画面で、通常戦の戦績に応じた経験値、100人組手の到達報酬、段位戦の勝利報酬を実際に獲得できる内容に合わせて確認できるようにしました。</p></article>
           <article><time>Version 1.43</time><strong>段位戦の敗北報酬とCPU人数設定を修正しました</strong><p>段位戦で、わざと負け続ける方が大量の経験値を稼げてしまう状態を直しました。敗北時は順位・撃墜・被撃墜から経験値を計算するため、即自滅では少量になり、惜しい敗北は戦った内容に応じて報われます。勝利時の報酬は変更していません。CPU人数はモード選択後のモンスター選択画面で変更できるようになり、1Pや既に選んだCPUを残したまま1～3人を切り替えられます。</p></article>
