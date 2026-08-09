@@ -81,6 +81,10 @@ const StudioPreview = {
         currentMoveSlot: isMove ? slot.slice(5) : null,
         currentMove: null,
         attackTimer: 0,
+        // 被弾とジャンプの自動モーションは実戦中の値を参照する。
+        // 確認用の身代わりにも値を持たせないと NaN がCanvas変形へ入り、絵が消える。
+        hitstun: 0,
+        vy: 0,
         partsLayer: null,
       },
       slot,
@@ -181,6 +185,14 @@ const StudioPreview = {
       // 技は duration をぐるぐる回して、構え→踏み込み→戻りを繰り返し見せる
       const phase = this.clock % s.duration;
       s.fighter.attackTimer = s.duration - phase;
+    } else if (s.slot === 'hurt') {
+      // 実戦と同じく、被弾直後の大きなのけぞりから元の姿勢へ戻る流れを繰り返す。
+      const phase = this.clock % 32;
+      s.fighter.hitstun = phase < 18 ? 18 - phase : 0;
+    } else if (s.slot === 'jump') {
+      // 上昇から落下までの縦速度を再現し、ジャンプ確認でも未定義値を渡さない。
+      const phase = (this.clock % 48) / 48;
+      s.fighter.vy = -9 + 18 * phase;
     }
     const f = this._fit(s.sprite, groundY);
     const unit = f.drawH;              // 変形の量は「体の高さ」に対する比で決まる
