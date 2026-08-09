@@ -177,6 +177,7 @@
     "key": "nendoro",
     "displayName": "ネンドロ",
     "color": "#ffd977",
+    "stockIcon": "assets/images/fighter/nendoro/stock.png",
     "hurtboxWidth": 143,
     "hurtboxHeight": 124,
     "fallSpeed": 1.1,

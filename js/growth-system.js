@@ -376,7 +376,7 @@ const UserProfileStore = {
   },
 
   setIcon(iconKey) {
-    this.data.iconKey = ['irumine', 'dullahan'].includes(iconKey) ? iconKey : 'irumine';
+    this.data.iconKey = ['irumine', 'dullahan', 'nendoro'].includes(iconKey) ? iconKey : 'irumine';
     this.save();
   },
 

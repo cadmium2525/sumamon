@@ -122,6 +122,7 @@ const AppFlow = {
     const urls = new Set([
       'assets/images/home.webp', 'assets/images/logo.webp', 'assets/images/app-icon.png',
       'assets/images/stage-select-background.webp', 'assets/images/masmon-manage-background.webp',
+      'assets/images/masmon-manage-buttons.webp', 'assets/images/item-shop-background.webp',
       'assets/images/training-background.webp', 'assets/images/fighter-select-background.webp',
       'assets/images/ui/training-ticket.webp', 'assets/images/ui/practice-ticket.webp',
       'assets/images/battle/gong3.webp', 'assets/images/battle/gong2.webp',
@@ -224,6 +225,7 @@ const AppFlow = {
   },
 
   _profileIconSrc(iconKey) {
+    if (iconKey === 'nendoro') return 'assets/images/fighter/nendoro/stock.png';
     return iconKey === 'dullahan'
       ? 'assets/images/fighter/dullahan/stock.png'
       : 'assets/images/fighter/irumine/stock.png';

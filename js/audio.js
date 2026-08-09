@@ -6,6 +6,8 @@ const AudioManager = {
   // BGM。ここに1行足すだけで管理者モードの確認画面にも自動で並ぶ（labelは表示名）。
   tracks: {
     home: { label: 'ホーム', src: 'assets/audio/home.mp3', baseVolume: 1 / 3 },
+    masmonManage: { label: 'マスモン管理・スキン変更', src: 'assets/audio/hometowndomina.mp3', baseVolume: 1 / 3 },
+    itemShop: { label: 'アイテム販売所', src: 'assets/audio/kokoroarubasho.mp3', baseVolume: 1 / 3 },
     battleMode: { label: '対戦準備', src: 'assets/audio/battlemode.mp3', baseVolume: 2 / 5 },
     // 実際の対戦中に流れる曲（ファイル名に空白を含むため、URLは%20でエンコードした形で統一する）
     battle: { label: '対戦中（Pain the Universe）', src: 'assets/audio/Pain%20the%20Universe.mp3', baseVolume: 2 / 5 },
@@ -158,6 +160,8 @@ const AudioManager = {
   setScene(sceneName, mode) {
     let nextTrack = null;
     if (sceneName === 'home') nextTrack = 'home';
+    if (sceneName === 'masmon-manage' || sceneName === 'skin') nextTrack = 'masmonManage';
+    if (sceneName === 'item-shop') nextTrack = 'itemShop';
     // 'versus'（開始前の対戦カード）も準備画面の一部として扱う。
     // 入れ忘れると、カードを見ている数秒だけBGMが止まって鳴り直す。
     const cpuScenes = ['cpu-mode', 'stage-select', 'fighter-select', 'cpu-level', 'versus', 'battle-intro', 'battle'];
@@ -170,12 +174,15 @@ const AudioManager = {
   },
 
   playBgm(trackKey) {
+    const isSwitchingTrack = this.currentTrack && this.currentTrack !== trackKey;
     this.desiredTrack = trackKey || null;
     if (!trackKey) {
       this.stopBgm();
       return;
     }
     if (!this.tracks[trackKey]) return;
+    // 次の曲がまだ読み込み中でも、前画面の曲だけが鳴り続けないよう先に止める。
+    if (isSwitchingTrack) this.stopBgm(false);
     this.applyVolumes();
     this.resumeDesiredTrack();
   },

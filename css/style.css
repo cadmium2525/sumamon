@@ -1234,12 +1234,14 @@ body.layout-pending .screen { visibility: hidden; }
   display: block;
   padding: clamp(12px, 3vh, 28px) clamp(60px, 8vw, 100px) 58px;
   color: #fff;
-  background: radial-gradient(circle at 50% 15%, #22486c 0, #0b2138 45%, #050b12 100%);
+  background-image: linear-gradient(rgba(3,8,13,.18), rgba(3,8,13,.34)), url('../assets/images/item-shop-background.webp');
+  background-position: center;
+  background-size: cover;
   overflow-y: auto;
   touch-action: pan-y;
 }
-.item-shop-header { display: flex; justify-content: space-between; align-items: center; margin: 0 auto 14px; max-width: 1080px; }
-.item-shop-header .screen-heading { position: static; transform: none; margin: 0; text-align: left; }
+.item-shop-header { display: flex; justify-content: space-between; align-items: center; margin: 0 auto 14px; padding-top: clamp(40px, 11vh, 70px); max-width: 1080px; }
+.item-shop-header .screen-heading { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .item-shop-header small { color: #b8cde1; }
 .shop-diamonds { min-width: 110px; margin-right: 46px; padding: 9px 14px; border: 1px solid #79d9ff; border-radius: 18px; color: #bdf1ff; background: rgba(0,20,38,.86); font-size: 18px; font-weight: 900; text-align: center; }
 .item-shop-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 1080px; margin: auto; }
@@ -1728,81 +1730,66 @@ body.layout-pending .screen { visibility: hidden; }
   object-fit: cover;
   object-position: center top;
 }
-.masmon-only-training {
+.masmon-menu-layer {
   position: absolute;
-  z-index: 2;
-  top: 22%;
-  left: 7.5%;
-  width: 22%;
-  height: 10%;
+  z-index: 4;
+  top: 7%;
+  left: max(1%, env(safe-area-inset-left));
+  width: 40%;
+  aspect-ratio: 3 / 2;
+}
+.masmon-menu-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.masmon-menu-hit {
+  position: absolute;
   border: 0;
   border-radius: 10px;
   background: transparent;
   cursor: pointer;
   touch-action: manipulation;
 }
-.masmon-only-training:focus-visible {
+.masmon-menu-hit:focus-visible {
   outline: 2px solid #ffe58a;
   outline-offset: -2px;
+}
+.masmon-only-training {
+  top: 17.5%;
+  left: .7%;
+  width: 49.3%;
+  height: 27%;
 }
 .masmon-only-practice {
-  position: absolute;
-  z-index: 2;
-  top: 38%;
-  left: 7.5%;
-  width: 22%;
-  height: 8.7%;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.masmon-only-practice:focus-visible {
-  outline: 2px solid #ffe58a;
-  outline-offset: -2px;
+  top: 16.7%;
+  left: 50%;
+  width: 49.2%;
+  height: 28.5%;
 }
 .masmon-only-skin {
-  position: absolute;
-  z-index: 2;
-  top: 52%;
-  left: 7.5%;
-  width: 22%;
-  height: 9%;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.masmon-only-skin:focus-visible {
-  outline: 2px solid #ffe58a;
-  outline-offset: -2px;
+  top: 53.3%;
+  left: .8%;
+  width: 49.2%;
+  height: 27%;
 }
 .masmon-only-back {
-  position: absolute;
-  z-index: 2;
-  top: 67%;
-  left: 7.5%;
-  width: 22%;
-  height: 10%;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.masmon-only-back:focus-visible {
-  outline: 2px solid #ffe58a;
-  outline-offset: -2px;
+  top: 53.1%;
+  left: 50%;
+  width: 49.2%;
+  height: 27.1%;
 }
 .masmon-current-display {
   position: absolute;
   z-index: 2;
   top: 3%;
-  left: 35%;
+  left: 39%;
   display: flex;
-  width: 32%;
+  width: 34%;
   height: 49%;
   align-items: center;
   justify-content: flex-end;

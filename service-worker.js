@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v144';
+const CACHE_NAME = 'smamon-app-v145';
 const APP_SHELL = [
   './',
   './index.html',
@@ -33,6 +33,8 @@ const APP_SHELL = [
   './assets/images/logo.webp',
   './assets/images/stage-select-background.webp',
   './assets/images/masmon-manage-background.webp',
+  './assets/images/masmon-manage-buttons.webp',
+  './assets/images/item-shop-background.webp',
   './assets/images/training-background.webp',
   './assets/images/practice-map.webp',
   './assets/images/fighter-select-background.webp',
@@ -82,6 +84,8 @@ const APP_SHELL = [
   './assets/images/battle/gong1.webp',
   './assets/images/battle/gong.webp',
   './assets/audio/home.mp3',
+  './assets/audio/hometowndomina.mp3',
+  './assets/audio/kokoroarubasho.mp3',
   './assets/audio/battlemode.mp3',
   './assets/audio/Pain%20the%20Universe.mp3',
   './assets/audio/arrow.mp3',
@@ -107,7 +111,8 @@ const APP_SHELL = [
   './assets/images/fighter/nendoro/idle/frame_005.png',
   './assets/images/fighter/nendoro/idle/frame_006.png',
   './assets/images/fighter/nendoro/idle/frame_007.png',
-  './assets/images/fighter/nendoro/idle/frame_008.png'
+  './assets/images/fighter/nendoro/idle/frame_008.png',
+  './assets/images/fighter/nendoro/stock.png'
 ];
 
 // 中核ファイル（HTML/CSS/JS/JSON）と、あとから取れば足りるメディアを分ける。

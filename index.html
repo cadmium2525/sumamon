@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=77">
+<link rel="stylesheet" href="css/style.css?v=78">
 </head>
 <body class="layout-pending">
 
@@ -63,13 +63,14 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.44</small>
+    <small class="home-version">Version 1.45</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.45</time><strong>管理画面と販売所を新しい装いにし、専用BGMを追加しました</strong><p>マスモン管理は背景とメニューボタンを分け、端末の大きさが変わっても表示とタップ位置がずれにくくなりました。アイテム販売所には新しい背景を追加し、マスモン管理・スキン変更・販売所では、それぞれの画面に合ったBGMが流れます。ネンドロの残機・プロフィール用アイコンも追加しました。</p></article>
           <article><time>Version 1.44</time><strong>CPU戦の報酬表示を最新内容へ更新しました</strong><p>モード選択画面で、通常戦の戦績に応じた経験値、100人組手の到達報酬、段位戦の勝利報酬を実際に獲得できる内容に合わせて確認できるようにしました。</p></article>
           <article><time>Version 1.43</time><strong>段位戦の敗北報酬とCPU人数設定を修正しました</strong><p>段位戦で、わざと負け続ける方が大量の経験値を稼げてしまう状態を直しました。敗北時は順位・撃墜・被撃墜から経験値を計算するため、即自滅では少量になり、惜しい敗北は戦った内容に応じて報われます。勝利時の報酬は変更していません。CPU人数はモード選択後のモンスター選択画面で変更できるようになり、1Pや既に選んだCPUを残したまま1～3人を切り替えられます。</p></article>
           <article><time>Version 1.42</time><strong>段位表示の位置を整えました</strong><p>段位戦の昇格結果で、ダイヤのマークだけ少し下にずれて見える問題を直しました。マスモン管理では、段位バッジをモンスター画像の上からカード右側の専用スペースへ移し、姿と重ならないようにしました。</p></article>
@@ -202,6 +203,7 @@
           <div class="mypage-icon-options">
             <button class="mypage-icon-option" data-mypage-icon="irumine" aria-label="イルミネを選択"><img src="assets/images/fighter/irumine/stock.png" alt="イルミネ"></button>
             <button class="mypage-icon-option" data-mypage-icon="dullahan" aria-label="デュラハンを選択"><img src="assets/images/fighter/dullahan/stock.png" alt="デュラハン"></button>
+            <button class="mypage-icon-option" data-mypage-icon="nendoro" aria-label="ネンドロを選択"><img src="assets/images/fighter/nendoro/stock.png" alt="ネンドロ"></button>
           </div>
           <div class="mypage-actions">
             <button id="mypage-save" class="mypage-save">保存</button>
@@ -361,11 +363,14 @@
 
   <!-- 4.5 マスモン管理 -->
   <div id="screen-masmon-manage" class="screen hidden">
-    <img class="masmon-only-background" src="assets/images/masmon-manage-background.webp?v=11" alt="マスモン管理">
-    <button id="btn-manage-training" class="masmon-only-training" aria-label="トレーニングへ進む"></button>
-    <button id="btn-manage-practice" class="masmon-only-practice" aria-label="修行へ進む"></button>
-    <button class="masmon-only-skin" data-back="skin" aria-label="スキン変更へ進む"></button>
-    <button class="masmon-only-back" data-back="home" aria-label="ホームへ戻る"></button>
+    <img class="masmon-only-background" src="assets/images/masmon-manage-background.webp?v=12" alt="マスモン管理">
+    <div class="masmon-menu-layer">
+      <img class="masmon-menu-image" src="assets/images/masmon-manage-buttons.webp?v=1" alt="" aria-hidden="true">
+      <button id="btn-manage-training" class="masmon-menu-hit masmon-only-training" aria-label="トレーニングへ進む"></button>
+      <button id="btn-manage-practice" class="masmon-menu-hit masmon-only-practice" aria-label="修行へ進む"></button>
+      <button class="masmon-menu-hit masmon-only-skin" data-back="skin" aria-label="スキン変更へ進む"></button>
+      <button class="masmon-menu-hit masmon-only-back" data-back="home" aria-label="ホームへ戻る"></button>
+    </div>
     <div id="masmon-current-display" class="masmon-current-display">
       <img id="masmon-current-image" alt="選択中のマスモン">
       <div id="masmon-current-name"></div>
@@ -662,7 +667,7 @@
   <script type="module" src="js/firebase-init.js?v=2"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script src="js/config.js?v=11"></script>
-  <script src="js/audio.js?v=8"></script>
+  <script src="js/audio.js?v=9"></script>
   <script src="js/moves.js?v=30"></script>
   <script src="js/physics.js?v=37"></script>
   <script src="js/procedural-motion.js?v=3"></script>
@@ -674,13 +679,13 @@
   <script src="js/stage.js?v=33"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=6"></script>
-  <script src="js/growth-system.js?v=45"></script>
+  <script src="js/growth-system.js?v=46"></script>
   <script src="js/rank-battle.js?v=1"></script>
   <script src="js/practice.js?v=23"></script>
   <script src="js/input.js?v=8"></script>
   <script src="js/multiplayer.js?v=4"></script>
   <script src="js/game.js?v=51"></script>
-    <script src="js/flow.js?v=66"></script>
+    <script src="js/flow.js?v=67"></script>
   <script src="js/pwa.js?v=14"></script>
 </body>
 </html>
