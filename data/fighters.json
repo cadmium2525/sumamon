@@ -172,5 +172,68 @@
       "legSplitX": 178,
       "overlap": 10
     }
+  },
+  "nendoro": {
+    "key": "nendoro",
+    "displayName": "ネンドロ",
+    "color": "#ffd977",
+    "hurtboxWidth": 143,
+    "hurtboxHeight": 124,
+    "fallSpeed": 1.1,
+    "jumpPower": 1,
+    "proceduralMotion": {
+      "enabled": true,
+      "intensity": 1.5
+    },
+    "movePower": {
+      "smash.side": {
+        "dmg": 1.25,
+        "kb": 1.26
+      }
+    },
+    "idleImage": "assets/images/fighter/nendoro/idle/frame_001.png",
+    "spriteContentBox": {
+      "left": 0,
+      "top": 0,
+      "right": 246,
+      "bottom": 180
+    },
+    "stats": {
+      "life": 180,
+      "power": 40,
+      "intelligence": 10,
+      "accuracy": 10,
+      "evasion": 30,
+      "defense": 10
+    },
+    "aptitudes": {
+      "life": "A",
+      "power": "B",
+      "intelligence": "E",
+      "accuracy": "E",
+      "evasion": "A",
+      "defense": "D"
+    },
+    "animations": {
+      "idle": {
+        "frames": [
+          "assets/images/fighter/nendoro/idle/frame_001.png",
+          "assets/images/fighter/nendoro/idle/frame_002.png",
+          "assets/images/fighter/nendoro/idle/frame_003.png",
+          "assets/images/fighter/nendoro/idle/frame_004.png",
+          "assets/images/fighter/nendoro/idle/frame_005.png",
+          "assets/images/fighter/nendoro/idle/frame_006.png",
+          "assets/images/fighter/nendoro/idle/frame_007.png",
+          "assets/images/fighter/nendoro/idle/frame_008.png"
+        ],
+        "frameDuration": 4,
+        "contentBox": {
+          "left": 0,
+          "top": 0,
+          "right": 246,
+          "bottom": 180
+        }
+      }
+    }
   }
 }
