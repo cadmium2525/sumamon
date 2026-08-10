@@ -176,6 +176,10 @@ class CPUController {
   // これ以上を狙わせても、当たる前に自滅して相手にストックを渡すだけになる。
   static PURSUIT_SAFETY = 0.1;
 
+  // 技を出してから移動の入力が効くようになるまでのフレーム数（後隙込みの見込み）。
+  // ダッシュ攻撃が全体21F＋後隙11Fなので、少し余裕を持たせた値にする。
+  static ATTACK_COMMIT_FRAMES = 30;
+
   _pursuitLimit() {
     const self = this.fighter;
     if (self.helpless) return 0;
@@ -204,6 +208,22 @@ class CPUController {
 
     if (self.onGround) {
       const margin = 26;
+      // 技を出している間は移動の入力がまったく効かず、出した瞬間の速度のまま
+      // 滑り続ける。崖へ走りながら技を出すと、止める手段が無いまま台から出る。
+      // 回避が高いほどダッシュが速いのでこれが致命傷になり、実測では
+      // レジェンド級（回避900・ダッシュ11.07）が崖の67px手前でダッシュ攻撃を
+      // 出し、6フレーム後に場外へ出てそのまま自滅していた。
+      // そこで「技が終わるまでに崖を越えるか」を先に見て、越えるなら出させない。
+      // 止まっている時（vxがほぼ0）は崖際でも技を出してよい。
+      const vx = self.vx || 0;
+      if (Math.abs(vx) > 0.1 && (input.attack || input.special || input.grab)) {
+        const reach = cx + vx * CPUController.ATTACK_COMMIT_FRAMES;
+        if (reach < stage.x + margin || reach > stage.x + stage.w - margin) {
+          input.attack = false;
+          input.special = false;
+          input.grab = false;
+        }
+      }
       if (input.right && cx > stage.x + stage.w - margin) {
         input.right = false;
         if (input.stickX > 0) input.stickX = 0;
@@ -507,6 +527,19 @@ class CPUController {
 
     // 上必殺を使い切っていたら、あとは横に寄せることしかできない
     if (self.helpless) {
+      input.left = toward < 0; input.right = toward > 0; input.stickX = toward;
+      return input;
+    }
+
+    // 技・後隙・回避・のけぞりの間は applyInput が入力を丸ごと捨てるため、
+    // 空中ジャンプも上必殺も「押しただけ」で消費されるか、何も起きないまま
+    // 外向きの勢いだけが残る。実測でも、崖際のダッシュ攻撃で場外へ出たCPUが
+    // 技の途中で最後の空中ジャンプを使い、そのまま戻れず落ちていた。
+    // 大事なのは、ここで下の上必殺まで進ませないこと。操作が効かないまま上必殺を
+    // 出すと helpless になり、まだ跳べたはずの高さから落ちるだけになる。
+    // 何も使わず、内側を入れたまま操作が戻るのを待つ。
+    if (self.attackTimer > 0 || self.recoveryTimer > 0 || self.landingLag > 0 ||
+        self.dodgeTimer > 0 || self.hitstun > 0 || self.shieldDropLag > 0) {
       input.left = toward < 0; input.right = toward > 0; input.stickX = toward;
       return input;
     }
