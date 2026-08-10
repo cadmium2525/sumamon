@@ -159,10 +159,10 @@ class CPUController {
     return this._keepOnStage(this.currentIntent);
   }
 
-  // 崖の外へ出てよい距離。「今の手持ちで戻れる距離」の半分までとする。
+  // 崖の外へ出てよい距離。「今の手持ちで戻れる距離」の1割までとする。
   //
   // 実測値（コスモ・崖の外側へ何pxまでなら復帰できたか）:
-  //   空中ジャンプ2回残り 240 ／ 1回残り 400 ／ 上必殺のみ 40 ／ helpless 0
+  //   空中ジャンプ2回残り 311 ／ 1回残り 547 ／ 上必殺のみ 90 ／ helpless 0
   // 2回残りの方が短いのは、復帰処理が空中ジャンプを早い段階で使い切るため。
   // 見込みで多く見積もると落ちるので、実測どおりの値を使う。
   //
@@ -185,7 +185,7 @@ class CPUController {
     if (self.helpless) return 0;
     const maxJumps = (typeof CONFIG !== 'undefined' && CONFIG.MAX_JUMPS) || 2;
     const jumpsLeft = Math.max(0, maxJumps - (self.jumpsUsed || 0));
-    const reach = jumpsLeft >= 2 ? 240 : (jumpsLeft === 1 ? 400 : 40);
+    const reach = jumpsLeft >= 2 ? 311 : (jumpsLeft === 1 ? 547 : 90);
     return Math.round(reach * CPUController.PURSUIT_SAFETY);
   }
 
@@ -219,22 +219,18 @@ class CPUController {
       return input;
     }
 
-    // 空中。崖から出てよい距離を超えたら、外向きをやめて内側へ向き直す。
+    // 空中。崖から出てよい距離を超えたら、内側へ能動的に向き直す。
     //
     // ただし「今どこに居るか」だけで判断すると間に合わない。
-    // 空中の加速は1フレーム0.135しかなく、外向きの速度が乗っていると
-    // 逆を入れてから止まるまでに大きく流される（速度6で約133px）。
-    // 実測でも、上限20pxのところを内向き入力のまま265pxまで流されていた。
+    // 空中の加速は1フレーム0.18なので、外向きの速度が乗っていると
+    // 逆を入れてから止まるまで流される（速度6なら約100px）。
     // そこで「このままだとどこまで出るか」＝現在地＋制動距離で判断する。
-    // 外向きの勢いが乗っているぶん、逆を入れてから止まるまでに流される
-    // （空中の加速は1フレーム0.135しかなく、速度6なら約133px）。
-    // 「このままだとどこまで出るか」で判断しないと、止めた時にはもう手遅れになる。
-    const accel = (typeof CONFIG !== 'undefined' && CONFIG.AIR_ACCEL) || 0.135;
+    const accel = (typeof CONFIG !== 'undefined' && CONFIG.AIR_ACCEL) || 0.18;
     const maxJumps = (typeof CONFIG !== 'undefined' && CONFIG.MAX_JUMPS) || 2;
     const jumpsLeft = Math.max(0, maxJumps - (self.jumpsUsed || 0));
 
     // 場外では、追撃のために最後の空中ジャンプを使わせない。
-    // 使い切ると残るのは上必殺だけになり、実測で崖の外40pxまでしか戻れなくなる。
+    // 使い切ると残るのは上必殺だけになり、実測で崖の外90pxまでしか戻れなくなる。
     // 復帰処理（_recoveryIntent）はここを通らないので、戻るためには使える。
     if ((cx < stage.x || cx > stage.x + stage.w) && jumpsLeft <= 1) input.jump = false;
 
@@ -256,15 +252,18 @@ class CPUController {
     const brake = (vx * vx) / (2 * accel);
     const outLeft = (stage.x - cx) + (vx < 0 ? brake : 0);
     const outRight = (cx - (stage.x + stage.w)) + (vx > 0 ? brake : 0);
-    // ここでは外向きの入力を消すだけにする。内側へ引き戻すのは復帰処理の仕事で、
-    // 戻れる範囲を超えたかどうかは _isInDanger が見ている。
-    // 入力を無理に上書きすると、復帰に必要なジャンプまで潰してしまう。
-    if (outLeft > limit && input.left) {
+    // 外向き入力を消すだけでは、AIR_FRICTION(0.994)の弱い摩擦しか働かない。
+    // 実測では速度9.8なら停止まで約1624px進み、反対側の崖まで抜けていた。
+    // 制動距離の式どおりAIR_ACCELで止めるため、内向きを能動的に入力する。
+    // ジャンプには触れず、復帰に必要な手持ちは既存判定へ任せる。
+    if (outLeft > limit) {
       input.left = false;
-      if (input.stickX < 0) input.stickX = 0;
-    } else if (outRight > limit && input.right) {
+      input.right = true;
+      input.stickX = 1;
+    } else if (outRight > limit) {
       input.right = false;
-      if (input.stickX > 0) input.stickX = 0;
+      input.left = true;
+      input.stickX = -1;
     }
     return input;
   }
