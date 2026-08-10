@@ -78,8 +78,10 @@ const Multiplayer = {
       name: monster.name,
       level: monster.level,
       trainingStats: { ...(monster.trainingStats || {}) },
-        skin: monster.skin || null,
+      skin: monster.skin || null,
       aptitudes: { ...(monster.aptitudes || GROWTH.aptitudesFor(monster.baseFighterKey)) },
+      // 完成後の値ではなく凸段階だけを送り、受信側で一度だけ再計算する。
+      limitBreak: UserProfileStore.limitBreakOf(monster.baseFighterKey),
     };
   },
 

@@ -80,6 +80,9 @@ const StudioBuild = {
       jumpPower: spec.jumpPower,
       proceduralMotion: spec.proceduralMotion,
     };
+    // 新規キーのときだけデビュー日を記録する。既存ファイターの更新で書き換えると、
+    // 最新ピックアップが意図せず元へ戻るため、初回登録時に限定する。
+    if (!fightersJson[spec.key]) fighter.debutAt = new Date().toISOString();
     // 技の強さ（倍率）。全て標準ならキーごと消して、余計な記述を残さない。
     if (spec.movePower) fighter.movePower = spec.movePower; else delete fighter.movePower;
     if (spec.parts) fighter.parts = spec.parts; else delete fighter.parts;

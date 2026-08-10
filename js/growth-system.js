@@ -6,6 +6,8 @@
 const GROWTH = {
   LEVEL_MAX: 99,
   STAT_MAX: 999,
+  LIMIT_BREAK_STEP: 30,
+  LIMIT_BREAK_MAX: 5,
   STAT_KEYS: ['life', 'power', 'intelligence', 'accuracy', 'evasion', 'defense'],
   // 適正ランクとは別物。段位はSまであり、文字列比較ではなくこの順番で昇格を判定する。
   RANK_ORDER: ['E', 'D', 'C', 'B', 'A', 'S'],
@@ -64,6 +66,23 @@ const GROWTH = {
       result[key] = Math.max(1, Math.min(this.STAT_MAX, Math.round(grown + trained)));
     }
     return result;
+  },
+
+  // マスモン1体の最終ステータス。種族単位の限界突破を必ずここで加算する。
+  // computeStatsAtLevel を画面ごとに直接呼ぶと、表示と実戦のどこかだけ
+  // 凸ボーナスが抜けるため、マスモンの計算はこの関数へ統一する。
+  statsForMasmon(monster) {
+    if (!monster) return defaultStats();
+    const rawBreak = monster.limitBreak != null
+      ? Number(monster.limitBreak)
+      : UserProfileStore.limitBreakOf(monster.baseFighterKey);
+    const limitBreak = Math.max(0, Math.min(this.LIMIT_BREAK_MAX, Math.floor(rawBreak) || 0));
+    const bonus = limitBreak * this.LIMIT_BREAK_STEP;
+    const base = { ...defaultStats(), trainingStats: monster.trainingStats };
+    if (bonus) {
+      for (const key of this.STAT_KEYS) base[key] = (base[key] || 0) + bonus;
+    }
+    return this.computeStatsAtLevel(base, monster.aptitudes || {}, Math.max(1, Number(monster.level) || 1));
   },
 
   // EXP付与とレベルアップ処理。masmonは { level, exp, ... } を持つオブジェクト。
@@ -305,9 +324,51 @@ function normalizeBattleRecords(records = {}) {
   };
 }
 
+function normalizeProfileData(source = {}, defaultNickname = '') {
+  source = source && typeof source === 'object' ? source : {};
+  const clampBreaks = {};
+  for (const [key, value] of Object.entries(source.limitBreaks || {})) {
+    clampBreaks[key] = Math.max(0, Math.min(GROWTH.LIMIT_BREAK_MAX, Math.floor(Number(value) || 0)));
+  }
+  const uniqueStrings = value => Array.isArray(value)
+    ? [...new Set(value.filter(item => typeof item === 'string' && item))]
+    : [];
+  const hadSeenFighters = Object.prototype.hasOwnProperty.call(source, 'seenFighters');
+  const data = {
+    nickname: String(source.nickname || defaultNickname || '').slice(0, 16),
+    diamonds: Math.max(0, Number(source.diamonds) || 0),
+    gold: Math.max(0, Number(source.gold) || 0),
+    currencyMigrated: source.currencyMigrated === true,
+    iconKey: source.iconKey || 'irumine',
+    breederLevel: Math.max(1, Number(source.breederLevel) || 1),
+    breederExp: Math.max(0, Number(source.breederExp) || 0),
+    practiceTickets: Math.max(0, Number(source.practiceTickets) || 0),
+    freeTrainingTickets: Math.max(0, Number(source.freeTrainingTickets) || 0),
+    inventory: { ...(source.inventory || {}) },
+    battleRecords: normalizeBattleRecords(source.battleRecords),
+    limitBreaks: clampBreaks,
+    ownedFighters: uniqueStrings(source.ownedFighters),
+    gachaPity: Math.max(0, Math.min(99, Math.floor(Number(source.gachaPity) || 0))),
+    gachaPulls: Math.max(0, Math.floor(Number(source.gachaPulls) || 0)),
+    dailyBonusDate: typeof source.dailyBonusDate === 'string' ? source.dailyBonusDate : '',
+  };
+  // 未定義と空配列を区別する。未定義はガチャ初回起動時に、その時点までの
+  // デビューモンスターを既読へするための合図として残す。
+  if (hadSeenFighters) data.seenFighters = uniqueStrings(source.seenFighters);
+
+  // 導入前のダイヤはアイテム販売所用だったため、同額のGへ一度だけ移す。
+  // フラグもプロフィールへ同期し、別端末で二重変換されないようにする。
+  if (!data.currencyMigrated) {
+    data.gold += data.diamonds;
+    data.diamonds = 0;
+    data.currencyMigrated = true;
+  }
+  return data;
+}
+
 const UserProfileStore = {
   currentUid: null,
-  data: { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, freeTrainingTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() },
+  data: normalizeProfileData({ currencyMigrated: true }),
 
   _localKey(uid) { return `smamon_profile_${uid}`; },
 
@@ -315,35 +376,29 @@ const UserProfileStore = {
     this.currentUid = uid;
     let local = null;
     try { local = JSON.parse(localStorage.getItem(this._localKey(uid))); } catch (e) { /* ignore */ }
-    this.data = {
-      nickname: (local && local.nickname) || defaultNickname || '',
-      diamonds: Math.max(0, Number(local && local.diamonds) || 0),
-      iconKey: (local && local.iconKey) || 'irumine',
-      breederLevel: Math.max(1, Number(local && local.breederLevel) || 1),
-      breederExp: Math.max(0, Number(local && local.breederExp) || 0),
-      practiceTickets: Math.max(0, Number(local && local.practiceTickets) || 0),
-      freeTrainingTickets: Math.max(0, Number(local && local.freeTrainingTickets) || 0),
-      inventory: { ...((local && local.inventory) || {}) },
-      battleRecords: normalizeBattleRecords(local && local.battleRecords),
-    };
+    this.data = normalizeProfileData(local || {}, defaultNickname);
+    // オフライン起動でも移行結果を残す。次回オンライン時に同じ残高を再変換しないため。
+    this._saveLocal();
     if (window.FirebaseDB) {
       const { db, doc, getDoc } = window.FirebaseDB;
       try {
         const snap = await getDoc(doc(db, 'users', uid, 'profile', 'main'));
         if (snap.exists()) {
           const remote = snap.data();
-          this.data = {
-            nickname: remote.nickname || this.data.nickname,
-            diamonds: Math.max(0, Number(remote.diamonds) || 0),
-            iconKey: remote.iconKey || this.data.iconKey,
-            breederLevel: Math.max(1, Number(remote.breederLevel) || this.data.breederLevel),
-            breederExp: Math.max(0, Number(remote.breederExp) || 0),
-            practiceTickets: Math.max(0, Number(remote.practiceTickets) || 0),
-            freeTrainingTickets: Math.max(0, Number(remote.freeTrainingTickets) || 0),
-            inventory: { ...(remote.inventory || this.data.inventory || {}) },
-            battleRecords: normalizeBattleRecords(remote.battleRecords || this.data.battleRecords),
-          };
+          const merged = { ...this.data, ...remote };
+          // 古いリモートに移行フラグが無い場合は、ローカルで先に立ったフラグを
+          // 引き継がず、リモート側の旧ダイヤ残高を正しくGへ移す。
+          if (!Object.prototype.hasOwnProperty.call(remote, 'currencyMigrated')) {
+            merged.currencyMigrated = false;
+            merged.gold = Number(remote.gold) || 0;
+          }
+          if (!Object.prototype.hasOwnProperty.call(remote, 'seenFighters') &&
+              !Object.prototype.hasOwnProperty.call(this.data, 'seenFighters')) {
+            delete merged.seenFighters;
+          }
+          this.data = normalizeProfileData(merged, defaultNickname);
           this._saveLocal();
+          if (!Object.prototype.hasOwnProperty.call(remote, 'currencyMigrated')) this.save();
         }
       } catch (e) {
         console.error('プロフィールの読み込みに失敗しました:', e);
@@ -354,7 +409,7 @@ const UserProfileStore = {
 
   clear() {
     this.currentUid = null;
-    this.data = { nickname: '', diamonds: 0, iconKey: 'irumine', breederLevel: 1, breederExp: 0, practiceTickets: 0, freeTrainingTickets: 0, inventory: {}, battleRecords: normalizeBattleRecords() };
+    this.data = normalizeProfileData({ currencyMigrated: true });
   },
 
   _saveLocal() {
@@ -380,7 +435,8 @@ const UserProfileStore = {
   // 忘れると「選んでも保存されない」という分かりにくい不具合になる。
   setIcon(iconKey) {
     const list = (typeof window !== 'undefined' && window.FIGHTERS) || {};
-    const known = list[iconKey] && list[iconKey].stockIcon;
+    const unlocked = !window.GACHA || window.GACHA.isUnlocked(iconKey);
+    const known = unlocked && list[iconKey] && list[iconKey].stockIcon;
     this.data.iconKey = known ? iconKey : (this.data.iconKey || 'irumine');
     this.save();
   },
@@ -407,6 +463,42 @@ const UserProfileStore = {
     this.data.diamonds = Math.max(0, (Number(this.data.diamonds) || 0) + amount);
     this.save();
     return this.data.diamonds;
+  },
+
+  addGold(amount) {
+    this.data.gold = Math.max(0, (Number(this.data.gold) || 0) + amount);
+    this.save();
+    return this.data.gold;
+  },
+
+  limitBreakOf(fighterKey) {
+    const value = Number((this.data.limitBreaks || {})[fighterKey]) || 0;
+    return Math.max(0, Math.min(GROWTH.LIMIT_BREAK_MAX, Math.floor(value)));
+  },
+
+  setLimitBreak(fighterKey, value) {
+    if (!fighterKey) return 0;
+    if (!this.data.limitBreaks) this.data.limitBreaks = {};
+    this.data.limitBreaks[fighterKey] = Math.max(0,
+      Math.min(GROWTH.LIMIT_BREAK_MAX, Math.floor(Number(value) || 0)));
+    return this.data.limitBreaks[fighterKey];
+  },
+
+  grantItem(itemId, quantity = 1) {
+    const count = Math.max(1, Math.floor(Number(quantity) || 1));
+    if (!this.data.inventory) this.data.inventory = {};
+    this.data.inventory[itemId] = Math.max(0, Number(this.data.inventory[itemId]) || 0) + count;
+    return this.data.inventory[itemId];
+  },
+
+  claimDailyWinBonus() {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (this.data.dailyBonusDate === today) return 0;
+    this.data.dailyBonusDate = today;
+    this.data.diamonds = Math.max(0, Number(this.data.diamonds) || 0) + 300;
+    this.save();
+    return 300;
   },
 
   addPracticeTickets(amount) {
@@ -481,10 +573,9 @@ const UserProfileStore = {
   purchaseItem(itemId, price, quantity = 1) {
     const count = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
     const cost = Math.max(0, Number(price) || 0) * count;
-    if ((Number(this.data.diamonds) || 0) < cost) return false;
-    this.data.diamonds -= cost;
-    if (!this.data.inventory) this.data.inventory = {};
-    this.data.inventory[itemId] = Math.max(0, Number(this.data.inventory[itemId]) || 0) + count;
+    if ((Number(this.data.gold) || 0) < cost) return false;
+    this.data.gold -= cost;
+    this.grantItem(itemId, count);
     this.save();
     return true;
   },

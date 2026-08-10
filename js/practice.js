@@ -351,7 +351,7 @@ const PRACTICE_CONTROL_HELP = [
 
 function resolvePracticeStats(def, monster) {
   if (monster && monster.id) {
-    return GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: monster.trainingStats }, monster.aptitudes, monster.level);
+    return GROWTH.statsForMasmon(monster);
   }
   return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
 }

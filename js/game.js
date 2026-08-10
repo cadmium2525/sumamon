@@ -810,11 +810,7 @@ function loop(timestamp) {
 // 2か所に同じ式を書くと、片方だけ直した時に「表示と実際が違う」事故になる。
 function resolveStats(def, masmon) {
   if (masmon) {
-    return GROWTH.computeStatsAtLevel(
-      { ...defaultStats(), trainingStats: masmon.trainingStats },
-      masmon.aptitudes,
-      masmon.level,
-    );
+    return GROWTH.statsForMasmon(masmon);
   }
   return def.stats ? { ...defaultStats(), ...def.stats } : defaultStats();
 }
@@ -856,10 +852,12 @@ window.previewBattleRoster = function previewBattleRoster(options) {
     return options.multiplayerRoster.slice(0, 4).map((entry, index) => {
       const def = FIGHTERS[entry.fighterKey] || FIGHTERS.irumine;
       const masmon = {
+        baseFighterKey: entry.fighterKey,
         name: entry.name || def.displayName,
         level: Math.max(1, Number(entry.level) || 1),
         trainingStats: { ...(entry.trainingStats || {}) },
         aptitudes: { ...(entry.aptitudes || GROWTH.aptitudesFor(def.key)) },
+        limitBreak: Math.max(0, Math.min(GROWTH.LIMIT_BREAK_MAX, Number(entry.limitBreak) || 0)),
         skin: entry.skin || null,
       };
       const base = resolveStats(def, masmon);
@@ -951,10 +949,12 @@ window.startBattle = function startBattle(options) {
     players = options.multiplayerRoster.slice(0, 4).map((entry, index) => {
       const def = FIGHTERS[entry.fighterKey] || FIGHTERS.irumine;
       const masmon = {
+        baseFighterKey: entry.fighterKey,
         name: entry.name || def.displayName,
         level: Math.max(1, Number(entry.level) || 1),
         trainingStats: { ...(entry.trainingStats || {}) },
         aptitudes: { ...(entry.aptitudes || GROWTH.aptitudesFor(def.key)) },
+        limitBreak: Math.max(0, Math.min(GROWTH.LIMIT_BREAK_MAX, Number(entry.limitBreak) || 0)),
         // スキン（色変更）。相手の画面でも同じ色で表示されるよう、
         // ロースターで受け取ったものをそのままファイターへ渡す。
         skin: entry.skin || null,

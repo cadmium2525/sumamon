@@ -36,17 +36,17 @@ const LEGEND = {
 };
 
 const RANK_REWARDS = {
-  E: { masmonExp: 1500, diamonds: 100, breederExp: 150, practiceTickets: 0, trainingTickets: 1 },
-  D: { masmonExp: 3000, diamonds: 200, breederExp: 200, practiceTickets: 0, trainingTickets: 1 },
-  C: { masmonExp: 6000, diamonds: 350, breederExp: 300, practiceTickets: 1, trainingTickets: 2 },
-  B: { masmonExp: 12000, diamonds: 550, breederExp: 450, practiceTickets: 1, trainingTickets: 2 },
-  A: { masmonExp: 24000, diamonds: 800, breederExp: 700, practiceTickets: 2, trainingTickets: 3 },
+  E: { masmonExp: 1500, gold: 100, diamonds: 400, breederExp: 150, practiceTickets: 0, trainingTickets: 1 },
+  D: { masmonExp: 3000, gold: 200, diamonds: 600, breederExp: 200, practiceTickets: 0, trainingTickets: 1 },
+  C: { masmonExp: 6000, gold: 350, diamonds: 900, breederExp: 300, practiceTickets: 1, trainingTickets: 2 },
+  B: { masmonExp: 12000, gold: 550, diamonds: 1400, breederExp: 450, practiceTickets: 1, trainingTickets: 2 },
+  A: { masmonExp: 24000, gold: 800, diamonds: 2000, breederExp: 700, practiceTickets: 2, trainingTickets: 3 },
 };
 
-const TOURNAMENT_REWARD_FIRST = { masmonExp: 40000, diamonds: 1000, breederExp: 900, practiceTickets: 2, trainingTickets: 3 };
-const TOURNAMENT_REWARD_REPEAT = { masmonExp: 12000, diamonds: 200, breederExp: 300, practiceTickets: 0, trainingTickets: 1 };
-const LEGEND_REWARD_FIRST = { masmonExp: 120000, diamonds: 1500, breederExp: 1500, practiceTickets: 5, trainingTickets: 10 };
-const LEGEND_REWARD_REPEAT = { masmonExp: 40000, diamonds: 300, breederExp: 500, practiceTickets: 1, trainingTickets: 2 };
+const TOURNAMENT_REWARD_FIRST = { masmonExp: 40000, gold: 1000, diamonds: 1200, breederExp: 900, practiceTickets: 2, trainingTickets: 3 };
+const TOURNAMENT_REWARD_REPEAT = { masmonExp: 12000, gold: 200, diamonds: 250, breederExp: 300, practiceTickets: 0, trainingTickets: 1 };
+const LEGEND_REWARD_FIRST = { masmonExp: 120000, gold: 1500, diamonds: 2500, breederExp: 1500, practiceTickets: 5, trainingTickets: 10 };
+const LEGEND_REWARD_REPEAT = { masmonExp: 40000, gold: 300, diamonds: 500, breederExp: 500, practiceTickets: 1, trainingTickets: 2 };
 
 const RankBattle = {
   tournamentKeys: Object.keys(TOURNAMENTS),
@@ -105,6 +105,6 @@ const RankBattle = {
     if (challenge?.type === 'rank') reward = RANK_REWARDS[challenge.key];
     else if (challenge?.type === 'tournament') reward = firstClear ? TOURNAMENT_REWARD_FIRST : TOURNAMENT_REWARD_REPEAT;
     else if (challenge?.type === 'legend') reward = firstClear ? LEGEND_REWARD_FIRST : LEGEND_REWARD_REPEAT;
-    return { ...(reward || { masmonExp: 0, diamonds: 0, breederExp: 0, practiceTickets: 0, trainingTickets: 0 }) };
+    return { ...(reward || { masmonExp: 0, gold: 0, diamonds: 0, breederExp: 0, practiceTickets: 0, trainingTickets: 0 }) };
   },
 };
