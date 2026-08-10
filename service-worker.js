@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v153';
+const CACHE_NAME = 'smamon-app-v154';
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const APP_SHELL = [
   './js/flow.js',
   './js/game.js',
   './js/growth-system.js',
+  './js/gacha.js',
   './js/rank-battle.js',
   './js/input.js',
   './js/moves.js',

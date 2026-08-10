@@ -3,14 +3,14 @@
 // → [CPU戦のみ]CPUレベル選択 → バトル開幕演出(Loading→FIGHT!) → バトル → リザルト
 
 // 100人組手の到達報酬。完全クリアできなくても、そこまでの働きに応じて配る。
-// 各段の合計が完全クリアの報酬（ダイヤ1500・修行チケット5枚・フリー券10枚）に
+// 各段の合計が完全クリアの報酬（G1500・ダイヤ3000・修行チケット5枚・フリー券10枚）に
 // ぴったり一致するよう配分してある。ここを変える時は合計も確認すること。
 const HUNDRED_REWARD_STEPS = [
-  { at: 10,  diamonds: 100, practice: 0, free: 1 },
-  { at: 25,  diamonds: 200, practice: 1, free: 2 },
-  { at: 50,  diamonds: 300, practice: 1, free: 2 },
-  { at: 75,  diamonds: 400, practice: 1, free: 2 },
-  { at: 100, diamonds: 500, practice: 2, free: 3 },
+  { at: 10,  gold: 100, diamonds: 200, practice: 0, free: 1 },
+  { at: 25,  gold: 200, diamonds: 400, practice: 1, free: 2 },
+  { at: 50,  gold: 300, diamonds: 600, practice: 1, free: 2 },
+  { at: 75,  gold: 400, diamonds: 800, practice: 1, free: 2 },
+  { at: 100, gold: 500, diamonds: 1000, practice: 2, free: 3 },
 ];
 
 const SHOP_ITEMS = [
@@ -109,6 +109,7 @@ const AppFlow = {
         MasmonStore.loadFromFirestore(user.uid),
         UserProfileStore.load(user.uid, user.username),
       ]);
+      this._initializeGachaProfile();
       PlayerActivityStore.start(user);
       this.buildFighterList(); // マスモン読み込み完了後に一覧を再構築
       this.showScreen('start');
@@ -200,15 +201,27 @@ const AppFlow = {
       this._updateHomeProfile();
       const debugButton = document.getElementById('btn-debug');
       if (debugButton) debugButton.classList.toggle('hidden', !this._isDebugUser());
+      this.showNewFighterNotice();
     }
     if (name === 'mypage') this.renderMyPage();
     if (name === 'item-shop') this.renderItemShop();
+    if (name === 'gacha') this.renderGacha();
     if (window.AudioManager) AudioManager.setScene(name, this.selectedMode);
     if (window.PlayerActivityStore) PlayerActivityStore.setScreen(name, this.selectedCpuMode || this.selectedMode);
   },
 
   _isDebugUser() {
     return !!(this.currentUser && String(this.currentUser.username).trim().toLowerCase() === 'cadmium');
+  },
+
+  _initializeGachaProfile() {
+    if (!window.GACHA) return;
+    // 既存セーブでは現在までに登場済みのモンスターを既読にして、
+    // 導入直後に過去分のお知らせが連続しないようにする。
+    GACHA.initializeSeenFighters();
+    GACHA.loadPickupConfig().then(() => {
+      if (!document.getElementById('screen-gacha')?.classList.contains('hidden')) this.renderGacha();
+    });
   },
 
   _updateHomeProfile() {
@@ -223,6 +236,8 @@ const AppFlow = {
     document.getElementById('home-profile-icon').src = this._profileIconSrc(UserProfileStore.data.iconKey);
     const diamonds = document.getElementById('home-diamonds');
     if (diamonds) diamonds.textContent = `💎 ${UserProfileStore.data.diamonds || 0}`;
+    const gold = document.getElementById('home-gold');
+    if (gold) gold.textContent = `G ${(UserProfileStore.data.gold || 0).toLocaleString()}`;
     document.getElementById('home-practice-tickets').textContent = `修行券 ${UserProfileStore.data.practiceTickets || 0}`;
   },
 
@@ -242,7 +257,7 @@ const AppFlow = {
   // （持っていないと画像が出ず、選べてしまうと空欄のアイコンになるため）。
   _profileIconChoices() {
     return Object.entries(window.FIGHTERS || {})
-      .filter(([, def]) => def && def.stockIcon)
+      .filter(([key, def]) => def && def.stockIcon && (!window.GACHA || GACHA.isUnlocked(key)))
       .map(([key, def]) => ({ key, name: def.displayName || key, src: def.stockIcon }));
   },
 
@@ -263,8 +278,8 @@ const AppFlow = {
   },
 
   renderItemShop() {
-    const diamonds = Number(UserProfileStore.data.diamonds) || 0;
-    document.getElementById('shop-diamonds').textContent = `💎 ${diamonds}`;
+    const gold = Number(UserProfileStore.data.gold) || 0;
+    document.getElementById('shop-diamonds').textContent = `G ${gold.toLocaleString()}`;
     const inventory = UserProfileStore.data.inventory || {};
     document.getElementById('item-shop-list').innerHTML = SHOP_ITEMS.map(item => `
       <article class="shop-item-card${item.comingSoon ? ' coming-soon' : ''}">
@@ -275,7 +290,7 @@ const AppFlow = {
           <small>所持 ${Number(inventory[item.id]) || 0}個</small>
         </div>
         <button class="shop-buy-btn" data-shop-item="${item.id}" ${item.comingSoon ? 'disabled' : ''}>
-          ${item.comingSoon ? '準備中' : `💎 ${item.price}`}
+          ${item.comingSoon ? '準備中' : `G ${item.price}`}
         </button>
       </article>
     `).join('');
@@ -309,11 +324,11 @@ const AppFlow = {
     const quantity = Math.max(1, Math.min(99, Math.floor(Number(nextQuantity ?? input.value) || 1)));
     input.value = String(quantity);
     const total = item.price * quantity;
-    document.getElementById('shop-modal-total').textContent = `合計 💎 ${total}`;
+    document.getElementById('shop-modal-total').textContent = `合計 G ${total.toLocaleString()}`;
     const confirmButton = document.getElementById('shop-purchase-confirm');
-    const canAfford = (Number(UserProfileStore.data.diamonds) || 0) >= total;
+    const canAfford = (Number(UserProfileStore.data.gold) || 0) >= total;
     confirmButton.disabled = !canAfford;
-    confirmButton.textContent = canAfford ? '購入する' : 'ダイヤが足りません';
+    confirmButton.textContent = canAfford ? '交換する' : 'Gが足りません';
   },
 
   confirmShopPurchase() {
@@ -339,6 +354,90 @@ const AppFlow = {
     void toast.offsetWidth;
     toast.classList.add('show');
     this.shopToastTimer = setTimeout(() => toast.classList.add('hidden'), 2600);
+  },
+
+  renderGacha() {
+    if (!window.GACHA) return;
+    const diamonds = Math.max(0, Number(UserProfileStore.data.diamonds) || 0);
+    document.getElementById('gacha-diamonds').textContent = `💎 ${diamonds.toLocaleString()}`;
+    const pickupKey = GACHA.pickupKey();
+    const pickup = (window.FIGHTERS || {})[pickupKey];
+    const image = document.getElementById('gacha-pickup-image');
+    image.src = pickup ? (pickup.stockIcon || pickup.idleImage || '') : '';
+    image.classList.toggle('hidden', !pickup);
+    document.getElementById('gacha-pickup-name').textContent = pickup ? pickup.displayName : 'ピックアップなし';
+    document.getElementById('gacha-pickup-note').textContent = pickup
+      ? `${GACHA.pickupSource() === 'manual' ? '期間限定' : '最新デビュー'}ピックアップ` : '★5では未所持・未完凸から抽選されます';
+    const pity = Math.max(0, Math.min(99, Number(UserProfileStore.data.gachaPity) || 0));
+    document.getElementById('gacha-pity').textContent = `天井まで あと${GACHA.PITY_MAX - pity}連（通算${Number(UserProfileStore.data.gachaPulls) || 0}連）`;
+    const single = document.getElementById('gacha-single');
+    const ten = document.getElementById('gacha-ten');
+    single.disabled = diamonds < GACHA.SINGLE_COST;
+    ten.disabled = diamonds < GACHA.TEN_COST;
+    document.getElementById('gacha-message').textContent = diamonds < GACHA.SINGLE_COST ? 'ダイヤが足りません' : '';
+    const pool = GACHA.fighterPool();
+    document.getElementById('gacha-fighter-rates').innerHTML = pool.map(key => {
+      const def = FIGHTERS[key] || {};
+      return `<span>${key === pickupKey ? 'PU ' : ''}${this.escapeHtml(def.displayName || key)}（★5候補）</span>`;
+    }).join('');
+  },
+
+  pullGacha(count) {
+    const result = GACHA.pull(count);
+    if (!result.ok) {
+      document.getElementById('gacha-message').textContent = result.reason;
+      this.renderGacha();
+      return;
+    }
+    const list = document.getElementById('gacha-result-list');
+    list.innerHTML = result.results.map(reward => {
+      const fighter = reward.fighterKey ? FIGHTERS[reward.fighterKey] : null;
+      const image = fighter ? (fighter.stockIcon || fighter.idleImage) : '';
+      return `<article class="gacha-result rank-${reward.rank}">
+        <b>★${reward.rank}</b>${image ? `<img src="${image}" alt="">` : ''}
+        <span>${this.gachaRewardLabel(reward)}</span>${reward.pity ? '<em>天井</em>' : ''}
+      </article>`;
+    }).join('');
+    document.getElementById('gacha-result-modal').classList.remove('hidden');
+    this.buildFighterList();
+    this.renderGacha();
+    this._updateHomeProfile();
+  },
+
+  gachaRewardLabel(reward) {
+    const fighter = reward.fighterKey ? FIGHTERS[reward.fighterKey] : null;
+    if (reward.type === 'unlock') return `${fighter?.displayName || reward.fighterKey} 解放！`;
+    if (reward.type === 'limitBreak') return `${fighter?.displayName || reward.fighterKey} 凸${reward.amount}`;
+    if (reward.type === 'gold') return `G ${Number(reward.amount).toLocaleString()}`;
+    if (reward.type === 'practice') return `修行チケット ×${reward.amount}`;
+    if (reward.type === 'freeTraining') return `フリートレーニング券 ×${reward.amount}`;
+    const item = SHOP_ITEMS.find(entry => entry.id === reward.itemId);
+    return `${item?.name || reward.itemId} ×${reward.amount}`;
+  },
+
+  showNewFighterNotice() {
+    if (!window.GACHA || !document.getElementById('new-fighter-modal')?.classList.contains('hidden')) return;
+    const key = GACHA.unseenFighters()[0];
+    const def = FIGHTERS[key];
+    if (!key || !def) return;
+    const modal = document.getElementById('new-fighter-modal');
+    modal.dataset.fighterKey = key;
+    document.getElementById('new-fighter-image').src = def.stockIcon || def.idleImage || '';
+    document.getElementById('new-fighter-name').textContent = def.displayName || key;
+    const labels = { life: 'ライフ', power: 'ちから', intelligence: 'かしこさ', accuracy: '命中', evasion: '回避', defense: '丈夫さ' };
+    document.getElementById('new-fighter-aptitudes').innerHTML = Object.entries(def.aptitudes || {})
+      .map(([stat, rank]) => `<span>${labels[stat] || stat}<b>${rank}</b></span>`).join('');
+    modal.classList.remove('hidden');
+  },
+
+  closeNewFighterNotice(goToGacha = false) {
+    const modal = document.getElementById('new-fighter-modal');
+    const key = modal.dataset.fighterKey;
+    if (key) GACHA.markSeen(key);
+    modal.classList.add('hidden');
+    modal.dataset.fighterKey = '';
+    if (goToGacha) this.showScreen('gacha');
+    else setTimeout(() => this.showNewFighterNotice(), 0);
   },
 
   openCpuMode(mode) {
@@ -415,7 +514,7 @@ const AppFlow = {
       const status = challenge.cleared ? '制覇済・再挑戦' : challenge.type === 'rank' ? '勝利で昇格' : '初回制覇報酬';
       return `<button class="rank-challenge-card${selected ? ' selected' : ''}${challenge.cleared ? ' cleared' : ''}" data-rank-type="${challenge.type}" data-rank-challenge="${challenge.key}" ${challenge.locked ? 'disabled' : ''}>
         <span><strong>${this.escapeHtml(challenge.name)}</strong><small>${status}</small></span>
-        <em>EXP ${reward.masmonExp.toLocaleString()}<br>💎 ${reward.diamonds.toLocaleString()}</em>
+        <em>EXP ${reward.masmonExp.toLocaleString()}<br>G ${reward.gold.toLocaleString()} ／ 💎 ${reward.diamonds.toLocaleString()}</em>
       </button>`;
     }).join('');
 
@@ -491,6 +590,7 @@ const AppFlow = {
     const list = document.getElementById('fighter-list');
     const templateCards = Object.values(FIGHTERS).map(f => this._fighterCardHtml({
       fighterKey: f.key, label: f.displayName, img: f.idleImage, color: f.color,
+      locked: !!window.GACHA && !GACHA.isUnlocked(f.key),
     }));
     const masmons = MasmonStore.loadAll().filter(m => FIGHTERS[m.baseFighterKey]);
     const masmonCards = masmons.map(m => {
@@ -512,10 +612,11 @@ const AppFlow = {
     });
   },
 
-  _fighterCardHtml({ fighterKey, masmonId, label, img, color, hundredBadge = false, rank = null, titleCount = 0, legendWins = 0 }) {
+  _fighterCardHtml({ fighterKey, masmonId, label, img, color, hundredBadge = false, rank = null, titleCount = 0, legendWins = 0, locked = false }) {
     const bg = img ? `background-image:url('${img}')` : `background-color:${color}`;
     return `
-      <button class="select-card fighter-card" data-fighter="${fighterKey}" ${masmonId ? `data-masmon="${masmonId}"` : ''} style="${bg}">
+      <button class="select-card fighter-card${locked ? ' fighter-locked' : ''}" data-fighter="${fighterKey}" ${masmonId ? `data-masmon="${masmonId}"` : ''} ${locked ? 'data-locked="true"' : ''} style="${bg}">
+        ${locked ? '<span class="fighter-lock-mark" aria-label="未所持">🔒</span>' : ''}
         ${hundredBadge ? '<span class="hundred-clear-badge" title="100人組手クリア">100</span>' : ''}
         ${rank ? `<span class="fighter-rank-badge rank-${rank}" title="段位 ${rank}">${rank}</span>` : ''}
         ${titleCount || legendWins ? `<span class="fighter-title-count">大会 ${titleCount}/4${legendWins ? `・伝説${legendWins}` : ''}</span>` : ''}
@@ -626,7 +727,15 @@ const AppFlow = {
     document.getElementById('btn-training').addEventListener('click', () => this.openMasmonManage());
     document.getElementById('btn-manage-training').addEventListener('click', () => this.openTraining());
     document.getElementById('btn-manage-practice').addEventListener('click', () => this.openPractice());
-    document.getElementById('btn-gacha').addEventListener('click', () => this.showScreen('item-shop'));
+    document.getElementById('btn-gacha').addEventListener('click', () => this.showScreen('gacha'));
+    document.getElementById('btn-item-shop').addEventListener('click', () => this.showScreen('item-shop'));
+    document.getElementById('gacha-single').addEventListener('click', () => this.pullGacha(1));
+    document.getElementById('gacha-ten').addEventListener('click', () => this.pullGacha(10));
+    document.getElementById('gacha-result-close').addEventListener('click', () => {
+      document.getElementById('gacha-result-modal').classList.add('hidden');
+    });
+    document.getElementById('new-fighter-close').addEventListener('click', () => this.closeNewFighterNotice(false));
+    document.getElementById('new-fighter-gacha').addEventListener('click', () => this.closeNewFighterNotice(true));
     document.getElementById('item-shop-list').addEventListener('click', event => {
       const button = event.target.closest('[data-shop-item]');
       if (button) this.openPurchaseModal(button.dataset.shopItem);
@@ -694,6 +803,8 @@ const AppFlow = {
 
       if (this.selectedMode === 'cpu') {
         if (!this.activeTokenId) return; // トークンを選んでからファイターをタップする
+        // 未所持でもCPU対戦相手には選べる。プレイヤー側だけを所持判定で塞ぐ。
+        if (this.activeTokenId === 'p1' && card.dataset.locked === 'true') return;
         this.tokens[this.activeTokenId] = { fighterKey, masmonId };
         this.activeTokenId = null;
         this._renderTokenBar();
@@ -870,8 +981,7 @@ const AppFlow = {
       const titleCount = Object.values(selected.titles || {}).filter(Boolean).length;
       name.textContent = `${selected.name}　Lv.${selected.level}　段位 ${selected.rank || 'E'}${titleCount ? `　大会 ${titleCount}/4` : ''}${selected.legendWins ? `　レジェンド ${selected.legendWins}勝` : ''}`;
       if (statPanel) {
-        const stats = GROWTH.computeStatsAtLevel(
-          { ...defaultStats(), trainingStats: selected.trainingStats }, selected.aptitudes, selected.level);
+        const stats = GROWTH.statsForMasmon(selected);
         statPanel.innerHTML = this._statPanelHtml(stats, selected.aptitudes, { compact: true });
       }
     } else if (statPanel) statPanel.innerHTML = '';
@@ -925,7 +1035,7 @@ const AppFlow = {
   renderTraining(message = '') {
     const m = this._selectedManageMasmon();
     if (!m) return;
-    const stats = GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: m.trainingStats }, m.aptitudes, m.level);
+    const stats = GROWTH.statsForMasmon(m);
     // フリー券はどのマスモンにも使えるので、個体のチケットと並べて出す。
     // 0枚のときも枠ごと消すと「そんな仕組みがある」ことに気づけないため、常に出す。
     const free = GROWTH.freeTrainingTickets();
@@ -1067,6 +1177,7 @@ const AppFlow = {
         MasmonStore.loadFromFirestore(user.uid),
         UserProfileStore.load(user.uid, user.username),
       ]);
+      this._initializeGachaProfile();
       this.buildFighterList();
       this.showScreen('start');
     };
@@ -1118,6 +1229,8 @@ const AppFlow = {
     document.getElementById('mypage-exp-text').textContent = `${exp} / ${needed} EXP`;
     document.getElementById('mypage-exp-fill').style.width = `${Math.min(100, exp / needed * 100)}%`;
     document.getElementById('mypage-diamonds').textContent = `💎 ${UserProfileStore.data.diamonds || 0}`;
+    const gold = document.getElementById('mypage-gold');
+    if (gold) gold.textContent = `G ${(UserProfileStore.data.gold || 0).toLocaleString()}`;
     document.getElementById('mypage-practice-tickets').textContent = `修行券 ${UserProfileStore.data.practiceTickets || 0}`;
     document.getElementById('mypage-nickname').value = nickname;
     this.renderProfileIconOptions(iconKey);
@@ -1247,7 +1360,7 @@ const AppFlow = {
       ? MasmonStore.loadAll().find(item => item.id === card.dataset.masmon)
       : null;
     const stats = monster
-      ? GROWTH.computeStatsAtLevel({ ...defaultStats(), trainingStats: monster.trainingStats }, monster.aptitudes, monster.level)
+      ? GROWTH.statsForMasmon(monster)
       : { ...defaultStats(), ...(def.stats || {}) };
     Skin.paintInto(document.getElementById('fighter-status-image'), def.idleImage, monster && monster.skin);
     document.getElementById('fighter-status-name').textContent = monster ? monster.name : def.displayName;
@@ -1417,6 +1530,7 @@ const AppFlow = {
   },
 
   _placeTokenOnCard(tokenId, card) {
+    if (tokenId === 'p1' && card.dataset.locked === 'true') return;
     this.tokens[tokenId] = {
       fighterKey: card.dataset.fighter,
       masmonId: card.dataset.masmon || null,
@@ -1653,19 +1767,22 @@ const AppFlow = {
 
       if (result.survival.mode === 'hundred') {
         // 撃破数に応じた段階報酬。完全クリアできなくても、そこまでの働きは報われる。
-        // 各段の合計が「完全クリアの報酬」（ダイヤ1500・修行券5・フリー券10）になるよう配分してある。
+        // 旧ダイヤ報酬は同額のGへ移し、ガチャ用ダイヤを別枠で付ける。
         const reached = HUNDRED_REWARD_STEPS.filter(step => result.survival.defeated >= step.at);
         if (reached.length) {
           const total = reached.reduce((sum, step) => ({
+            gold: sum.gold + step.gold,
             diamonds: sum.diamonds + step.diamonds,
             practice: sum.practice + step.practice,
             free: sum.free + step.free,
-          }), { diamonds: 0, practice: 0, free: 0 });
+          }), { gold: 0, diamonds: 0, practice: 0, free: 0 });
+          if (total.gold) UserProfileStore.addGold(total.gold);
           if (total.diamonds) UserProfileStore.addDiamonds(total.diamonds);
           if (total.practice) UserProfileStore.addPracticeTickets(total.practice);
           if (total.free) UserProfileStore.addFreeTrainingTickets(total.free);
           const rows = reached.map(step => {
             const parts = [];
+            if (step.gold) parts.push(`G ${step.gold}`);
             if (step.diamonds) parts.push(`ダイヤ${step.diamonds}`);
             if (step.practice) parts.push(`修行チケット${step.practice}枚`);
             if (step.free) parts.push(`フリー券${step.free}枚`);
@@ -1673,7 +1790,7 @@ const AppFlow = {
           }).join('');
           panel.insertAdjacentHTML('beforeend',
             `<div class="hundred-reward-list"><strong>到達報酬</strong><ul>${rows}</ul>`
-            + `<span>合計：ダイヤ${total.diamonds} ／ 修行チケット${total.practice}枚 ／ フリートレーニングチケット${total.free}枚</span></div>`);
+            + `<span>合計：G ${total.gold} ／ ダイヤ${total.diamonds} ／ 修行チケット${total.practice}枚 ／ フリートレーニングチケット${total.free}枚</span></div>`);
         } else {
           panel.insertAdjacentHTML('beforeend',
             `<div class="hundred-reward-list"><span>あと${HUNDRED_REWARD_STEPS[0].at - result.survival.defeated}体で最初の報酬です</span></div>`);
@@ -1681,6 +1798,8 @@ const AppFlow = {
       }
 
       if (result.survival.mode === 'hundred' && result.survival.cleared) {
+        const daily = UserProfileStore.claimDailyWinBonus();
+        if (daily) panel.insertAdjacentHTML('beforeend', `<div class="diamond-reward">本日の初勝利 💎 ${daily}</div>`);
         if (opts.p1MasmonId) {
           const monster = MasmonStore.loadAll().find(item => item.id === opts.p1MasmonId);
           if (monster) {
@@ -1727,6 +1846,9 @@ const AppFlow = {
         panel.classList.remove('hidden');
         panel.insertAdjacentHTML('beforeend', '<div class="multi-ticket-reward">フリートレーニングチケットを1枚獲得！</div>');
       }
+      const diamonds = p1Entry.rank === 1 ? 100 : 30;
+      UserProfileStore.addDiamonds(diamonds);
+      panel.insertAdjacentHTML('beforeend', `<div class="diamond-reward">マルチ報酬 💎 ${diamonds}</div>`);
     }
 
     const breederResult = UserProfileStore.addBreederExp(50);
@@ -1734,9 +1856,15 @@ const AppFlow = {
     panel.insertAdjacentHTML('beforeend', `<div class="breeder-reward">ブリーダーEXP +${breederResult.expGained}${breederResult.toLevel > breederResult.fromLevel ? ` ／ Lv.${breederResult.toLevel}にアップ！` : ''}${breederResult.ticketsGained ? ` ／ 修行券 +${breederResult.ticketsGained}` : ''}</div>`);
 
     if (opts.mode === 'cpu') {
-      const reward = 50;
-      UserProfileStore.addDiamonds(reward);
-      panel.insertAdjacentHTML('beforeend', `<div class="diamond-reward">💎 ${reward}ダイヤを獲得！</div>`);
+      const gold = 50;
+      const diamonds = p1Entry?.rank === 1 ? 30 : 10;
+      UserProfileStore.addGold(gold);
+      UserProfileStore.addDiamonds(diamonds);
+      panel.insertAdjacentHTML('beforeend', `<div class="diamond-reward">G ${gold} ／ 💎 ${diamonds}を獲得！</div>`);
+    }
+    if (p1Entry?.rank === 1) {
+      const daily = UserProfileStore.claimDailyWinBonus();
+      if (daily) panel.insertAdjacentHTML('beforeend', `<div class="diamond-reward">本日の初勝利 💎 ${daily}</div>`);
     }
     this._updateHomeProfile();
   },
@@ -1766,7 +1894,7 @@ const AppFlow = {
     });
     const reward = won ? fullReward : {
       masmonExp: lossBreakdown.total,
-      diamonds: 0, breederExp: 0, practiceTickets: 0, trainingTickets: 0,
+      gold: 0, diamonds: 0, breederExp: 0, practiceTickets: 0, trainingTickets: 0,
     };
     const startLevel = monster.level;
     const startExp = monster.exp;
@@ -1775,7 +1903,9 @@ const AppFlow = {
     monster.trainingTickets = Math.max(0, Number(monster.trainingTickets) || 0) + reward.trainingTickets;
     MasmonStore.update(monster);
 
+    if (reward.gold) UserProfileStore.addGold(reward.gold);
     if (reward.diamonds) UserProfileStore.addDiamonds(reward.diamonds);
+    const daily = won ? UserProfileStore.claimDailyWinBonus() : 0;
     const breederResult = reward.breederExp ? UserProfileStore.addBreederExp(reward.breederExp) : null;
     if (reward.practiceTickets) UserProfileStore.addPracticeTickets(reward.practiceTickets);
 
@@ -1793,7 +1923,9 @@ const AppFlow = {
     }
     const rewardRows = [
       `マスモンEXP +${reward.masmonExp.toLocaleString()}`,
+      reward.gold ? `G +${reward.gold.toLocaleString()}` : null,
       reward.diamonds ? `<span class="rank-diamond-icon" aria-hidden="true">💎</span> +${reward.diamonds.toLocaleString()}` : null,
+      daily ? `本日の初勝利 💎 +${daily.toLocaleString()}` : null,
       reward.breederExp ? `ブリーダーEXP +${reward.breederExp.toLocaleString()}` : null,
       reward.practiceTickets ? `修行チケット +${reward.practiceTickets}枚` : null,
       reward.trainingTickets ? `専用トレーニングチケット +${reward.trainingTickets}枚` : null,

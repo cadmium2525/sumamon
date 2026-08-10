@@ -2596,3 +2596,72 @@ body.layout-pending .screen { visibility: hidden; }
   border: 1px solid #ff8f7d; background: rgba(58,23,18,.94); color: #ffd2c9;
   font-size: 12px; line-height: 1.5; text-align: center; word-break: break-all;
 }
+
+/* ==== ガチャ・新ファイター通知 ==== */
+.gacha-screen { padding: 12px max(20px, env(safe-area-inset-right)) 52px max(20px, env(safe-area-inset-left)); overflow-y: auto; background: radial-gradient(circle at 50% 35%, #233755, #08111f 72%); }
+.gacha-header { display: flex; justify-content: space-between; align-items: center; width: min(940px, 96%); margin: 0 auto 8px; }
+.gacha-header small { color: #b9cce0; }
+.gacha-wallet { padding: 8px 18px; border: 1px solid #73d9ff; border-radius: 999px; color: #b8efff; background: rgba(3,18,34,.88); font-weight: 900; }
+.gacha-main { display: grid; grid-template-columns: minmax(220px, 38%) 1fr; gap: 14px; width: min(940px, 96%); margin: auto; }
+.gacha-pickup-card, .gacha-controls { border: 1px solid rgba(255,220,105,.62); border-radius: 16px; background: rgba(5,13,25,.88); box-shadow: 0 10px 30px rgba(0,0,0,.42); }
+.gacha-pickup-card { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 245px; padding: 10px; text-align: center; }
+.gacha-pickup-card img { width: min(145px, 42vh); height: min(145px, 42vh); object-fit: contain; filter: drop-shadow(0 0 14px rgba(255,223,91,.48)); }
+.gacha-pickup-label { color: #ffdb62; font-size: 12px; font-weight: 900; letter-spacing: .18em; }
+.gacha-pickup-card h2 { margin: 2px 0; color: #fff2b8; }
+.gacha-pickup-card p { margin: 0 0 5px; color: #c7d7e8; font-size: 11px; }
+#gacha-pity { padding: 5px 10px; border-radius: 999px; color: #fff; background: rgba(103,73,20,.72); font-size: 11px; }
+.gacha-controls { padding: 16px; }
+.gacha-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gacha-buttons button { min-height: 72px; border: 2px solid #f2cf60; border-radius: 12px; color: #fff; background: linear-gradient(#6a4217, #291c12); }
+.gacha-buttons button strong, .gacha-buttons button small { display: block; }
+.gacha-buttons button strong { font-size: 17px; }
+.gacha-buttons button:disabled { opacity: .42; filter: grayscale(.6); }
+.gacha-message { min-height: 20px; padding: 5px; color: #ffb6a9; text-align: center; }
+.gacha-shop-link { width: 100%; padding: 8px; border: 1px solid #6dbde0; border-radius: 8px; color: #d8f5ff; background: #12354a; font-weight: 800; }
+.gacha-rates { margin-top: 8px; color: #c6d3df; font-size: 11px; }
+.gacha-rates summary { cursor: pointer; color: #ffe59a; font-weight: 800; }
+#gacha-fighter-rates { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 5px 0; }
+.gacha-result-modal, .new-fighter-modal { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: 14px; background: rgba(0,0,0,.78); }
+.gacha-result-modal.hidden, .new-fighter-modal.hidden { display: none; }
+.gacha-result-card { width: min(760px, 94vw); max-height: 82vh; overflow-y: auto; padding: 16px; border: 2px solid #efd36a; border-radius: 16px; background: #0c1828; }
+.gacha-result-card h2 { margin: 0 0 10px; text-align: center; }
+#gacha-result-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.gacha-result { position: relative; display: flex; flex-direction: column; align-items: center; min-height: 88px; padding: 7px; border: 1px solid #637084; border-radius: 9px; background: #182536; text-align: center; }
+.gacha-result.rank-5 { border-color: #ffe55c; box-shadow: 0 0 13px rgba(255,224,67,.55); }
+.gacha-result.rank-4 { border-color: #bd78ff; }
+.gacha-result img { width: 44px; height: 44px; object-fit: contain; }
+.gacha-result b { color: #ffe790; }
+.gacha-result span { font-size: 10px; }
+.gacha-result em { position: absolute; right: 3px; top: 3px; color: #ffdc5f; font-size: 9px; }
+.gacha-result-card > button { display: block; min-width: 120px; margin: 12px auto 0; padding: 8px; }
+.new-fighter-card { display: flex; flex-direction: column; align-items: center; width: min(390px, 88vw); padding: 18px; border: 2px solid #ffe066; border-radius: 18px; background: radial-gradient(circle at 50% 30%, #334b72, #0b1423 72%); box-shadow: 0 0 40px rgba(255,218,67,.34); }
+.new-fighter-kicker { color: #ffe066; font-weight: 900; letter-spacing: .18em; }
+.new-fighter-card h2 { margin: 3px 0; }
+.new-fighter-card img { width: 125px; height: 125px; object-fit: contain; }
+.new-fighter-card > strong { color: #fff0ac; font-size: 23px; }
+.new-fighter-aptitudes { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; margin: 7px 0; }
+.new-fighter-aptitudes span { color: #cbd9e8; font-size: 11px; }.new-fighter-aptitudes b { margin-left: 3px; color: #fff; }
+.new-fighter-actions { display: flex; gap: 8px; }.new-fighter-actions button { padding: 8px 14px; }
+
+/* 未所持のモンスターは存在を見せつつ、1Pの玉だけ置けない。 */
+.fighter-card.fighter-locked { filter: brightness(.48) saturate(.55); }
+.fighter-lock-mark { position: absolute; z-index: 6; right: 8px; top: 8px; font-size: 23px; filter: none; }
+
+.admin-gacha-pane { width: min(760px, 92vw); margin: auto; }
+.admin-gacha-pane .debug-controls { justify-content: center; }
+.admin-gacha-actions { display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
+.admin-gacha-actions button { padding: 9px 15px; }
+#home-gold, #mypage-gold { color: #ffe095; }
+
+@media (max-height: 430px) {
+  .gacha-screen { padding-top: 6px; }
+  .gacha-header { margin-bottom: 4px; }
+  .gacha-main { grid-template-columns: minmax(190px, 34%) 1fr; gap: 8px; }
+  .gacha-pickup-card { min-height: 0; padding: 6px; }
+  .gacha-pickup-card img { width: 92px; height: 92px; }
+  .gacha-controls { padding: 9px; }
+  .gacha-buttons button { min-height: 58px; }
+  .gacha-buttons button strong { font-size: 14px; }
+  .gacha-rates { margin-top: 5px; }
+  #gacha-result-list { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}

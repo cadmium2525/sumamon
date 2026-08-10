@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="assets/images/app-icon.png">
 <link rel="apple-touch-icon" href="assets/images/app-icon.png">
-<link rel="stylesheet" href="css/style.css?v=80">
+<link rel="stylesheet" href="css/style.css?v=81">
 </head>
 <body class="layout-pending">
 
@@ -51,7 +51,7 @@
         <span class="home-profile-name"><b id="home-nickname">ブリーダー</b></span>
         <span class="home-breeder-line"><b id="home-breeder-level">ブリーダー Lv.1</b><small id="home-breeder-exp-text">0 / 100 EXP</small></span>
         <span class="home-breeder-exp"><i id="home-breeder-exp-fill"></i></span>
-        <span class="home-profile-currency"><b id="home-diamonds">💎 0</b><b id="home-practice-tickets">修行券 0</b></span>
+        <span class="home-profile-currency"><b id="home-diamonds">💎 0</b><b id="home-gold">G 0</b><b id="home-practice-tickets">修行券 0</b></span>
       </span>
     </button>
     <img class="home-logo" src="assets/images/logo.webp" alt="大乱闘スマッシュモンスターズ">
@@ -59,17 +59,31 @@
       <button class="menu-btn" id="btn-cpu">CPU戦</button>
       <button class="menu-btn" id="btn-multi">マルチ<span class="multi-exp-badge">1位で修行チケット</span></button>
       <button class="menu-btn" id="btn-training">マスモン管理</button>
-      <button class="menu-btn" id="btn-gacha">アイテム販売所</button>
+      <button class="menu-btn" id="btn-gacha">ガチャ</button>
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.53</small>
+    <small class="home-version">Version 1.54</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
+    <div id="new-fighter-modal" class="new-fighter-modal hidden" role="dialog" aria-modal="true" aria-labelledby="new-fighter-title">
+      <div class="new-fighter-card">
+        <span class="new-fighter-kicker">NEW FIGHTER</span>
+        <h2 id="new-fighter-title">新モンスター登場！</h2>
+        <img id="new-fighter-image" alt="新モンスター">
+        <strong id="new-fighter-name"></strong>
+        <div id="new-fighter-aptitudes" class="new-fighter-aptitudes"></div>
+        <div class="new-fighter-actions">
+          <button id="new-fighter-gacha">ガチャへ行く</button>
+          <button id="new-fighter-close">閉じる</button>
+        </div>
+      </div>
+    </div>
     <div id="home-history-modal" class="home-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="home-history-title">
       <div class="home-history-dialog">
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.54</time><strong>ガチャとゴールドを追加し、強いCPUの自滅を修正しました</strong><p><b>アイテム販売所の通貨をゴールド（G）へ変更</b>しました。これまで持っていたダイヤは、初回起動時に同じ額のGへそのまま引き継がれるため、残高は失われません。ダイヤはガチャ専用の通貨になり、CPU戦・段位戦・100人組手・マルチなどで新たに獲得できます。エンドレスはこれまでどおり報酬なしで、ランキングへの挑戦が目的です。<br><b>ガチャは1回150ダイヤ、10連1,500ダイヤ</b>。★5は1%、100連で天井、10連の最後は★3以上確定です。新しいモンスターはガチャで解放でき、同じ種族を重ねると「凸」が進みます。1凸ごとに同じ種族の全マスモンの6ステータスが30ずつ増え、最大5凸。ステータス上限999は変わりません。<br><b>強いCPUがステージ端から勝手に落ちる問題</b>は、実際の大会戦を再現して原因を調べ直しました。空中で技を出した勢いのまま戻れなくなる動きを防ぎ、後隙などで操作できない間にジャンプや上必殺を無駄遣いしないようにしました。さらにプレイヤーを含め、地上で技・回避中は崖の縁で止まります。育てたマスモンで崖際にダッシュ攻撃を出しても滑り落ちません。1.52で入れて1.53で取り下げた修正の、実戦計測に基づく正しい版です。</p></article>
           <article><time>Version 1.53</time><strong>1.52で入れたCPUの修正を取り下げました</strong><p>1.52で「強いCPUがステージ端で自滅する問題を修正」としてお伝えした変更を取り下げ、1.51の動作に戻しました。実際の対戦で計測し直したところ、<b>狙っていた場面がそもそも発生しておらず効果が確認できないうえ、CPUが場外へ出る回数がかえって増えていた</b>ためです。<br><b>ステージ端での自滅そのものは実在します。</b>原因を取り違えていたので、調べ直しています。</p></article>
           <article><time>Version 1.51</time><strong>空中回避を復帰に使える滑空へ作り直しました</strong><p>方向を入れた空中回避で、横へ少し進む間に大きく落ちてしまう問題を直しました。これからは入力方向へ滑っている間の落下がほぼ止まり、動作も短くなります。<b>中央へ向けて空中回避してから2段ジャンプ・上必殺を使う</b>と、遠くや深い位置からでも戻りやすくなります。滑り終わりには速度を落とすため、勢いのまま台の下へ潜り込むことも防いでいます。空中回避はこれまでどおり滞空中に1回だけですが、着地だけでなく崖を掴んだ時にも再び使えるようになります。</p></article>
           <article><time>Version 1.50</time><strong>ジャンプまわりを本家スマブラSPに合わせました（踏切3フレーム・小ジャンプ・空中の効き）</strong><p>空中の挙動を本家スマブラSPに近づける調整を3つ入れました。<br><b>1. ジャンプに「踏切」3フレームが入りました。</b>これまではボタンを押した瞬間に浮いていましたが、本家は全キャラ共通で<b>踏切3フレーム</b>があり、4フレーム目に離陸します。この間は<b>地上に居るので攻撃を食らいます</b>。「跳ぼうとしたところを潰す」という読み合いは、このフレームがあって初めて成立します。踏切中は攻撃・掴み・ガードも出せません（本家と同じ）。<b>空中ジャンプに踏切はありません</b>。これまでどおり押した瞬間に出ます。<br><b>2. 小ジャンプが高くなりました。</b>これまで小ジャンプは大ジャンプの<b>28%</b>しかなく、本家（<b>45〜55%</b>）と比べて低すぎました。<b>49%</b>に調整しています。あわせて成立条件も本家方式にしました。<b>踏切の間にボタンを離していれば小ジャンプ</b>で、<b>離陸したあとで小ジャンプに変えることはできません</b>（これまでは離陸後6フレーム以内なら変えられました）。<br><b>3. 空中で速度が乗るのが速くなりました。</b>最高速度に達するまで<b>26フレーム</b>かかっていたものを<b>20フレーム</b>にしました。本家は概ね15〜25フレームです。空中で方向を変えた時の反応が良くなり、<b>2段ジャンプ後の横移動が効くようになります</b>。最高速度そのものは変えていません。<br><b>ご注意：</b>タップジャンプ（上入力でジャンプ）を<b>ONにしていると、上＋Aが上強ではなく空上になります</b>。上を入れた時点で踏切に入り、本家では踏切中の攻撃入力が空中攻撃として出るためです。本家でも同じ挙動で、これを避けたい場合は設定でタップジャンプをOFFにしてください。</p></article>
@@ -180,7 +194,7 @@
           <div class="screen-heading">マイページ</div>
           <small id="mypage-username">ユーザー名</small>
         </div>
-        <div class="mypage-wallet"><b id="mypage-diamonds">💎 0</b><b id="mypage-practice-tickets">修行券 0</b></div>
+        <div class="mypage-wallet"><b id="mypage-diamonds">💎 0</b><b id="mypage-gold">G 0</b><b id="mypage-practice-tickets">修行券 0</b></div>
       </header>
 
       <nav class="mypage-tabs" aria-label="マイページメニュー">
@@ -226,13 +240,54 @@
     <button class="back-btn" data-back="home">戻る</button>
   </div>
 
+  <div id="screen-gacha" class="screen hidden scrollable-screen gacha-screen">
+    <div class="gacha-header">
+      <div>
+        <div class="screen-heading">モンスターガチャ</div>
+        <small>新しいモンスターや育成アイテムを獲得できます</small>
+      </div>
+      <div id="gacha-diamonds" class="gacha-wallet">💎 0</div>
+    </div>
+    <div class="gacha-main">
+      <section class="gacha-pickup-card">
+        <span class="gacha-pickup-label">PICK UP</span>
+        <img id="gacha-pickup-image" alt="ピックアップモンスター">
+        <h2 id="gacha-pickup-name">ピックアップなし</h2>
+        <p id="gacha-pickup-note"></p>
+        <div id="gacha-pity">天井まで あと100連</div>
+      </section>
+      <section class="gacha-controls">
+        <div class="gacha-buttons">
+          <button id="gacha-single"><strong>1回引く</strong><small>💎 150</small></button>
+          <button id="gacha-ten"><strong>10連を引く</strong><small>💎 1,500・10枠目★3以上</small></button>
+        </div>
+        <div id="gacha-message" class="gacha-message" aria-live="polite"></div>
+        <button id="btn-item-shop" class="gacha-shop-link">アイテム交換所（G）へ</button>
+        <details class="gacha-rates">
+          <summary>提供割合を見る</summary>
+          <p>★5 1% ／ ★4 12% ／ ★3 32% ／ ★2 55%</p>
+          <div id="gacha-fighter-rates"></div>
+          <small>100連目は★5確定。★5獲得で天井カウンタがリセットされます。</small>
+        </details>
+      </section>
+    </div>
+    <div id="gacha-result-modal" class="gacha-result-modal hidden" role="dialog" aria-modal="true" aria-labelledby="gacha-result-title">
+      <div class="gacha-result-card">
+        <h2 id="gacha-result-title">ガチャ結果</h2>
+        <div id="gacha-result-list"></div>
+        <button id="gacha-result-close">閉じる</button>
+      </div>
+    </div>
+    <button class="back-btn" data-back="home">戻る</button>
+  </div>
+
   <div id="screen-item-shop" class="screen hidden scrollable-screen item-shop-screen">
     <div class="item-shop-header">
       <div>
         <div class="screen-heading">アイテム販売所</div>
-        <small>育成に役立つアイテムをダイヤで購入できます</small>
+        <small>育成に役立つアイテムをゴールド（G）で交換できます</small>
       </div>
-      <div id="shop-diamonds" class="shop-diamonds">💎 0</div>
+      <div id="shop-diamonds" class="shop-diamonds">G 0</div>
     </div>
     <div id="item-shop-list" class="item-shop-list"></div>
     <div id="item-shop-toast" class="item-shop-toast hidden" aria-live="polite"></div>
@@ -248,7 +303,7 @@
             <input id="shop-quantity" type="number" inputmode="numeric" min="1" max="99" value="1" aria-label="購入数">
             <button id="shop-quantity-plus" aria-label="数量を増やす">＋</button>
           </div>
-          <div id="shop-modal-total" class="shop-modal-total">合計 💎 0</div>
+          <div id="shop-modal-total" class="shop-modal-total">合計 G 0</div>
           <button id="shop-purchase-confirm" class="shop-purchase-confirm">購入する</button>
         </div>
       </div>
@@ -301,6 +356,7 @@
       <button data-admin-tab="battle">バトルテスト</button>
       <button data-admin-tab="tools">ツール</button>
       <button data-admin-tab="players">プレイ状況確認</button>
+      <button data-admin-tab="gacha">ガチャ設定</button>
     </div>
     <div class="admin-pane" data-admin-pane="motion">
       <div class="debug-controls">
@@ -361,6 +417,18 @@
     <div class="admin-pane hidden admin-player-pane" data-admin-pane="players">
       <div class="admin-player-toolbar"><span id="admin-player-count"></span><button id="admin-player-refresh">更新</button></div>
       <div id="admin-player-list" class="admin-player-list"></div>
+    </div>
+    <div class="admin-pane hidden admin-gacha-pane" data-admin-pane="gacha">
+      <p id="admin-gacha-current">現在のピックアップを確認しています…</p>
+      <div class="debug-controls">
+        <label>ピックアップ<select id="admin-gacha-fighter"></select></label>
+        <label>終了日時（空欄は無期限）<input id="admin-gacha-until" type="datetime-local"></label>
+      </div>
+      <div class="admin-gacha-actions">
+        <button id="admin-gacha-save">この内容で設定</button>
+        <button id="admin-gacha-clear">手動指定を解除</button>
+      </div>
+      <div id="admin-gacha-status" class="multi-message" aria-live="polite"></div>
     </div>
     <button class="back-btn" data-back="home">戻る</button>
   </div>
@@ -516,13 +584,13 @@
   <div id="screen-cpu-mode" class="screen hidden">
     <div class="screen-heading">CPU戦 モード選択</div>
     <div class="cpu-mode-list">
-      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small><span class="cpu-mode-reward">マスモンEXP（戦績で変動）・💎50<br>ブリーダーEXP 50</span></button>
-      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>100体撃破でクリアバッジ獲得</small><span class="cpu-mode-reward reward-premium">到達報酬　最大💎1,500・修行券5枚<br>フリー券10枚＋クリアバッジ</span></button>
+      <button id="btn-mode-1on1" class="cpu-mode-card"><strong>通常バトル</strong><small>選んだ人数のCPUと対戦</small><span class="cpu-mode-reward">マスモンEXP（戦績で変動）<br>G 50・💎 勝30／敗10・ブリーダーEXP 50</span></button>
+      <button id="btn-mode-hundred" class="cpu-mode-card"><strong>100人組手</strong><small>100体撃破でクリアバッジ獲得</small><span class="cpu-mode-reward reward-premium">到達報酬　最大G 1,500・💎3,000<br>修行券5枚・フリー券10枚＋クリアバッジ</span></button>
       <div class="endless-mode-column">
         <button id="btn-mode-endless" class="cpu-mode-card"><strong>エンドレスモード</strong><small>限界まで撃破数に挑戦</small><span class="cpu-mode-reward reward-ranking">報酬なし・ランキングに記録</span></button>
         <button id="btn-endless-ranking" class="endless-ranking-button">🏆 エンドレスランキング</button>
       </div>
-      <button id="btn-mode-rank" class="cpu-mode-card rank-mode-card"><strong>段位戦</strong><small>Eランクから頂点をめざす</small><span class="cpu-mode-reward reward-premium">勝利報酬　EXP1,500～・💎100～<br>専用トレ券1枚～＋ブリーダーEXP</span></button>
+      <button id="btn-mode-rank" class="cpu-mode-card rank-mode-card"><strong>段位戦</strong><small>Eランクから頂点をめざす</small><span class="cpu-mode-reward reward-premium">勝利報酬　EXP1,500～・G 100～・💎400～<br>専用トレ券1枚～＋ブリーダーEXP</span></button>
     </div>
     <button class="back-btn" data-back="home">戻る</button>
     <div id="endless-ranking-modal" class="endless-ranking-modal hidden" role="dialog" aria-modal="true" aria-labelledby="endless-ranking-title">
@@ -677,19 +745,20 @@
   <script src="js/procedural-motion.js?v=3"></script>
   <script src="js/skin.js?v=2"></script>
   <script src="js/skin-editor.js?v=3"></script>
-  <script src="js/fighter.js?v=61"></script>
+  <script src="js/fighter.js?v=62"></script>
   <script src="js/fighters-data.js?v=10"></script>
-  <script src="js/debug-mode.js?v=12"></script>
+  <script src="js/debug-mode.js?v=13"></script>
   <script src="js/stage.js?v=33"></script>
   <script src="js/camera.js?v=3"></script>
-  <script src="js/cpu-ai.js?v=9"></script>
-  <script src="js/growth-system.js?v=47"></script>
-  <script src="js/rank-battle.js?v=1"></script>
-  <script src="js/practice.js?v=23"></script>
+  <script src="js/cpu-ai.js?v=10"></script>
+  <script src="js/growth-system.js?v=48"></script>
+  <script src="js/gacha.js?v=1"></script>
+  <script src="js/rank-battle.js?v=2"></script>
+  <script src="js/practice.js?v=24"></script>
   <script src="js/input.js?v=8"></script>
-  <script src="js/multiplayer.js?v=4"></script>
-  <script src="js/game.js?v=52"></script>
-    <script src="js/flow.js?v=68"></script>
+  <script src="js/multiplayer.js?v=5"></script>
+  <script src="js/game.js?v=53"></script>
+    <script src="js/flow.js?v=69"></script>
   <script src="js/pwa.js?v=14"></script>
 </body>
 </html>

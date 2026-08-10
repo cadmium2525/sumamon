@@ -19,6 +19,8 @@ const DebugMotionViewer = {
     this.buildAudioList();
     this.setupToolLink();
     document.getElementById('admin-player-refresh').addEventListener('click', () => this.loadPlayerActivity());
+    document.getElementById('admin-gacha-save').addEventListener('click', () => this.saveGachaPickup(false));
+    document.getElementById('admin-gacha-clear').addEventListener('click', () => this.saveGachaPickup(true));
 
     // 修行テスト：どのfighterで試すか選べるようにする
     const practiceFighterSelect = document.getElementById('debug-practice-fighter-select');
@@ -255,6 +257,45 @@ const DebugMotionViewer = {
     if (pending) setTimeout(() => this.refreshAudioLoadState(), 700);
   },
 
+  renderGachaSettings() {
+    if (!window.GACHA) return;
+    const select = document.getElementById('admin-gacha-fighter');
+    select.innerHTML = Object.values(FIGHTERS).map(fighter =>
+      `<option value="${fighter.key}">${this.escape(fighter.displayName)}</option>`).join('');
+    const automatic = GACHA.automaticPickupKey();
+    const current = GACHA.pickupKey();
+    if (current) select.value = current;
+    const currentDef = FIGHTERS[current];
+    const autoDef = FIGHTERS[automatic];
+    const untilInput = document.getElementById('admin-gacha-until');
+    if (GACHA.pickupSource() === 'manual' && GACHA.manualPickup?.until) {
+      const date = new Date(GACHA.manualPickup.until);
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      untilInput.value = local.toISOString().slice(0, 16);
+    } else {
+      untilInput.value = '';
+    }
+    document.getElementById('admin-gacha-current').textContent = current
+      ? `現在：${currentDef?.displayName || current}（${GACHA.pickupSource() === 'manual' ? '手動指定' : '自動'}）／ 自動候補：${autoDef?.displayName || 'なし'}`
+      : '現在のピックアップはありません';
+  },
+
+  async saveGachaPickup(clear) {
+    const status = document.getElementById('admin-gacha-status');
+    status.textContent = '保存しています…';
+    try {
+      const key = clear ? '' : document.getElementById('admin-gacha-fighter').value;
+      const raw = document.getElementById('admin-gacha-until').value;
+      const until = !clear && raw ? new Date(raw).getTime() : 0;
+      if (until && until <= Date.now()) throw new Error('終了日時は現在より後にしてください');
+      await GACHA.savePickupConfig(key, until);
+      status.textContent = clear ? '手動指定を解除しました' : 'ピックアップを設定しました';
+      this.renderGachaSettings();
+    } catch (error) {
+      status.textContent = `保存できませんでした：${error.message || error}`;
+    }
+  },
+
   switchTab(tabName) {
     document.querySelectorAll('[data-admin-tab]').forEach(button => button.classList.toggle('active', button.dataset.adminTab === tabName));
     document.querySelectorAll('[data-admin-pane]').forEach(pane => pane.classList.toggle('hidden', pane.dataset.adminPane !== tabName));
@@ -265,6 +306,7 @@ const DebugMotionViewer = {
     }
     if (tabName === 'players') this.loadPlayerActivity();
     if (tabName === 'bgm') this.refreshAudioLoadState();
+    if (tabName === 'gacha') this.renderGachaSettings();
   },
 
   async loadPlayerActivity() {
@@ -282,7 +324,7 @@ const DebugMotionViewer = {
       start: 'スタート', home: 'ホーム', mypage: 'マイページ', 'cpu-mode': 'CPUモード選択',
       'stage-select': 'ステージ選択', 'fighter-select': 'モンスター選択', 'cpu-level': 'CPUレベル選択',
       battle: 'バトル中', result: 'リザルト', training: 'トレーニング', 'masmon-manage': 'マスモン管理',
-      'multi-menu': 'マルチメニュー', 'multi-lobby': 'マルチロビー', 'item-shop': 'アイテム販売所', debug: '管理者モード',
+      'multi-menu': 'マルチメニュー', 'multi-lobby': 'マルチロビー', gacha: 'ガチャ', 'item-shop': 'アイテム交換所', debug: '管理者モード',
     };
     list.innerHTML = records.map(record => {
       const seen = Number(record.lastSeenAt) || 0;
