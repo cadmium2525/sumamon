@@ -176,6 +176,10 @@ class CPUController {
   // これ以上を狙わせても、当たる前に自滅して相手にストックを渡すだけになる。
   static PURSUIT_SAFETY = 0.1;
 
+  // 技を出してから移動入力が効くまでの見込み時間。空中通常必殺の
+  // 全体21F＋後隙10Fを基準に、崖際で戻れなくなる距離を先読みする。
+  static ATTACK_COMMIT_FRAMES = 30;
+
   _pursuitLimit() {
     const self = this.fighter;
     if (self.helpless) return 0;
@@ -236,6 +240,19 @@ class CPUController {
 
     const limit = this._pursuitLimit();
     const vx = self.vx || 0;
+
+    // 空中で技を出すと、技の全体フレームと後隙の間は左右入力が効かず、
+    // 出した瞬間の速度のまま運ばれる。現在はまだ場内でも、操作が戻る頃に
+    // 復帰可能範囲を越えるなら技だけを控える。場内へ向かう勢いなら許可する。
+    if (input.attack || input.special || input.grab) {
+      const carried = cx + vx * CPUController.ATTACK_COMMIT_FRAMES;
+      const outAfter = Math.max(stage.x - carried, carried - (stage.x + stage.w));
+      if (outAfter > limit) {
+        input.attack = false;
+        input.special = false;
+        input.grab = false;
+      }
+    }
     const brake = (vx * vx) / (2 * accel);
     const outLeft = (stage.x - cx) + (vx < 0 ? brake : 0);
     const outRight = (cx - (stage.x + stage.w)) + (vx > 0 ? brake : 0);
@@ -507,6 +524,15 @@ class CPUController {
 
     // 上必殺を使い切っていたら、あとは横に寄せることしかできない
     if (self.helpless) {
+      input.left = toward < 0; input.right = toward > 0; input.stickX = toward;
+      return input;
+    }
+
+    // この間は applyInput が入力を捨てる。空中ジャンプや上必殺を押しても
+    // 復帰には使われず、権利や高さだけを失うため、内側へ入力したまま待つ。
+    // ジャンプ条件に足すだけでは下の上必殺へ進んでしまうので、必ず打ち切る。
+    if (self.attackTimer > 0 || self.recoveryTimer > 0 || self.landingLag > 0 ||
+        self.dodgeTimer > 0 || self.hitstun > 0 || self.shieldDropLag > 0) {
       input.left = toward < 0; input.right = toward > 0; input.stickX = toward;
       return input;
     }

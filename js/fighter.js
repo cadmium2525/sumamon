@@ -1523,6 +1523,26 @@ class Fighter {
     this.y += this.vy;
     Physics.resolvePlatformCollision(this, platforms);
 
+    // 本家と同じく、地上の技・後隙・着地隙・地上回避中は崖の縁で止める。
+    // 高回避のマスモンは技中の横慣性が大きく、入力不能のまま足場から
+    // 滑り落ちていた。走って自分から飛び出す動きと、被弾による吹っ飛びは
+    // 必要なため、止められない地上動作の最中だけに限定する。
+    const groundedActionLocked = this.attackTimer > 0 || this.recoveryTimer > 0 ||
+      this.landingLag > 0 || (this.dodgeTimer > 0 && this.dodgeType !== 'air');
+    if (this.onGround && groundedActionLocked && this.hitstun <= 0 &&
+        !this.tumbling && !this.downed && this.groundedPlatform != null) {
+      const platform = platforms[this.groundedPlatform];
+      if (platform) {
+        const center = this.x + this.w / 2;
+        const left = platform.x;
+        const right = platform.x + platform.w;
+        if (center < left || center > right) {
+          this.x = Math.max(left, Math.min(right, center)) - this.w / 2;
+          this.vx = 0;
+        }
+      }
+    }
+
     // 地面を離れた時点で「地上ジャンプの権利」を失う。
     //
     // 本家では、ジャンプ以外の理由で地面を離れた時（吹き飛ばされた・台から歩いて
