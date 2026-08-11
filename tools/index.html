@@ -437,6 +437,13 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
       <input id="ed-frame-foot" type="range" min="-60" max="60" value="0">
       <label>このコマの表示サイズ <span id="ed-frame-scale-value">100</span>%</label>
       <input id="ed-frame-scale" type="range" min="55" max="185" value="100">
+      <label>このコマの横位置 <span id="ed-frame-shift-value">0</span>px（＋でキャラの向いている方へ）</label>
+      <input id="ed-frame-shift" type="range" min="-120" max="120" value="0">
+      <p class="note" style="margin-top:6px">パンチのように腕が前へ伸びる技は、伸びた腕のぶん枠が前へ広がり、
+        体が後ろへずれて見えます。<b>待機モーション（薄い影）に背中が重なるまで</b>横位置をずらしてください。<br>
+        ずれ方は全コマ共通なので、決まったら<b>「この調整を全コマに適用」</b>でまとめて配れます。
+        <b>攻撃判定も絵と一緒に動きます。</b></p>
+      <button id="ed-frame-apply-all" type="button">この調整を全コマに適用</button>
       <button id="ed-frame-reset" type="button">このコマの調整を消す</button>
     </div>
     <div id="ed-kept" class="kept-note hidden"></div>

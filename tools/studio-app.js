@@ -1054,6 +1054,11 @@ const Studio = {
       this.el('ed-frame-scale-value').textContent = event.target.value;
       this.updateFrameAdjust();
     });
+    this.el('ed-frame-shift').addEventListener('input', event => {
+      this.el('ed-frame-shift-value').textContent = event.target.value;
+      this.updateFrameAdjust();
+    });
+    this.el('ed-frame-apply-all').addEventListener('click', () => this.applyFrameAdjustToAll());
     this.el('ed-frame-reset').addEventListener('click', () => this.clearFrameAdjust());
     this.el('ed-duration').addEventListener('input', event => {
       this.el('ed-dur-value').textContent = event.target.value;
@@ -1199,15 +1204,24 @@ const Studio = {
     const sizeScale = (Number(this.el('atk-size').value) || 100) / 100;
     const base = usable[0];
     const hitboxes = [];
+    // 判定の相対座標は「箱の横中心・下端・高さ」を原点と単位にしている。
+    // ゲーム側は絵をコマ別の箱で描くので、変換にも同じ箱を使わないと
+    // 絵だけが動いて判定が元の位置に取り残される（パンチなら拳が判定より前に出る）。
+    // hitFrames は「使うコマだけ」側の添字、frameContentBoxes は元のコマ側の添字なので、
+    // usedIndexes で必ず変換すること。直接使うと1つずつずれる。
+    const usedIndexes = entry.canvases.map((_, i) => i).filter(i => entry.used[i]);
+    const boxFor = index => (entry.frameContentBoxes
+      && entry.frameContentBoxes[usedIndexes[index]]) || entry.contentBox;
     for (const index of hitFrames) {
       const region = StudioImage.weaponRegion(usable[index], base);
+      const box = boxFor(index);
       const rect = region || {
         // 差分が取れなかったコマは体の前方に標準的な判定を置く
-        left: entry.contentBox.right, top: entry.contentBox.top + (entry.contentBox.bottom - entry.contentBox.top) * 0.3,
-        right: entry.contentBox.right + (entry.contentBox.bottom - entry.contentBox.top) * 0.5,
-        bottom: entry.contentBox.top + (entry.contentBox.bottom - entry.contentBox.top) * 0.75,
+        left: box.right, top: box.top + (box.bottom - box.top) * 0.3,
+        right: box.right + (box.bottom - box.top) * 0.5,
+        bottom: box.top + (box.bottom - box.top) * 0.75,
       };
-      const relative = StudioImage.toRelativeBox(rect, entry.contentBox, sizeScale);
+      const relative = StudioImage.toRelativeBox(rect, box, sizeScale);
       if (!relative) continue;
       hitboxes.push({ frames: [index * duration, (index + 1) * duration - 1], ...relative,
         auto: !!region });
@@ -1521,6 +1535,9 @@ const Studio = {
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
     // contentBox は「足元をずらしてから、上端だけを伸縮させた」形で作られている。
     // コマ別の箱も同じ式で逆算し、読み込んで保存するだけで調整が消えないようにする。
+    // 横位置は左右を丸ごとずらしただけなので、中心の差から戻せる。
+    // nudgeBottom は bottom、サイズ調整は top しか動かさないため、
+    // left / right は「union のまま − ずらし分」になっている。
     const invert = box => {
       const foot = clamp(Math.round(box.bottom - union.bottom), -60, 60);
       const rawBottom = union.bottom + foot;
@@ -1528,8 +1545,11 @@ const Studio = {
       const size = savedHeight > 0
         ? clamp(Math.round(100 * (rawBottom - union.top) / savedHeight), 55, 185)
         : 100;
-      return { foot, size };
+      const shift = clamp(Math.round(
+        ((union.left + union.right) / 2) - ((box.left + box.right) / 2)), -120, 120);
+      return { foot, size, shift };
     };
+    // モーション全体のつまみには横位置が無いので、ここでは foot と size だけ使う
     const { foot, size } = invert(savedBox);
     this.el('ed-foot').value = foot;
     this.el('ed-foot-value').textContent = String(foot);
@@ -1540,7 +1560,10 @@ const Studio = {
       savedFrameBoxes.slice(0, entry.frameBoxes.length).forEach((box, index) => {
         if (!box) return;
         const adjustment = invert(box);
-        if (adjustment.foot !== foot || adjustment.size !== size) entry.frameAdjust[index] = adjustment;
+        // 足元・サイズがモーション全体と同じでも、横位置がついていれば「調整あり」
+        if (adjustment.foot !== foot || adjustment.size !== size || adjustment.shift !== 0) {
+          entry.frameAdjust[index] = adjustment;
+        }
       });
     }
     this.processFrames();
@@ -1746,8 +1769,16 @@ const Studio = {
         const adjustment = entry.frameAdjust[index] || null;
         const foot = adjustment ? adjustment.foot : entry.footOffset;
         const size = adjustment ? adjustment.size : entry.sizePercent;
+        // 横位置はモーション全体のつまみを作っていないので、既定は常に0。
+        // contentBox を横にずらすと技の判定の原点まで動いてしまうため、
+        // 横方向はコマ別の箱だけで扱う（判定は buildAttack 側で追従させる）。
+        const shift = adjustment ? (adjustment.shift || 0) : 0;
         const base = StudioImage.nudgeBottom(union, foot);
-        return { ...base, top: Math.round(base.bottom - (base.bottom - base.top) * (100 / size)) };
+        const box = { ...base, top: Math.round(base.bottom - (base.bottom - base.top) * (100 / size)) };
+        // 描画位置は cx -（left+right)/2 * scale なので、左右を減らすと画面上では右へ動く。
+        // つまみを＋にした時にプレビューの右（＝キャラの前方）へ動くよう符号を逆にする。
+        if (shift) { box.left -= shift; box.right -= shift; }
+        return box;
       }) : [];
       if (entry.used.length !== canvases.length) entry.used = canvases.map(() => true);
       // 待機モーションからは体格（当たり判定）の目安を自動で決める
@@ -1763,23 +1794,37 @@ const Studio = {
     this.refreshLoadExistingButton();
   },
 
-  // コマ一覧の⇕から、そのコマだけ足元と表示サイズを上書きする。
+  // コマ一覧の⇕から、そのコマだけ足元・表示サイズ・横位置を上書きする。
   // タイル本体の「使う／使わない」とは別操作なので、選択状態はここでは変えない。
   openFrameAdjust(index) {
     const entry = this.motions[this.editing.slot];
     if (!entry || !entry.canvases[index]) return;
     this.stopPlay();
     this.frameAdjustIndex = index;
-    const adjustment = (entry.frameAdjust && entry.frameAdjust[index]) || null;
-    const foot = adjustment ? adjustment.foot : (entry.footOffset || 0);
-    const size = adjustment ? adjustment.size : (entry.sizePercent || 100);
     this.el('ed-frame-adjust-title').textContent = `${index + 1}コマ目だけを調整`;
+    this._showFrameAdjustValues(this.frameAdjustValues(index));
+    this.el('ed-frame-adjust').classList.remove('hidden');
+    this.focusFrameAdjust(index);
+  },
+
+  // そのコマに効いている調整値。未指定ならモーション全体の値（横位置だけは常に0）。
+  frameAdjustValues(index) {
+    const entry = this.motions[this.editing.slot];
+    const adjustment = (entry && entry.frameAdjust && entry.frameAdjust[index]) || null;
+    return {
+      foot: adjustment ? adjustment.foot : ((entry && entry.footOffset) || 0),
+      size: adjustment ? adjustment.size : ((entry && entry.sizePercent) || 100),
+      shift: adjustment ? (adjustment.shift || 0) : 0,
+    };
+  },
+
+  _showFrameAdjustValues({ foot, size, shift }) {
     this.el('ed-frame-foot').value = foot;
     this.el('ed-frame-foot-value').textContent = String(foot);
     this.el('ed-frame-scale').value = size;
     this.el('ed-frame-scale-value').textContent = String(size);
-    this.el('ed-frame-adjust').classList.remove('hidden');
-    this.focusFrameAdjust(index);
+    this.el('ed-frame-shift').value = shift;
+    this.el('ed-frame-shift-value').textContent = String(shift);
   },
 
   focusFrameAdjust(index) {
@@ -1791,17 +1836,37 @@ const Studio = {
     this.showFrame();
   },
 
+  _currentFrameAdjustInput() {
+    return {
+      foot: Number(this.el('ed-frame-foot').value) || 0,
+      size: Number(this.el('ed-frame-scale').value) || 100,
+      shift: Number(this.el('ed-frame-shift').value) || 0,
+    };
+  },
+
   updateFrameAdjust() {
     const index = this.frameAdjustIndex;
     const entry = this.motions[this.editing.slot];
     if (index == null || !entry) return;
     if (!Array.isArray(entry.frameAdjust)) entry.frameAdjust = [];
-    entry.frameAdjust[index] = {
-      foot: Number(this.el('ed-frame-foot').value) || 0,
-      size: Number(this.el('ed-frame-scale').value) || 100,
-    };
+    entry.frameAdjust[index] = this._currentFrameAdjustInput();
     this.processFrames();
     this.focusFrameAdjust(index);
+  },
+
+  // パンチのように腕が前へ伸びる技は、伸びた分だけ枠の中心が前へ寄るため
+  // ずれ方が全コマ共通になる。1コマずつ同じ値を入れ直すのは手間なので、
+  // いま開いているコマの調整をそのまま全コマへ配れるようにする。
+  applyFrameAdjustToAll() {
+    const index = this.frameAdjustIndex;
+    const entry = this.motions[this.editing.slot];
+    if (index == null || !entry || !entry.canvases.length) return;
+    const values = this._currentFrameAdjustInput();
+    entry.frameAdjust = entry.canvases.map(() => ({ ...values }));
+    this.processFrames();
+    this.focusFrameAdjust(index);
+    this.el('ed-box').textContent = `${entry.canvases.length}コマすべてに `
+      + `足元${values.foot}px ／ 表示サイズ${values.size}% ／ 横位置${values.shift}px を適用しました。`;
   },
 
   clearFrameAdjust() {
@@ -1810,12 +1875,7 @@ const Studio = {
     if (index == null || !entry) return;
     if (!Array.isArray(entry.frameAdjust)) entry.frameAdjust = [];
     entry.frameAdjust[index] = undefined;
-    const foot = entry.footOffset || 0;
-    const size = entry.sizePercent || 100;
-    this.el('ed-frame-foot').value = foot;
-    this.el('ed-frame-foot-value').textContent = String(foot);
-    this.el('ed-frame-scale').value = size;
-    this.el('ed-frame-scale-value').textContent = String(size);
+    this._showFrameAdjustValues(this.frameAdjustValues(index));
     this.processFrames();
     this.focusFrameAdjust(index);
   },
