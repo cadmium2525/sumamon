@@ -162,7 +162,7 @@ class CPUController {
   // 崖の外へ出てよい距離。「今の手持ちで戻れる距離」の1割までとする。
   //
   // 実測値（コスモ・崖の外側へ何pxまでなら復帰できたか）:
-  //   空中ジャンプ2回残り 311 ／ 1回残り 547 ／ 上必殺のみ 90 ／ helpless 0
+  //   空中ジャンプ2回残り 300 ／ 1回残り 420 ／ 上必殺のみ 260 ／ helpless 0
   // 2回残りの方が短いのは、復帰処理が空中ジャンプを早い段階で使い切るため。
   // 見込みで多く見積もると落ちるので、実測どおりの値を使う。
   //
@@ -185,7 +185,7 @@ class CPUController {
     if (self.helpless) return 0;
     const maxJumps = (typeof CONFIG !== 'undefined' && CONFIG.MAX_JUMPS) || 2;
     const jumpsLeft = Math.max(0, maxJumps - (self.jumpsUsed || 0));
-    const reach = jumpsLeft >= 2 ? 311 : (jumpsLeft === 1 ? 547 : 90);
+    const reach = jumpsLeft >= 2 ? 300 : (jumpsLeft === 1 ? 420 : 260);
     return Math.round(reach * CPUController.PURSUIT_SAFETY);
   }
 
@@ -230,7 +230,7 @@ class CPUController {
     const jumpsLeft = Math.max(0, maxJumps - (self.jumpsUsed || 0));
 
     // 場外では、追撃のために最後の空中ジャンプを使わせない。
-    // 使い切ると残るのは上必殺だけになり、実測で崖の外90pxまでしか戻れなくなる。
+    // 使い切ると残るのは上必殺だけになり、実測で崖の外260pxまでしか戻れなくなる。
     // 復帰処理（_recoveryIntent）はここを通らないので、戻るためには使える。
     if ((cx < stage.x || cx > stage.x + stage.w) && jumpsLeft <= 1) input.jump = false;
 

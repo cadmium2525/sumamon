@@ -342,6 +342,32 @@ class Fighter {
     if (this.downEdge) this.dirPressTime.down = now; else if (!input.down) this.dirPressTime.down = null;
   }
 
+  // しりもち落下中の横移動。通常の空中制御を弱めたもの。
+  // 入力が無い時の空気抵抗もここで掛ける。これが無いと上必殺直後の横速度が
+  // 着地か撃墜まで残り続け、崖へ向け直すことができない。
+  // ジャンプ・攻撃・必殺・回避・急降下は、この処理後すぐreturnするため使用できない。
+  _applyHelplessDrift(input) {
+    const stickX = input.stickX || 0;
+    const absX = Math.abs(stickX);
+    const control = CONFIG.HELPLESS_AIR_CONTROL;
+    const airMax = Physics.computeMoveSpeed(this.stats.evasion, true)
+      * CONFIG.AIR_MAX_SPEED_RATIO * control;
+    if (absX < CONFIG.WALK_DEADZONE) {
+      this.vx *= CONFIG.AIR_FRICTION;
+      return;
+    }
+    const dir = Math.sign(stickX);
+    const speed = Math.abs(this.vx);
+    if (speed > airMax && Math.sign(this.vx) === dir) {
+      this.vx *= CONFIG.AIR_FRICTION;
+      return;
+    }
+    const target = dir * airMax * Math.min(1, absX / CONFIG.DASH_TILT_THRESHOLD);
+    const accel = CONFIG.AIR_ACCEL * control * absX;
+    if (this.vx < target) this.vx = Math.min(target, this.vx + accel);
+    else if (this.vx > target) this.vx = Math.max(target, this.vx - accel);
+  }
+
   // input: { left, right, up, down, jump, attack, special, shield, grab }
   applyInput(input) {
     if (this.dead) return;
@@ -434,9 +460,10 @@ class Fighter {
     if (this.grabbing) { this.handleGrabInput(input); return; }
     if (this.smashCandidate) { this.handleSmashCharge(input); return; }
 
-    // 行動不能（上B使用後など）：着地するまで一切の操作を受け付けない
+    // 行動不能（上B使用後など）：攻撃・ジャンプ・回避はできないまま、
+    // 本家のしりもち落下と同じく横方向の空中制御だけを残す。
     if (this.helpless) {
-      if (!this.onGround) return;
+      if (!this.onGround) { this._applyHelplessDrift(input); return; }
       this.helpless = false;
     }
 
