@@ -81,6 +81,12 @@ button:disabled { opacity: .45; }
 .frame .tuned { position: absolute; left: 3px; bottom: 2px; color: #ffd45e; font-size: 10px; font-weight: 900; font-style: normal; text-shadow: 0 1px 2px #000; }
 .frame-edit { position: absolute; right: 2px; top: 2px; width: 22px; height: 22px; padding: 0;
   border: 1px solid #3d5a78; border-radius: 6px; background: rgba(10,18,28,.8); color: #ffd45e; font-size: 12px; line-height: 1; }
+.frame-adjust-button { position: absolute; right: 28px; top: 2px; width: 22px; height: 22px; padding: 0;
+  border: 1px solid #3d5a78; border-radius: 6px; background: rgba(10,18,28,.8); color: #7ce0ff; font-size: 13px; line-height: 1; }
+.frame-adjust { margin-top: 10px; padding: 10px 12px; border: 1px solid #3d6b83; border-radius: 10px; background: #102331; }
+.frame-adjust.hidden { display: none; }
+.frame-adjust strong { color: #dff5ff; font-size: 13px; }
+.frame-adjust button { width: 100%; margin-top: 10px; border-color: #597184; background: #142532; color: #c7d8e5; }
 /* ---- コマ1枚の背景を手で直す画面 ---- */
 .mask-editor .mask-body { display: flex; flex-direction: column; height: calc(100% - 58px); }
 .mask-stage { flex: 1; min-height: 40vh; margin: 8px 10px 0; border: 1px solid #22344a; border-radius: 10px;
@@ -417,14 +423,22 @@ button.ghost { border-color: #2b3f57; background: #0f1a27; color: #9fb6c7; font-
     <!-- しゃがみのように姿勢を保つモーションは、繰り返さず最後のコマで止める -->
     <label class="check" style="margin-top:10px"><input id="ed-loop" type="checkbox" checked> コマを繰り返す（ループ再生）</label>
     <p class="note" id="ed-loop-note">外すと<b>最後のコマで止まります</b>。しゃがみのように「入力している間ずっとその姿勢」でいてほしいモーションは外してください。</p>
-    <label>足元の位置を微調整 <span id="ed-foot-value">0</span>px — 影が残る/削れすぎる時だけ動かします</label>
+    <label>足元の位置を微調整 <span id="ed-foot-value">0</span>px — 影が残る/削れすぎる時だけ動かします（コマ別に上書きしていないコマに効きます）</label>
     <input id="ed-foot" type="range" min="-60" max="60" value="0">
     <div class="row" style="margin-top:12px">
       <button id="ed-apply">この設定で作り直す</button>
       <button id="ed-play">再生 / 停止</button>
     </div>
-    <label>表示サイズ <span id="ed-scale-value">100</span>% — 待機モーション（薄い影）と体の大きさが揃うように調整します</label>
+    <label>表示サイズ <span id="ed-scale-value">100</span>% — 待機モーション（薄い影）と体の大きさが揃うように調整します（コマ別に上書きしていないコマに効きます）</label>
     <input id="ed-scale" type="range" min="55" max="185" value="100">
+    <div id="ed-frame-adjust" class="frame-adjust hidden">
+      <strong id="ed-frame-adjust-title">1コマ目だけを調整</strong>
+      <label>このコマの足元 <span id="ed-frame-foot-value">0</span>px</label>
+      <input id="ed-frame-foot" type="range" min="-60" max="60" value="0">
+      <label>このコマの表示サイズ <span id="ed-frame-scale-value">100</span>%</label>
+      <input id="ed-frame-scale" type="range" min="55" max="185" value="100">
+      <button id="ed-frame-reset" type="button">このコマの調整を消す</button>
+    </div>
     <div id="ed-kept" class="kept-note hidden"></div>
     <!-- 登録済みのモーションを読み込み直して、コマ送りの速さ・足元・透過だけ直せるようにする -->
     <button id="ed-load-existing" type="button" class="load-existing hidden">登録済みのコマを読み込んで編集する</button>

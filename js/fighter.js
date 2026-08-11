@@ -51,6 +51,13 @@ class Fighter {
     return !!(state && state.config.contentBox && state.failed === 0 && state.loaded >= state.images.length);
   }
 
+  // そのコマの表示枠。コマ別の指定が無ければアニメーション共通の箱を使う。
+  static animationBox(config, index) {
+    const list = config && config.frameContentBoxes;
+    if (Array.isArray(list) && list[index]) return list[index];
+    return (config && config.contentBox) || null;
+  }
+
   // ループさせずに最後のコマで止める状態。
   // 「入力を保持している間ずっとその姿勢でいる」ものと、「一度その形になったら
   // 状態が変わるまで戻らない」ものが該当する。しゃがみをループさせると、
@@ -1723,17 +1730,18 @@ class Fighter {
     ctx.globalAlpha = alpha;
   }
 
-  _drawAnimationImage(ctx, image, box, nextImage, blend) {
+  _drawAnimationImage(ctx, image, box, nextImage, blend, nextBox) {
     const cx = this.x + this.w / 2;
-    const scale = this.h / (box.bottom - box.top);
-    const drawOne = src => {
+    const drawOne = (src, useBox) => {
       if (!src || !src.complete || src.naturalWidth === 0) return;
+      if (!useBox) return;
+      const scale = this.h / (useBox.bottom - useBox.top);
       // 塗り替え後はキャンバスになるため、読み込み判定を済ませてから差し替える
       const img = this._skinned(src);
       const drawW = img.width * scale;
       const drawH = img.height * scale;
-      const contentCenterX = ((box.left + box.right) / 2) * scale;
-      ctx.drawImage(img, cx - contentCenterX, this.y - box.top * scale, drawW, drawH);
+      const contentCenterX = ((useBox.left + useBox.right) / 2) * scale;
+      ctx.drawImage(img, cx - contentCenterX, this.y - useBox.top * scale, drawW, drawH);
     };
     ctx.save();
     if (this.facing === -1) {
@@ -1745,11 +1753,11 @@ class Fighter {
     if (nextImage && blend > 0) {
       // 元のコマを薄くしないことで、合成中に全体が点滅するのを防ぐ。
       ctx.globalAlpha = baseAlpha;
-      drawOne(image);
+      drawOne(image, box);
       ctx.globalAlpha = baseAlpha * blend;
-      drawOne(nextImage);
+      drawOne(nextImage, nextBox || box);
     } else {
-      drawOne(image);
+      drawOne(image, box);
     }
     ctx.restore();
   }
@@ -1828,19 +1836,22 @@ class Fighter {
       const moveElapsed = this.currentMove.duration - this.attackTimer;
       const duration = moveAnimation.config.frameDuration || 6;
       const index = Math.min(moveAnimation.images.length - 1, Math.floor(moveElapsed / duration));
-      const next = moveAnimation.images[Math.min(index + 1, moveAnimation.images.length - 1)];
-      this._drawAnimationImage(ctx, moveAnimation.images[index], moveAnimation.config.contentBox, next,
-        crossfadeAmount((moveElapsed % duration) / duration));
+      const nextIndex = Math.min(index + 1, moveAnimation.images.length - 1);
+      const next = moveAnimation.images[nextIndex];
+      this._drawAnimationImage(ctx, moveAnimation.images[index], Fighter.animationBox(moveAnimation.config, index), next,
+        crossfadeAmount((moveElapsed % duration) / duration), Fighter.animationBox(moveAnimation.config, nextIndex));
     } else if (picked) {
       const state = picked.state;
       const duration = state.config.frameDuration || 6;
       const index = Math.min(state.images.length - 1, this.animFrame);
       // ジャンプは繰り返さないため次コマへの合成もしない
-      const next = picked.key === 'jump'
-        ? state.images[Math.min(index + 1, state.images.length - 1)]
-        : state.images[(index + 1) % state.images.length];
-      this._drawAnimationImage(ctx, state.images[index], state.config.contentBox, next,
-        state.images.length > 1 ? crossfadeAmount(this.animTimer / duration) : 0);
+      const nextIndex = picked.key === 'jump'
+        ? Math.min(index + 1, state.images.length - 1)
+        : (index + 1) % state.images.length;
+      const next = state.images[nextIndex];
+      this._drawAnimationImage(ctx, state.images[index], Fighter.animationBox(state.config, index), next,
+        state.images.length > 1 ? crossfadeAmount(this.animTimer / duration) : 0,
+        Fighter.animationBox(state.config, nextIndex));
       this._drawStatusEllipse(ctx, bodyColor);
     } else if (useWalkSheet) {
       const cx = this.x + this.w / 2;

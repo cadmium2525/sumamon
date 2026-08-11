@@ -16,6 +16,7 @@ const Studio = {
   editing: null,
   playTimer: null,
   playIndex: 0,
+  frameAdjustIndex: null, // コマ別の足元・表示サイズを調整している元コマの添字
 
   el(id) { return document.getElementById(id); },
 
@@ -352,6 +353,7 @@ const Studio = {
       canvases: [],
       used: sources.map(() => true),
       frameOptions: sources.map(() => null),
+      frameAdjust: sources.map(() => undefined),
       masks: sources.map(() => null),
       frameDuration: Number(this.el('ed-duration').value),
       options: { mode: this.el('ed-bgmode').value, threshold: Number(this.el('ed-threshold').value) },
@@ -894,6 +896,8 @@ const Studio = {
           loop: animation.loop != null ? animation.loop : null,
           // 読み込んで編集し直す時に、足元と表示サイズを元どおりに復元するために要る
           contentBox: animation.contentBox || null,
+          frameContentBoxes: Array.isArray(animation.frameContentBoxes)
+            ? animation.frameContentBoxes.map(box => box && { ...box }) : null,
         };
       }
     }
@@ -909,6 +913,8 @@ const Studio = {
             info.duration = move.animation.frameDuration || 6;
             info.loop = move.animation.loop != null ? move.animation.loop : null;
             info.contentBox = move.animation.contentBox || null;
+            info.frameContentBoxes = Array.isArray(move.animation.frameContentBoxes)
+              ? move.animation.frameContentBoxes.map(box => box && { ...box }) : null;
           }
           // 登録済みの発生・持続・後隙。作り直す時の目安として見せる。
           if (Array.isArray(move.active) && move.duration) {
@@ -1040,6 +1046,15 @@ const Studio = {
       this.el('ed-foot-value').textContent = event.target.value;
       this.processFrames();
     });
+    this.el('ed-frame-foot').addEventListener('input', event => {
+      this.el('ed-frame-foot-value').textContent = event.target.value;
+      this.updateFrameAdjust();
+    });
+    this.el('ed-frame-scale').addEventListener('input', event => {
+      this.el('ed-frame-scale-value').textContent = event.target.value;
+      this.updateFrameAdjust();
+    });
+    this.el('ed-frame-reset').addEventListener('click', () => this.clearFrameAdjust());
     this.el('ed-duration').addEventListener('input', event => {
       this.el('ed-dur-value').textContent = event.target.value;
       const entry = this.motions[this.editing.slot];
@@ -1383,6 +1398,8 @@ const Studio = {
   openEditor(slot) {
     const motion = STUDIO_MOTIONS.find(m => m.slot === slot);
     this.editing = motion;
+    this.frameAdjustIndex = null;
+    this.el('ed-frame-adjust').classList.add('hidden');
     this.el('ed-title').textContent = motion.name;
     this.el('ed-hint').textContent = motion.hint ||
       (motion.single ? '1枚だけ使います。' : '選んだ順にコマが再生されます。使わないコマはタップで外せます。');
@@ -1470,6 +1487,7 @@ const Studio = {
         canvases: [],
         used: sources.map(() => true),
         frameOptions: sources.map(() => null),
+        frameAdjust: sources.map(() => undefined),
         masks: sources.map(() => null),
         frameDuration: already.duration,
         options: { mode: 'none', threshold: Number(this.el('ed-threshold').value) },
@@ -1480,7 +1498,7 @@ const Studio = {
       const keptHurtWidth = this.el('spec-hw').value;
       this.processFrames();
       // 登録時の見た目を変えないよう、足元と表示サイズを元の値へ合わせ直す
-      const restored = this._restoreBoxSliders(already.contentBox);
+      const restored = this._restoreBoxSliders(already.contentBox, already.frameContentBoxes);
       this.el('spec-hw').value = keptHurtWidth;
       this.el('ed-kept').classList.add('hidden');
       this.el('ed-box').textContent = `登録済みの${sources.length}コマを読み込みました。`
@@ -1495,23 +1513,36 @@ const Studio = {
 
   // 登録時の contentBox に一致するよう、足元と表示サイズのつまみを逆算して合わせる。
   // これをしないと、読み込み直しただけでキャラの大きさや立ち位置がゲーム側で変わってしまう。
-  _restoreBoxSliders(savedBox) {
+  _restoreBoxSliders(savedBox, savedFrameBoxes) {
     const entry = this.motions[this.editing.slot];
     if (!savedBox || !entry || !entry.frameBoxes) return false;
     const union = StudioImage.unionContentBox(entry.frameBoxes);
     if (!union) return false;
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-    // contentBox は「足元をずらしてから、上端だけを伸縮させた」形で作られている
-    const foot = clamp(Math.round(savedBox.bottom - union.bottom), -60, 60);
-    const rawBottom = union.bottom + foot;
-    const savedHeight = savedBox.bottom - savedBox.top;
-    const size = savedHeight > 0
-      ? clamp(Math.round(100 * (rawBottom - union.top) / savedHeight), 55, 185)
-      : 100;
+    // contentBox は「足元をずらしてから、上端だけを伸縮させた」形で作られている。
+    // コマ別の箱も同じ式で逆算し、読み込んで保存するだけで調整が消えないようにする。
+    const invert = box => {
+      const foot = clamp(Math.round(box.bottom - union.bottom), -60, 60);
+      const rawBottom = union.bottom + foot;
+      const savedHeight = box.bottom - box.top;
+      const size = savedHeight > 0
+        ? clamp(Math.round(100 * (rawBottom - union.top) / savedHeight), 55, 185)
+        : 100;
+      return { foot, size };
+    };
+    const { foot, size } = invert(savedBox);
     this.el('ed-foot').value = foot;
     this.el('ed-foot-value').textContent = String(foot);
     this.el('ed-scale').value = size;
     this.el('ed-scale-value').textContent = String(size);
+    entry.frameAdjust = entry.frameBoxes.map(() => undefined);
+    if (Array.isArray(savedFrameBoxes)) {
+      savedFrameBoxes.slice(0, entry.frameBoxes.length).forEach((box, index) => {
+        if (!box) return;
+        const adjustment = invert(box);
+        if (adjustment.foot !== foot || adjustment.size !== size) entry.frameAdjust[index] = adjustment;
+      });
+    }
     this.processFrames();
     return true;
   },
@@ -1531,6 +1562,8 @@ const Studio = {
   closeEditor() {
     if (this.editing) this.readProjectileForm(this.editing.slot);
     this.stopPlay();
+    this.frameAdjustIndex = null;
+    this.el('ed-frame-adjust').classList.add('hidden');
     this.el('editor').classList.add('hidden');
     this.refreshMotionList();
     this.editing = null;
@@ -1577,6 +1610,7 @@ const Studio = {
         used: sources.map(() => true),
         // コマ個別の背景設定と手描きマスク。元画像が変わったら当然作り直しになる
         frameOptions: sources.map(() => null),
+        frameAdjust: sources.map(() => undefined),
         masks: sources.map(() => null),
         frameDuration: Number(this.el('ed-duration').value),
         options: { mode: this.el('ed-bgmode').value, threshold: Number(this.el('ed-threshold').value) },
@@ -1609,6 +1643,7 @@ const Studio = {
         used: sources.map(() => true),
         // コマ個別の背景設定と手描きマスク。元画像が変わったら当然作り直しになる
         frameOptions: sources.map(() => null),
+        frameAdjust: sources.map(() => undefined),
         masks: sources.map(() => null),
         frameDuration: Number(this.el('ed-duration').value),
         options: { mode: this.el('ed-bgmode').value, threshold: Number(this.el('ed-threshold').value) },
@@ -1662,6 +1697,7 @@ const Studio = {
     entry.options = this.motionBgOptions();
     entry.frameDuration = Number(this.el('ed-duration').value);
     entry.loop = this.el('ed-loop').checked;
+    if (!Array.isArray(entry.frameAdjust)) entry.frameAdjust = [];
 
     const processed = entry.sources.map((source, index) => {
       // 元画像は残しておき、毎回コピーに対して処理する（しきい値を何度でも変えられる）
@@ -1683,6 +1719,7 @@ const Studio = {
       entry.canvases = [StudioImage.toSquare(processed[0], 256)];
       entry.used = [true];
       entry.contentBox = null;
+      entry.frameContentBoxes = [];
     } else {
       const { canvases } = StudioImage.cropAll(processed, 6);
       entry.canvases = canvases;
@@ -1691,9 +1728,10 @@ const Studio = {
       // 崖つかまり→よじ登りのように足元が上下する技もあるため、
       // コマごとの位置も残しておき、プレビューで軌跡として見せる
       entry.frameBoxes = boxes;
+      const union = StudioImage.unionContentBox(boxes);
       entry.footOffset = Number(this.el('ed-foot').value) || 0;
       entry.sizePercent = Number(this.el('ed-scale').value) || 100;
-      const raw = StudioImage.nudgeBottom(StudioImage.unionContentBox(boxes), entry.footOffset);
+      const raw = StudioImage.nudgeBottom(union, entry.footOffset);
       // 表示サイズの調整は「足元を固定したまま本体の高さを変える」ことで行う。
       // 技モーションは武器やエフェクトの分だけ枠が縦に伸び、そのままだと
       // キャラだけ小さく表示されてしまうため、ここで待機時と揃えられるようにする。
@@ -1702,6 +1740,15 @@ const Studio = {
         const height = (raw.bottom - raw.top) * (100 / entry.sizePercent);
         entry.contentBox = { ...raw, top: Math.round(raw.bottom - height) };
       } else entry.contentBox = null;
+      // コマ別の箱も必ず共通のunionから作る。各コマ自身の生bboxを基準にすると、
+      // 自動で位置が揃い直されて再生時にガタつくため、手で指定した差分だけを反映する。
+      entry.frameContentBoxes = union ? boxes.map((_, index) => {
+        const adjustment = entry.frameAdjust[index] || null;
+        const foot = adjustment ? adjustment.foot : entry.footOffset;
+        const size = adjustment ? adjustment.size : entry.sizePercent;
+        const base = StudioImage.nudgeBottom(union, foot);
+        return { ...base, top: Math.round(base.bottom - (base.bottom - base.top) * (100 / size)) };
+      }) : [];
       if (entry.used.length !== canvases.length) entry.used = canvases.map(() => true);
       // 待機モーションからは体格（当たり判定）の目安を自動で決める
       if (this.editing.slot === 'idle' && entry.contentBox) {
@@ -1714,6 +1761,63 @@ const Studio = {
     this.renderFrames();
     this.renderDropperList();
     this.refreshLoadExistingButton();
+  },
+
+  // コマ一覧の⇕から、そのコマだけ足元と表示サイズを上書きする。
+  // タイル本体の「使う／使わない」とは別操作なので、選択状態はここでは変えない。
+  openFrameAdjust(index) {
+    const entry = this.motions[this.editing.slot];
+    if (!entry || !entry.canvases[index]) return;
+    this.stopPlay();
+    this.frameAdjustIndex = index;
+    const adjustment = (entry.frameAdjust && entry.frameAdjust[index]) || null;
+    const foot = adjustment ? adjustment.foot : (entry.footOffset || 0);
+    const size = adjustment ? adjustment.size : (entry.sizePercent || 100);
+    this.el('ed-frame-adjust-title').textContent = `${index + 1}コマ目だけを調整`;
+    this.el('ed-frame-foot').value = foot;
+    this.el('ed-frame-foot-value').textContent = String(foot);
+    this.el('ed-frame-scale').value = size;
+    this.el('ed-frame-scale-value').textContent = String(size);
+    this.el('ed-frame-adjust').classList.remove('hidden');
+    this.focusFrameAdjust(index);
+  },
+
+  focusFrameAdjust(index) {
+    const entry = this.motions[this.editing.slot];
+    if (!entry) return;
+    const usedIndexes = entry.canvases.map((_, i) => i).filter(i => entry.used[i]);
+    const position = usedIndexes.indexOf(index);
+    if (position >= 0) this.playIndex = position;
+    this.showFrame();
+  },
+
+  updateFrameAdjust() {
+    const index = this.frameAdjustIndex;
+    const entry = this.motions[this.editing.slot];
+    if (index == null || !entry) return;
+    if (!Array.isArray(entry.frameAdjust)) entry.frameAdjust = [];
+    entry.frameAdjust[index] = {
+      foot: Number(this.el('ed-frame-foot').value) || 0,
+      size: Number(this.el('ed-frame-scale').value) || 100,
+    };
+    this.processFrames();
+    this.focusFrameAdjust(index);
+  },
+
+  clearFrameAdjust() {
+    const index = this.frameAdjustIndex;
+    const entry = this.motions[this.editing.slot];
+    if (index == null || !entry) return;
+    if (!Array.isArray(entry.frameAdjust)) entry.frameAdjust = [];
+    entry.frameAdjust[index] = undefined;
+    const foot = entry.footOffset || 0;
+    const size = entry.sizePercent || 100;
+    this.el('ed-frame-foot').value = foot;
+    this.el('ed-frame-foot-value').textContent = String(foot);
+    this.el('ed-frame-scale').value = size;
+    this.el('ed-frame-scale-value').textContent = String(size);
+    this.processFrames();
+    this.focusFrameAdjust(index);
   },
 
   renderFrames() {
@@ -1741,14 +1845,23 @@ const Studio = {
       // このコマだけ手を入れてあることが一覧で分かるようにする
       const hasMask = !!(entry.masks && entry.masks[index]);
       const hasOwnBg = !!(entry.frameOptions && entry.frameOptions[index]);
+      const hasOwnPosition = !!(entry.frameAdjust && entry.frameAdjust[index]);
       return `<div class="frame${used ? '' : ' off'}${isHit ? ' hit' : ''}" data-index="${index}">
         <span>${index + 1}</span><img src="${StudioImage.toDataUrl(canvas)}" alt="">
         ${lift >= 3 ? `<i class="lift">↑${lift}</i>` : ''}
         ${isHit ? '<i class="hitmark">判定</i>' : ''}
-        ${hasMask || hasOwnBg ? `<i class="tuned">${hasMask ? '筆' : ''}${hasOwnBg ? '個' : ''}</i>` : ''}
+        ${hasMask || hasOwnBg || hasOwnPosition ? `<i class="tuned">${hasMask ? '筆' : ''}${hasOwnBg ? '個' : ''}${hasOwnPosition ? '位' : ''}</i>` : ''}
+        <button type="button" class="frame-adjust-button" data-adjust="${index}" title="このコマの足元と表示サイズを調整">⇕</button>
         <button type="button" class="frame-edit" data-edit="${index}" title="このコマの背景を手で調整">✎</button>
       </div>`;
     }).join('');
+    // 位置調整はコマ選択とは別の操作なので、タイル本体へクリックを伝えない。
+    container.querySelectorAll('[data-adjust]').forEach(node => {
+      node.addEventListener('click', event => {
+        event.stopPropagation();
+        this.openFrameAdjust(Number(node.dataset.adjust));
+      });
+    });
     // 鉛筆はコマ選択とは別の操作なので、先に拾って親へ伝えない
     container.querySelectorAll('[data-edit]').forEach(node => {
       node.addEventListener('click', event => {
@@ -1791,8 +1904,11 @@ const Studio = {
       text += `｜足元が ${travel.up}px 上下します（崖つかまり→よじ登りのように高さが変わるモーション）`;
     }
     this.el('ed-box').textContent = text;
-    this.playIndex = 0;
-    this.showFrame();
+    if (this.frameAdjustIndex != null) this.focusFrameAdjust(this.frameAdjustIndex);
+    else {
+      this.playIndex = 0;
+      this.showFrame();
+    }
   },
 
   // 使うコマだけのコマ別bbox。崖つかまりのように足元が動く技の確認に使う。
@@ -1844,18 +1960,22 @@ const Studio = {
     const currentIndex = this.playIndex % usable.length;
     // スポイトでタップ位置を元画像へ戻せるよう、描画の対応関係を覚えておく
     const usedIndexes = entry.canvases.map((_, i) => i).filter(i => entry.used[i]);
+    const sourceIndex = usedIndexes[currentIndex];
+    const currentBox = (entry.frameContentBoxes && entry.frameContentBoxes[sourceIndex]) || entry.contentBox;
     {
-      const box = entry.contentBox;
+      // コマ別の表示枠を使った時は、スポイトの座標変換にも同じ枠を使う。
+      // 描画だけ動かすと、見えている場所と実際に拾う元画像の色がずれる。
+      const box = currentBox;
       const scale = unitHeight / (box.bottom - box.top);
       this._previewMap = {
         scale,
         x: centerX - ((box.left + box.right) / 2) * scale,
         y: (baseline - unitHeight) - box.top * scale,
         source: usable[currentIndex],
-        sourceIndex: usedIndexes[currentIndex],
+        sourceIndex,
       };
     }
-    drawWith(usable[currentIndex], entry.contentBox, 1);
+    drawWith(usable[currentIndex], currentBox, 1);
 
     // 崖つかまり→よじ登りのように足元が上下するモーションは、
     // 共通の枠に収めて描くため見た目では気づきにくい。
@@ -1990,6 +2110,18 @@ const Studio = {
       const animation = { frames, frameDuration: entry.frameDuration, contentBox: entry.contentBox };
       // ループは既定なので、止める時だけ書き出して余計な記述を残さない
       if (entry.loop === false) animation.loop = false;
+      // コマ別の箱も、使用するコマだけを画像と同じ順で絞り込む。
+      // 全コマが共通箱と同じなら省略し、既存データを無駄に太らせない。
+      const usedBoxes = entry.canvases
+        .map((_, index) => index)
+        .filter(index => entry.used[index])
+        .map(index => (entry.frameContentBoxes && entry.frameContentBoxes[index]) || entry.contentBox);
+      const sameBox = (a, b) => a && b && a.left === b.left && a.top === b.top
+        && a.right === b.right && a.bottom === b.bottom;
+      if (usedBoxes.length === frames.length
+          && usedBoxes.some(box => !sameBox(box, entry.contentBox))) {
+        animation.frameContentBoxes = usedBoxes;
+      }
       if (motion.slot.startsWith('move:')) {
         const slot = motion.slot.slice(5);
         moveData[slot] = moveData[slot] || {};

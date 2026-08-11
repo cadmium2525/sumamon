@@ -63,7 +63,7 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.56</small>
+    <small class="home-version">Version 1.57</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="new-fighter-modal" class="new-fighter-modal hidden" role="dialog" aria-modal="true" aria-labelledby="new-fighter-title">
       <div class="new-fighter-card">
@@ -83,6 +83,7 @@
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.57</time><strong>モーションの足元と大きさを、コマごとに調整できるようになりました</strong><p>モンスター作成スタジオのコマ一覧に<b>「⇕」ボタン</b>を追加しました。足元が上下する動きや、武器・エフェクトで一部のコマだけ大きく見える動きも、<b>そのコマだけ足元の位置と表示サイズを調整</b>できます。調整していないコマには、これまでどおりモーション全体の設定が使われます。既に登録されているモンスターの見た目は変わりません。</p></article>
           <article><time>Version 1.56</time><strong>上必殺後のしりもち落下を本家準拠にし、CPUの空中自滅を修正しました</strong><p><b>上必殺を使ったあとのしりもち落下中でも、左右で少しだけ位置を調整できる</b>ようになりました。上必殺が崖へ少し届かなくても、そのあと横へ寄せて崖を掴めます。ジャンプ・攻撃・必殺・回避などは、これまでどおり着地か崖掴まりまで使えません。<br>あわせて、<b>強いCPUがダメージ0%のまま外へ流れ続けて自滅する問題</b>を修正しました。上必殺後もステージへ向けてわずかに移動でき、無入力なら空気抵抗で速度が落ちるため、そのまま場外へ消えることがなくなります。</p></article>
           <article><time>Version 1.55</time><strong>強いCPUの空中自滅をさらに修正し、空中移動を本家寄りに調整しました</strong><p><b>高ステータスのCPUが空中でステージを横断し、そのまま反対側の崖から落ちる問題</b>を修正しました。危険な勢いが付いた時に外向きの操作をやめるだけではほとんど減速できていなかったため、これからはステージ内側へきちんと入力して速度を落とします。<br>あわせて、<b>空中で自分から横移動できる最高速度を本家スマブラSPに近い速さへ下げました</b>。立ち止まった状態から空中で横へ動く時は以前よりゆっくりになりますが、<b>走ってから跳んだ時の勢いは今までどおり</b>です。攻撃で<b>吹っ飛ばされた時の勢いも変わりません</b>。</p></article>
           <article><time>Version 1.54</time><strong>ガチャとゴールドを追加し、強いCPUの自滅を修正しました</strong><p><b>アイテム販売所の通貨をゴールド（G）へ変更</b>しました。これまで持っていたダイヤは、初回起動時に同じ額のGへそのまま引き継がれるため、残高は失われません。ダイヤはガチャ専用の通貨になり、CPU戦・段位戦・100人組手・マルチなどで新たに獲得できます。エンドレスはこれまでどおり報酬なしで、ランキングへの挑戦が目的です。<br><b>ガチャは1回150ダイヤ、10連1,500ダイヤ</b>。★5は1%、100連で天井、10連の最後は★3以上確定です。新しいモンスターはガチャで解放でき、同じ種族を重ねると「凸」が進みます。1凸ごとに同じ種族の全マスモンの6ステータスが30ずつ増え、最大5凸。ステータス上限999は変わりません。<br><b>強いCPUがステージ端から勝手に落ちる問題</b>は、実際の大会戦を再現して原因を調べ直しました。空中で技を出した勢いのまま戻れなくなる動きを防ぎ、後隙などで操作できない間にジャンプや上必殺を無駄遣いしないようにしました。さらにプレイヤーを含め、地上で技・回避中は崖の縁で止まります。育てたマスモンで崖際にダッシュ攻撃を出しても滑り落ちません。1.52で入れて1.53で取り下げた修正の、実戦計測に基づく正しい版です。</p></article>
@@ -747,9 +748,9 @@
   <script src="js/procedural-motion.js?v=3"></script>
   <script src="js/skin.js?v=2"></script>
   <script src="js/skin-editor.js?v=3"></script>
-  <script src="js/fighter.js?v=63"></script>
+  <script src="js/fighter.js?v=64"></script>
   <script src="js/fighters-data.js?v=10"></script>
-  <script src="js/debug-mode.js?v=13"></script>
+  <script src="js/debug-mode.js?v=14"></script>
   <script src="js/stage.js?v=33"></script>
   <script src="js/camera.js?v=3"></script>
   <script src="js/cpu-ai.js?v=12"></script>

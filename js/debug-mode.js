@@ -358,10 +358,12 @@ const DebugMotionViewer = {
     // FighterData 側で両方を見るようにまとめてある。
     const idleFrames = FighterData.idleFrames(fighter);
     if (idleFrames.length) {
-      const idleBox = (fighter.animations && fighter.animations.idle && fighter.animations.idle.contentBox)
+      const idleAnimation = fighter.animations && fighter.animations.idle;
+      const idleBox = (idleAnimation && idleAnimation.contentBox)
         || fighter.idleFrameContentBox || fighter.spriteContentBox;
       motions.push({ key: 'idle', label: '待機', type: 'frames', frames: idleFrames,
-        duration: FighterData.idleFrameDuration(fighter), box: idleBox, loop: true });
+        duration: FighterData.idleFrameDuration(fighter), box: idleBox,
+        frameBoxes: (idleAnimation && idleAnimation.frameContentBoxes) || null, loop: true });
     }
     if (fighter.walkSheetSrc) {
       motions.push({ key: 'walk', label: '歩行', type: 'sheet', src: fighter.walkSheetSrc,
@@ -370,25 +372,27 @@ const DebugMotionViewer = {
     }
     if (fighter.jumpFrameSrcs && fighter.jumpFrameSrcs.length) {
       motions.push({ key: 'jump', label: 'ジャンプ', type: 'frames', frames: fighter.jumpFrameSrcs,
-        duration: fighter.jumpFrameDuration || 5, box: fighter.jumpFrameContentBox, loop: true });
+        duration: fighter.jumpFrameDuration || 5, box: fighter.jumpFrameContentBox,
+        frameBoxes: fighter.animations?.jump?.frameContentBoxes || null, loop: true });
     }
     if (fighter.airIdleSrc) {
       motions.push({ key: 'air-idle', label: '空中待機', type: 'frames', frames: [fighter.airIdleSrc],
-        duration: 12, box: fighter.airIdleContentBox, loop: true });
+        duration: 12, box: fighter.airIdleContentBox,
+        frameBoxes: fighter.animations?.airIdle?.frameContentBoxes || null, loop: true });
     }
     const specials = window.FIGHTER_MOVESETS?.[fighter.key]?.special || {};
     for (const [key, move] of Object.entries(specials)) {
       if (!move.animation) continue;
       motions.push({ key: `special-${key}`, label: `${move.name}（必殺技）`, type: 'frames',
         frames: move.animation.frames, duration: move.animation.frameDuration || 6,
-        box: move.animation.contentBox, loop: true });
+        box: move.animation.contentBox, frameBoxes: move.animation.frameContentBoxes || null, loop: true });
     }
     const groundMoves = window.FIGHTER_MOVESETS?.[fighter.key]?.ground || {};
     for (const [key, move] of Object.entries(groundMoves)) {
       if (!move.animation) continue;
       motions.push({ key: `ground-${key}`, label: `${move.name}（通常技）`, type: 'frames',
         frames: move.animation.frames, duration: move.animation.frameDuration || 6,
-        box: move.animation.contentBox, loop: true });
+        box: move.animation.contentBox, frameBoxes: move.animation.frameContentBoxes || null, loop: true });
     }
     return motions;
   },
@@ -478,8 +482,8 @@ const DebugMotionViewer = {
         const phase = position - Math.floor(position);
         const raw = Math.max(0, Math.min(1, (phase - .45) / .55));
         const blend = raw * raw * (3 - 2 * raw);
-        this._drawFrame(this._image(motion.frames[index]), motion.box, 1);
-        this._drawFrame(this._image(motion.frames[next]), motion.box, blend);
+        this._drawFrame(this._image(motion.frames[index]), motion.frameBoxes?.[index] || motion.box, 1);
+        this._drawFrame(this._image(motion.frames[next]), motion.frameBoxes?.[next] || motion.box, blend);
       }
     }
     this.rafId = requestAnimationFrame(nextTime => this.draw(nextTime));
