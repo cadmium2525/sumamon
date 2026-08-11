@@ -137,6 +137,54 @@ ctx.drawImage(img, cx - contentCenterX, this.y - useBox.top * scale, drawW, draw
 
 ---
 
+## 2-7. 攻撃判定を絵に追従させる（必須・既存の不具合の修正でもある）
+
+**この項目を入れないと、今回の依頼（パンチで背中の位置を合わせる）が
+成立しない。**
+
+攻撃判定は `buildAttack`（`tools/studio-app.js:1180` 付近）で、
+コマ間の差分（＝伸びた腕）から自動抽出したあと
+
+```js
+const relative = StudioImage.toRelativeBox(rect, entry.contentBox, sizeScale);
+```
+
+で相対座標にしている。`toRelativeBox`（`tools/studio-image.js:596`）は
+`contentBox` の**横中心を原点**、`bottom` を縦の原点、`bottom - top` を単位にする。
+実行時は当たり判定の中心（`js/fighter.js:1154` `originX = this.x + this.w / 2`）と
+足元に置かれるので、**「絵が `contentBox` で描かれる」前提で両者が一致している。**
+
+コマ別の箱で絵だけをずらすと、**判定は元の位置に取り残される。**
+パンチなら拳が判定より前に描かれることになる。
+
+**これは横位置に限った話ではない。** すでに入っているコマ別の
+「足元」「表示サイズ」（`b659f37`）でも同じズレが起きている。**既存の不具合。**
+
+### 修正
+
+判定の変換に、**そのコマを実際に描く箱**を使う。
+
+```js
+    // コマ別の箱で絵をずらした分だけ、判定も一緒に動かす。
+    // toRelativeBox は箱の横中心・下端・高さを基準にするので、
+    // 描画に使う箱をそのまま渡せば絵と判定が必ず一致する。
+    const usedIndexes = entry.canvases.map((_, i) => i).filter(i => entry.used[i]);
+    const boxFor = index => (entry.frameContentBoxes
+      && entry.frameContentBoxes[usedIndexes[index]]) || entry.contentBox;
+```
+
+- `hitFrames` の添字は **`usable`（使うコマだけ）側**、
+  `entry.frameContentBoxes` の添字は **元のコマ側**。
+  `usedIndexes` で必ず変換すること。ここを直接使うと1つずつずれる
+- 判定が取れなかった時の代替の矩形（`entry.contentBox.right` などを使っている箇所）も
+  同じ `boxFor(index)` に置き換える
+- `toRelativeBox(rect, boxFor(index), sizeScale)` にする
+
+これで、絵を前へずらせば判定も同じだけ前へ動き、
+表示サイズを変えれば判定の大きさも一緒に変わる。
+
+---
+
 ## 3. 「モーション全体の横位置」を作らない理由
 
 `entry.contentBox`（モーション全体の箱）は描画以外にも使われている。
@@ -155,11 +203,10 @@ ctx.drawImage(img, cx - contentCenterX, this.y - useBox.top * scale, drawW, draw
 
 ### 使う人への注意（UIに1行入れること）
 
-横位置をずらすと**絵だけが動き、攻撃判定は動かない**。
-技のモーションで大きくずらすと、見た目と当たり判定がずれる。
-「絵の位置を揃えるための微調整」として使う、という趣旨の注意書きを
-`#ed-frame-adjust` のパネルに入れておくこと。
-（これは既存の足元・表示サイズの調整にも同じく当てはまる）
+`#ed-frame-adjust` のパネルに、
+「横位置をずらすと**攻撃判定も一緒に動きます**」と書いておくこと。
+§2-7 を入れたうえでの正しい説明。§2-7 を入れないと逆の挙動になるので、
+**この文言と §2-7 は必ずセットで入れる。**
 
 ---
 
@@ -194,8 +241,16 @@ ctx.drawImage(img, cx - contentCenterX, this.y - useBox.top * scale, drawW, draw
 6. 「この調整を全コマに適用」で全コマに同じ値が入ること
 7. 使わないコマ（タイルをタップして外したコマ）がある状態で、
    コマと箱の対応がずれないこと
-8. **登録済みの技の攻撃判定の位置が変わっていないこと**
+8. **横位置を触っていない技の攻撃判定が変わっていないこと**
    （`contentBox` を触らない、という方針が守れているかの確認）
+9. **パンチのような「腕が前へ伸びる技」で、実際の用途どおりに直せること。**
+   これが今回の依頼そのものなので、必ず通しで確認する
+   - 待機モーションの薄い影に**背中が重なるまで**横位置をずらす
+   - 「この調整を全コマに適用」で全コマに配る
+     （腕が伸びた分だけ union の中心が前へ寄るので、
+       ずれ方は全コマ共通。1コマずつ違う値にする必要は無いはず）
+   - 管理者モードのバトルテストで技を出し、
+     **拳の絵と攻撃判定が重なっていること**（§2-7 が効いているかの確認）
 
 ---
 
