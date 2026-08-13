@@ -180,7 +180,7 @@
     "stockIcon": "assets/images/fighter/nendoro/stock.png",
     "hurtboxWidth": 143,
     "hurtboxHeight": 124,
-    "fallSpeed": 1.1,
+    "fallSpeed": 1.2,
     "jumpPower": 1,
     "proceduralMotion": {
       "enabled": true,

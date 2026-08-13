@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smamon-app-v158';
+const CACHE_NAME = 'smamon-app-v159';
 const APP_SHELL = [
   './',
   './index.html',
@@ -116,7 +116,13 @@ const APP_SHELL = [
   './assets/images/fighter/nendoro/idle/frame_006.png',
   './assets/images/fighter/nendoro/idle/frame_007.png',
   './assets/images/fighter/nendoro/idle/frame_008.png',
-  './assets/images/fighter/nendoro/stock.png'
+  './assets/images/fighter/nendoro/stock.png',
+  './assets/images/fighter/nendoro/side_smash/frame_001.png',
+  './assets/images/fighter/nendoro/side_smash/frame_002.png',
+  './assets/images/fighter/nendoro/side_smash/frame_003.png',
+  './assets/images/fighter/nendoro/side_smash/frame_004.png',
+  './assets/images/fighter/nendoro/side_smash/frame_005.png',
+  './assets/images/fighter/nendoro/side_smash/frame_006.png'
 ];
 
 // 中核ファイル（HTML/CSS/JS/JSON）と、あとから取れば足りるメディアを分ける。

@@ -63,7 +63,7 @@
     </div>
     <button id="btn-home-history" class="icon-btn-corner home-history-button" title="更新履歴" aria-label="更新履歴を開く">📜</button>
     <button id="btn-home-settings" class="icon-btn-corner" title="設定">⚙</button>
-    <small class="home-version">Version 1.58</small>
+    <small class="home-version">Version 1.59</small>
     <button id="btn-debug" class="debug-entry hidden">管理者</button>
     <div id="new-fighter-modal" class="new-fighter-modal hidden" role="dialog" aria-modal="true" aria-labelledby="new-fighter-title">
       <div class="new-fighter-card">
@@ -83,6 +83,7 @@
         <button id="home-history-close" class="home-history-close" aria-label="閉じる">×</button>
         <h2 id="home-history-title">📜 更新履歴</h2>
         <div class="home-history-list">
+          <article><time>Version 1.59</time><strong>横スマ</strong><p>ネンドロ</p></article>
           <article><time>Version 1.58</time><strong>モーションの<b>横位置</b>もコマごとに調整できるようになりました</strong><p>スタジオのコマ別調整（⇕ボタン）に<b>「このコマの横位置」</b>を追加しました。パンチのように腕が前へ伸びる技は、伸びた腕のぶん枠が前へ広がるため<b>体が後ろへずれて見えます</b>。待機モーション（薄い影）に背中が重なるまで横位置をずらしてください。ずれ方は全コマ共通なので、<b>「この調整を全コマに適用」</b>でまとめて配れます。<br><b>攻撃判定も絵と一緒に動きます。</b>これまではコマ別に足元や表示サイズを動かしても判定だけが元の位置に残っていましたが、これも合わせて直しました。既に登録されているモンスターの見た目は変わりません。</p></article>
           <article><time>Version 1.57</time><strong>モーションの足元と大きさを、コマごとに調整できるようになりました</strong><p>モンスター作成スタジオのコマ一覧に<b>「⇕」ボタン</b>を追加しました。足元が上下する動きや、武器・エフェクトで一部のコマだけ大きく見える動きも、<b>そのコマだけ足元の位置と表示サイズを調整</b>できます。調整していないコマには、これまでどおりモーション全体の設定が使われます。既に登録されているモンスターの見た目は変わりません。</p></article>
           <article><time>Version 1.56</time><strong>上必殺後のしりもち落下を本家準拠にし、CPUの空中自滅を修正しました</strong><p><b>上必殺を使ったあとのしりもち落下中でも、左右で少しだけ位置を調整できる</b>ようになりました。上必殺が崖へ少し届かなくても、そのあと横へ寄せて崖を掴めます。ジャンプ・攻撃・必殺・回避などは、これまでどおり着地か崖掴まりまで使えません。<br>あわせて、<b>強いCPUがダメージ0%のまま外へ流れ続けて自滅する問題</b>を修正しました。上必殺後もステージへ向けてわずかに移動でき、無入力なら空気抵抗で速度が落ちるため、そのまま場外へ消えることがなくなります。</p></article>

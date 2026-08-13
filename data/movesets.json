@@ -184,5 +184,89 @@
   },
   "dullahan": {
     "special": {}
+  },
+  "nendoro": {
+    "smash": {
+      "side": {
+        "extends": "smash.side",
+        "animation": {
+          "frames": [
+            "assets/images/fighter/nendoro/side_smash/frame_001.png",
+            "assets/images/fighter/nendoro/side_smash/frame_002.png",
+            "assets/images/fighter/nendoro/side_smash/frame_003.png",
+            "assets/images/fighter/nendoro/side_smash/frame_004.png",
+            "assets/images/fighter/nendoro/side_smash/frame_005.png",
+            "assets/images/fighter/nendoro/side_smash/frame_006.png"
+          ],
+          "frameDuration": 6,
+          "contentBox": {
+            "left": 0,
+            "top": 0,
+            "right": 281,
+            "bottom": 219
+          },
+          "frameContentBoxes": [
+            {
+              "left": 4,
+              "top": 0,
+              "right": 285,
+              "bottom": 219
+            },
+            {
+              "left": 0,
+              "top": 0,
+              "right": 281,
+              "bottom": 219
+            },
+            {
+              "left": 0,
+              "top": 0,
+              "right": 281,
+              "bottom": 219
+            },
+            {
+              "left": -31,
+              "top": 0,
+              "right": 250,
+              "bottom": 202
+            },
+            {
+              "left": -38,
+              "top": 0,
+              "right": 243,
+              "bottom": 202
+            },
+            {
+              "left": 0,
+              "top": 0,
+              "right": 281,
+              "bottom": 219
+            }
+          ]
+        },
+        "duration": 36,
+        "active": [
+          18,
+          23
+        ],
+        "dmgBase": 19.6,
+        "kbBase": 12.6,
+        "angle": 40,
+        "endlag": 18,
+        "statKey": "power",
+        "hitboxes": [
+          {
+            "frames": [
+              18,
+              23
+            ],
+            "x": -0.527,
+            "y": -0.752,
+            "w": 1.292,
+            "h": 0.822
+          }
+        ]
+      }
+    }
   }
 }
